@@ -1,0 +1,23 @@
+version: "3.9"
+
+services:
+  flashspec:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: flashspec:latest
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - TRITON_CACHE_DIR=/tmp/triton_cache
+      - HF_HOME=/workspace/hf_cache
+    volumes:
+      - hf_cache:/workspace/hf_cache
+      - triton_cache:/tmp/triton_cache
+    command: >
+      python -c "import flashspec; print('FlashSpec', flashspec.__version__, 'running.')"
+
+volumes:
+  hf_cache:
+  triton_cache:

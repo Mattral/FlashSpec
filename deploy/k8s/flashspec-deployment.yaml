@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flashspec
+  labels:
+    app: flashspec
+    version: "0.1.0"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: flashspec
+  template:
+    metadata:
+      labels:
+        app: flashspec
+    spec:
+      containers:
+        - name: flashspec
+          image: flashspec:latest
+          imagePullPolicy: IfNotPresent
+          resources:
+            limits:
+              nvidia.com/gpu: "1"
+              memory: "64Gi"
+            requests:
+              nvidia.com/gpu: "1"
+              memory: "32Gi"
+          env:
+            - name: NVIDIA_VISIBLE_DEVICES
+              value: "all"
+            - name: TRITON_CACHE_DIR
+              value: /tmp/triton_cache
+          volumeMounts:
+            - name: hf-cache
+              mountPath: /workspace/hf_cache
+            - name: triton-cache
+              mountPath: /tmp/triton_cache
+      volumes:
+        - name: hf-cache
+          emptyDir: {}
+        - name: triton-cache
+          emptyDir: {}
+      tolerations:
+        - key: "nvidia.com/gpu"
+          operator: "Exists"
+          effect: "NoSchedule"
