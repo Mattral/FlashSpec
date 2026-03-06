@@ -1,0 +1,136 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "flashspec"
+version = "0.1.0"
+description = "Adaptive speculative-decoding inference engine with Triton-optimised verification and online bandit draft selection"
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [{ name = "Min Htet Myet (Mattral)" }]
+requires-python = ">=3.11"
+keywords = ["speculative decoding", "inference", "triton", "llm", "bandits"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "torch>=2.2.0",
+    "triton>=3.0.0",
+    "transformers>=4.40.0",
+    "pydantic>=2.0.0",
+    "numpy>=1.26.0",
+]
+
+[project.optional-dependencies]
+onnx = ["onnx>=1.16", "onnxruntime-gpu>=1.18"]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "hypothesis>=6.100",
+    "ruff>=0.4.0",
+    "mypy>=1.9.0",
+    "import-linter>=2.0",
+]
+bench = [
+    "pandas>=2.2",
+    "matplotlib>=3.8",
+    "seaborn>=0.13",
+    "lm-eval>=0.4",
+]
+docs = [
+    "mkdocs-material>=9.5",
+    "mkdocstrings[python]>=0.24",
+]
+
+[project.entry-points."flashspec.drafters"]
+# External packages extend the drafter registry here
+
+[project.urls]
+Homepage = "https://github.com/Mattral/FlashSpec"
+Repository = "https://github.com/Mattral/FlashSpec"
+Documentation = "https://flashspec.readthedocs.io"
+Paper = "https://arxiv.org/abs/TBD"
+
+[tool.hatch.build.targets.wheel]
+packages = ["flashspec"]
+
+# ── Ruff ──────────────────────────────────────────────────────────────────────
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "C4", "UP", "ANN", "N", "D"]
+ignore = [
+    "D105",  # Missing docstring in magic method
+    "D107",  # Missing docstring in __init__
+    "ANN101", # Missing type annotation for self
+    "ANN102", # Missing type annotation for cls
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.ruff.lint.isort]
+known-first-party = ["flashspec"]
+
+# ── Mypy ──────────────────────────────────────────────────────────────────────
+[tool.mypy]
+python_version = "3.11"
+strict = true
+ignore_missing_imports = true
+warn_return_any = true
+warn_unused_configs = true
+
+# ── Pytest ────────────────────────────────────────────────────────────────────
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=flashspec --cov-report=term-missing --cov-fail-under=95"
+markers = [
+    "gpu: marks tests as requiring a CUDA GPU (deselect with '-m not gpu')",
+    "slow: marks tests as slow (deselect with '-m not slow')",
+]
+
+# ── Coverage ──────────────────────────────────────────────────────────────────
+[tool.coverage.run]
+source = ["flashspec"]
+omit = ["flashspec/kernels/_reference.py"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "@overload",
+]
+
+# ── Import Linter ─────────────────────────────────────────────────────────────
+[tool.importlinter]
+root_package = "flashspec"
+
+[[tool.importlinter.contracts]]
+name = "Kernels accessed only via flashspec.kernels"
+type = "forbidden"
+source_modules = ["flashspec.engine"]
+forbidden_modules = [
+    "flashspec.kernels.verify_kernel",
+    "flashspec.kernels.gather_kernel",
+    "flashspec.kernels._reference",
+]
+
+[[tool.importlinter.contracts]]
+name = "No circular imports"
+type = "layers"
+layers = [
+    "flashspec.utils",
+    "flashspec.kernels",
+    "flashspec.sampling",
+    "flashspec.bandit",
+    "flashspec.metrics",
+    "flashspec.export",
+    "flashspec.engine",
+]
