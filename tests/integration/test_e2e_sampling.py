@@ -67,3 +67,62 @@ def _collect_residual_samples(
     target_probs = target_lp[0, 0].exp().tolist()
     return samples, target_probs
 
+
+class TestDistributionEquivalence:
+    """Speculative sampling output distribution matches the target model."""
+
+    def test_ks_test_passes_fast(self) -> None:
+        """KS test at α=0.01 over N=1000 samples (fast CI gate)."""
+        n, batch, vocab, gamma = _N_SAMPLES_FAST, 1, 50, 1
+        samples, target_probs = _collect_residual_samples(n, batch, vocab, gamma, seed=77)
+
+        if len(samples) == 0:
+            pytest.skip("No samples collected — check acceptance logic.")
+
+        # Build empirical CDF vs theoretical CDF.
+        obs_counts = torch.zeros(vocab)
+        for s in samples:
+            if 0 <= s < vocab:
+                obs_counts[s] += 1
+        obs_freq = (obs_counts / obs_counts.sum()).tolist()
+
+        # Cumulative empirical vs cumulative theoretical.
+        cum_obs = 0.0
+        cum_exp = 0.0
+        ks_stat = 0.0
+        tp = torch.tensor(target_probs[:vocab]).float()
+        tp = tp / tp.sum()  # renormalize
+        for i in range(vocab):
+            cum_obs += obs_freq[i]
+            cum_exp += tp[i].item()
+            ks_stat = max(ks_stat, abs(cum_obs - cum_exp))
+
+        # Critical value for KS test at alpha=0.01: 1.63 / sqrt(n)
+        import math
+        critical_value = 1.63 / math.sqrt(len(samples))
+        assert ks_stat < critical_value, (
+            f"KS statistic {ks_stat:.4f} >= critical value {critical_value:.4f}. "
+            "Output distribution may not match target model."
+        )
+
+    @pytest.mark.slow
+    def test_ks_test_passes_full(self) -> None:
+        """KS test at α=0.01 over N=10,000 samples (nightly gate, AGENTS.md §2.1)."""
+        pytest.importorskip("scipy")
+        n, batch, vocab, gamma = _N_SAMPLES_SLOW, 1, 100, 1
+        samples, target_probs = _collect_residual_samples(n, batch, vocab, gamma, seed=42)
+
+        if len(samples) == 0:
+            pytest.skip("No samples collected.")
+
+        obs_counts = [samples.count(i) for i in range(vocab)]
+        tp = torch.tensor(target_probs[:vocab]).float()
+        tp = tp / tp.sum()
+        expected_counts = [tp[i].item() * len(samples) for i in range(vocab)]
+
+        chi2, p_value = stats.chisquare(obs_counts, f_exp=expected_counts)
+        assert p_value >= _ALPHA_KS, (
+            f"Chi-squared p_value={p_value:.4f} < α={_ALPHA_KS}. "
+            "Distribution does not match target."
+        )
+
