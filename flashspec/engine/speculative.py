@@ -212,14 +212,18 @@ class SpeculativeEngine:
             self._latency_tracker.stop()
 
         total_new = sum(t.shape[1] for t in generated_ids)
-        output_ids = torch.cat(generated_ids, dim=1)[:, :max_tokens] if generated_ids else input_ids[:, :0]
-        tps = self._throughput_tracker.stop(n_tokens=total_new)
+        output_ids = (
+            torch.cat(generated_ids, dim=1)[:, :max_tokens]
+            if generated_ids
+            else input_ids[:, :0]
+        )
+        tokens_per_second = self._throughput_tracker.stop(n_tokens=total_new)
 
         logger.debug(
             "Generation complete",
             extra={
                 "n_tokens": total_new,
-                "tps": tps,
+                "tokens_per_second": tokens_per_second,
                 "alpha": self._acceptance_tracker.mean_acceptance_rate,
             },
         )
@@ -228,5 +232,5 @@ class SpeculativeEngine:
             output_ids=output_ids,
             n_tokens_generated=total_new,
             acceptance_rate=self._acceptance_tracker.mean_acceptance_rate,
-            tokens_per_second=tps,
+            tokens_per_second=tokens_per_second,
         )
