@@ -131,3 +131,56 @@ class TestRejectionSample:
                     f"(first_rej={frej})"
                 )
 
+    def test_gamma1_matches_standard_multinomial_sampling(self) -> None:
+        """gamma=1 must match standard multinomial sampling from the target exactly."""
+        # With gamma=1 and identical draft/target, rejection_sample should always
+        # return first_rejection=1 (the single token is accepted) and the residual
+        # slot contains the target's sample.  We verify that over N draws the
+        # empirical distribution matches torch.multinomial on the target distribution.
+        set_seed(99)
+        batch_size = 1
+        vocab = 50
+        n_draws = 500
+
+        # Fixed target log-probs.
+        target_lp = torch.randn(batch_size, 1, vocab).log_softmax(-1)
+        target_probs = target_lp.exp().squeeze()  # (vocab,)
+
+        # Use draft == target so acceptance probability is always 1.
+        # The accepted token is always the draft token itself.
+        spec_counts = torch.zeros(vocab, dtype=torch.long)
+        for i in range(n_draws):
+            set_seed(1000 + i)
+            draft_ids = torch.multinomial(target_probs, num_samples=1).unsqueeze(0)  # (1,1)
+            ctx = torch.zeros(batch_size, 4, dtype=torch.long)
+            accepted, first_rej, alpha = rejection_sample(
+                input_ids=ctx,
+                draft_logprobs=target_lp,
+                target_logprobs=target_lp,
+                draft_token_ids=draft_ids,
+                gamma=1,
+            )
+            assert first_rej[0].item() == 1, (
+                f"gamma=1 with p==q must always accept; got first_rej={first_rej[0]}"
+            )
+            tok = accepted[0, 0].item()
+            if 0 <= tok < vocab:
+                spec_counts[tok] += 1
+
+        # Chi-squared goodness-of-fit: empirical vs expected.
+        expected = (target_probs * n_draws).tolist()
+        observed = spec_counts.tolist()
+        # Verify rough agreement: no bucket should deviate by more than 5 sigma.
+        for k in range(vocab):
+            exp_k = expected[k]
+            obs_k = observed[k]
+            # Allow large relative deviation for very-low-prob tokens.
+            if exp_k < 1.0:
+                continue
+            import math
+            sigma = math.sqrt(exp_k * (1 - exp_k / n_draws))
+            deviation = abs(obs_k - exp_k)
+            assert deviation < 5 * sigma + 3, (
+                f"Token {k}: obs={obs_k}, exp={exp_k:.1f}, "
+                f"deviation={deviation:.1f} > 5σ={5*sigma:.1f}"
+            )
