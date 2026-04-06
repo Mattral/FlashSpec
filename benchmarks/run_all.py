@@ -69,7 +69,6 @@ def _build_result(
         JSON-serialisable result dict.
     """
     return {
-        "schema_version": RESULT_SCHEMA_VERSION,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "git_commit": git_commit,
         "hardware": {

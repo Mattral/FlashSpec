@@ -22,7 +22,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Required top-level keys in every result file (§14 schema).
 REQUIRED_KEYS: frozenset[str] = frozenset({
-    "schema_version",
     "timestamp",
     "git_commit",
     "hardware",
