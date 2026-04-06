@@ -29,6 +29,9 @@ coverage.xml
 # Ruff
 .ruff_cache/
 
+# MkDocs build output (never commit)
+site/
+
 # Triton cache
 .triton/
 triton_cache/

@@ -1,0 +1,26 @@
+# Read the Docs configuration file
+# Required for all projects since September 2023.
+# See https://docs.readthedocs.com/platform/stable/config-file/index.html
+
+version: 2
+
+build:
+  os: ubuntu-22.04
+  tools:
+    python: "3.11"
+  jobs:
+    pre_install:
+      # Install MkDocs Material and mkdocstrings before the main install step.
+      - pip install mkdocs-material mkdocstrings[python] pymdown-extensions
+
+# MkDocs configuration: point to the file at the repo root.
+mkdocs:
+  configuration: mkdocs.yml
+
+# Install the flashspec package so mkdocstrings can import it for API docs.
+python:
+  install:
+    - method: pip
+      path: .
+      extra_requirements:
+        - docs
