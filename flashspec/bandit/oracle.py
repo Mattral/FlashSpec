@@ -78,6 +78,12 @@ class OracleSelector(DraftSelector):
         int
             Arm index in ``[0, n_arms)``.
 
+        Notes
+        -----
+        The oracle has perfect knowledge of ``true_rates`` and always picks
+        ``argmax(true_rates)``.  It serves as the regret upper bound in
+        experiments; it is never used in production inference.
+
         Examples
         --------
         >>> OracleSelector(n_arms=2, true_rates=[0.4, 0.8]).select()
@@ -87,7 +93,7 @@ class OracleSelector(DraftSelector):
             return int(max(range(self._n_arms), key=lambda k: self._true_rates[k]))
 
     def update(self, arm: int, accepted: int) -> None:
-        """Record outcome (used for regret tracking; does not affect selection).
+        """Record outcome (used for regret tracking only; does not affect selection).
 
         Parameters
         ----------
@@ -100,6 +106,13 @@ class OracleSelector(DraftSelector):
         ------
         ValueError
             If ``arm`` is not in ``[0, n_arms)``.
+
+        Notes
+        -----
+        The oracle's selection policy is independent of observed outcomes;
+        it always selects the arm with the highest ``true_rates``.  This
+        method records statistics only so that cumulative regret can be
+        computed from arm pull counts.
 
         Examples
         --------
@@ -117,12 +130,19 @@ class OracleSelector(DraftSelector):
         Parameters
         ----------
         true_rates : list[float]
-            New ground-truth rates.  Must have the same length as ``n_arms``.
+            New ground-truth rates.  Must have the same length as ``n_arms``
+            and all values in ``[0, 1]``.
 
         Raises
         ------
         ValueError
             If length or values are invalid.
+
+        Notes
+        -----
+        Thread-safe: acquires ``self._lock`` before mutating state.
+        Used in chaos tests to simulate a sudden swap of best/worst arm,
+        verifying that adaptive bandits (UCB1, Thompson) recover.
 
         Examples
         --------

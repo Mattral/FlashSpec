@@ -45,7 +45,24 @@ class ArmStats:
         Parameters
         ----------
         accepted : int
-            Number of tokens accepted (typically 0 or 1).
+            Number of tokens accepted in this round (typically 0 or 1).
+
+        Returns
+        -------
+        None
+
+        Notes
+        -----
+        When ``window_size > 0`` the oldest entry is evicted once the window
+        is full, so ``mean_accept_rate`` reflects only the most recent
+        ``window_size`` rounds.
+
+        Examples
+        --------
+        >>> stats = ArmStats(window_size=100)
+        >>> stats.record(accepted=1)
+        >>> stats.n_pulls
+        1
         """
         self.n_pulls += 1
         self.n_accepted += accepted
@@ -63,6 +80,19 @@ class ArmStats:
         float
             Windowed mean if ``window_size > 0`` and there are observations,
             else global mean, else 0.0.
+
+        Notes
+        -----
+        When windowing is enabled (``window_size > 0``) the rate reflects
+        only the last ``window_size`` rounds, allowing the bandit to track
+        non-stationary acceptance distributions.
+
+        Examples
+        --------
+        >>> stats = ArmStats(window_size=0)
+        >>> stats.record(1); stats.record(0)
+        >>> stats.mean_accept_rate
+        0.5
         """
         if self.window_size > 0 and self.window_accepts:
             return sum(self.window_accepts) / len(self.window_accepts)
@@ -71,7 +101,26 @@ class ArmStats:
         return 0.0
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialise to a JSON-compatible dict."""
+        """Serialise to a JSON-compatible dict.
+
+        Returns
+        -------
+        dict[str, Any]
+            Dictionary with keys ``n_pulls``, ``n_accepted``,
+            ``window_accepts``, and ``window_size``.
+
+        Notes
+        -----
+        The returned dict can be passed directly to :meth:`from_dict` to
+        reconstruct an identical ``ArmStats`` instance.
+
+        Examples
+        --------
+        >>> stats = ArmStats(n_pulls=5, n_accepted=3, window_size=10)
+        >>> d = stats.to_dict()
+        >>> d["n_pulls"]
+        5
+        """
         return {
             "n_pulls": self.n_pulls,
             "n_accepted": self.n_accepted,
@@ -81,13 +130,39 @@ class ArmStats:
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> "ArmStats":
-        """Deserialise from a dict produced by :meth:`to_dict`."""
+        """Deserialise from a dict produced by :meth:`to_dict`.
+
+        Parameters
+        ----------
+        d : dict[str, Any]
+            Dictionary as returned by :meth:`to_dict`.
+
+        Returns
+        -------
+        ArmStats
+            Reconstructed instance with identical statistics.
+
+        Notes
+        -----
+        The ``window_accepts`` deque is reconstructed with the original
+        ``window_size`` as its ``maxlen``.
+
+        Examples
+        --------
+        >>> stats = ArmStats(window_size=50)
+        >>> stats.record(1)
+        >>> restored = ArmStats.from_dict(stats.to_dict())
+        >>> restored.n_pulls == stats.n_pulls
+        True
+        """
         obj = cls(
             n_pulls=d["n_pulls"],
             n_accepted=d["n_accepted"],
             window_size=d["window_size"],
         )
-        obj.window_accepts = deque(d["window_accepts"], maxlen=d["window_size"] or None)
+        obj.window_accepts = deque(
+            d["window_accepts"], maxlen=d["window_size"] or None
+        )
         return obj
 
 
@@ -116,6 +191,8 @@ class DraftSelector(ABC):
     -----
     The selector maintains one :class:`ArmStats` object per arm.
     The internal round counter ``t`` counts total calls to :meth:`update`.
+    All public methods acquire ``self._lock`` before mutating state so that
+    multiple generation workers can share a single selector safely.
 
     Examples
     --------
@@ -134,19 +211,52 @@ class DraftSelector(ABC):
         self._arms: list[ArmStats] = [
             ArmStats(window_size=window_size) for _ in range(n_arms)
         ]
-        self._t: int = 0  # Total update rounds
+        self._t: int = 0
         self._lock = threading.Lock()
 
     # ── Public interface ───────────────────────────────────────────────────
 
     @property
     def n_arms(self) -> int:
-        """Number of arms."""
+        """Number of arms.
+
+        Returns
+        -------
+        int
+            Count of available draft-model arms.
+
+        Notes
+        -----
+        Fixed at construction time; cannot be changed after initialisation.
+
+        Examples
+        --------
+        >>> selector = UCB1Selector(n_arms=3)
+        >>> selector.n_arms
+        3
+        """
         return self._n_arms
 
     @property
     def t(self) -> int:
-        """Total rounds elapsed."""
+        """Total rounds elapsed (equal to the number of :meth:`update` calls).
+
+        Returns
+        -------
+        int
+            Non-negative integer round counter.
+
+        Notes
+        -----
+        Resets to 0 after :meth:`reset` is called.
+
+        Examples
+        --------
+        >>> selector = UCB1Selector(n_arms=2)
+        >>> selector.update(0, accepted=1)
+        >>> selector.t
+        1
+        """
         return self._t
 
     @abstractmethod
@@ -157,6 +267,16 @@ class DraftSelector(ABC):
         -------
         int
             Index in ``[0, n_arms)``.
+
+        Notes
+        -----
+        Implementations must be thread-safe (acquire ``self._lock`` around
+        any read-modify-write on shared state).
+
+        Examples
+        --------
+        >>> arm = selector.select()
+        >>> assert 0 <= arm < selector.n_arms
         """
 
     @abstractmethod
@@ -173,19 +293,42 @@ class DraftSelector(ABC):
         Raises
         ------
         ValueError
-            If ``arm`` is out of range.
+            If ``arm`` is not in ``[0, n_arms)``.
+
+        Notes
+        -----
+        Increments the internal round counter ``t`` and delegates to
+        ``self._arms[arm].record(accepted)``.
+
+        Examples
+        --------
+        >>> selector.update(0, accepted=1)
         """
 
     def reset(self) -> None:
-        """Reset all arm statistics and the round counter.
+        """Reset all arm statistics and the round counter to zero.
+
+        Returns
+        -------
+        None
 
         Notes
         -----
         Intended for per-context-window resets when the prompt distribution
-        changes and accumulated statistics are no longer meaningful.
+        shifts and accumulated statistics are no longer representative.
+        Thread-safe: acquires ``self._lock`` before mutating state.
+
+        Examples
+        --------
+        >>> selector.reset()
+        >>> selector.t
+        0
         """
         with self._lock:
-            self._arms = [ArmStats(window_size=self._window_size) for _ in range(self._n_arms)]
+            self._arms = [
+                ArmStats(window_size=self._window_size)
+                for _ in range(self._n_arms)
+            ]
             self._t = 0
 
     def to_json(self) -> str:
@@ -194,7 +337,13 @@ class DraftSelector(ABC):
         Returns
         -------
         str
-            JSON-encoded bandit state suitable for checkpointing.
+            Compact JSON-encoded bandit state suitable for checkpointing.
+
+        Notes
+        -----
+        Thread-safe: acquires ``self._lock`` before reading state.
+        The returned string can be passed to :meth:`from_json` on any
+        concrete subclass to reconstruct an identical instance.
 
         Examples
         --------
@@ -206,7 +355,7 @@ class DraftSelector(ABC):
 
     @classmethod
     def from_json(cls, json_str: str) -> "DraftSelector":
-        """Restore bandit state from a JSON string.
+        """Restore bandit state from a JSON string produced by :meth:`to_json`.
 
         Parameters
         ----------
@@ -216,12 +365,24 @@ class DraftSelector(ABC):
         Returns
         -------
         DraftSelector
-            Restored selector instance.
+            Restored selector instance with identical state.
 
         Raises
         ------
         ValueError
-            If ``json_str`` cannot be parsed or is missing required fields.
+            If ``json_str`` is not valid JSON or is missing required fields.
+
+        Notes
+        -----
+        Delegates to the concrete subclass's :meth:`_from_state_dict` method.
+        The subclass is determined by the ``"type"`` key in the JSON object.
+
+        Examples
+        --------
+        >>> json_str = selector.to_json()
+        >>> restored = UCB1Selector.from_json(json_str)
+        >>> restored.t == selector.t
+        True
         """
         try:
             state = json.loads(json_str)
