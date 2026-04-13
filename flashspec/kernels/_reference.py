@@ -137,7 +137,9 @@ def verify_tokens_reference(
     rejected = ~accepted                                 # (B, γ)
     has_rejection = rejected.any(dim=-1)                 # (B,)
     first_rej_raw = rejected.int().argmax(dim=-1)        # (B,)  — 0 when no rejection
-    first_rejection = torch.where(has_rejection, first_rej_raw, torch.full_like(first_rej_raw, gamma))
+    first_rejection = torch.where(
+        has_rejection, first_rej_raw, torch.full_like(first_rej_raw, gamma)
+    )
     return accepted, first_rejection.to(torch.int32)
 
 
@@ -165,6 +167,16 @@ def gather_accepted_reference(
     ------
     ValueError
         If ``token_ids`` and ``first_rejection`` batch dimensions do not match.
+
+    Notes
+    -----
+    This is the pure-PyTorch ground truth that the Triton ``gather_accepted``
+    kernel in ``flashspec.kernels.gather_kernel`` must match exactly.
+    Tests in ``tests/unit/test_verify_kernel.py`` compare both implementations.
+
+    The masking uses a position broadcast:
+    ``mask = positions < first_rejection`` where positions is
+    ``arange(gamma).unsqueeze(0)``.
 
     Examples
     --------
