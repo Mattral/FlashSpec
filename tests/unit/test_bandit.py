@@ -221,7 +221,9 @@ class TestOracleSelector:
     def test_oracle_set_true_rates_updates_selection(self) -> None:
         """set_true_rates() changes which arm the oracle selects."""
         selector = OracleSelector(n_arms=2, true_rates=[0.3, 0.8])
-        assert selector.select() == 1
+        assert selector.select() == 1, (
+            "Oracle with true_rates=[0.3, 0.8] must select arm 1 (highest rate=0.8)"
+        )
         selector.set_true_rates([0.9, 0.1])
         assert selector.select() == 0, "After swap, oracle should select arm 0."
 
@@ -251,3 +253,75 @@ class TestArmStats:
         restored = ArmStats.from_dict(stats.to_dict())
         assert restored.n_pulls == stats.n_pulls, "n_pulls mismatch."
         assert restored.n_accepted == stats.n_accepted, "n_accepted mismatch."
+
+
+# ── Hypothesis property-based tests (§5.1) ───────────────────────────────────
+
+from hypothesis import given, settings
+from hypothesis import strategies as st
+
+
+@given(
+    n_arms=st.integers(min_value=1, max_value=10),
+    n_rounds=st.integers(min_value=1, max_value=50),
+)
+@settings(max_examples=25, deadline=None)
+def test_ucb1_round_counter_equals_update_calls(
+    n_arms: int, n_rounds: int
+) -> None:
+    """Property: UCB1 round counter t equals total update() calls, for any n_arms/n_rounds."""
+    selector = UCB1Selector(n_arms=n_arms)
+    for _ in range(n_rounds):
+        arm = selector.select()
+        selector.update(arm, accepted=0)
+    assert selector.t == n_rounds, (
+        f"Round counter t={selector.t} != n_rounds={n_rounds} "
+        f"(n_arms={n_arms})"
+    )
+
+
+@given(
+    n_arms=st.integers(min_value=1, max_value=8),
+    n_rounds=st.integers(min_value=0, max_value=30),
+)
+@settings(max_examples=25, deadline=None)
+def test_ucb1_arm_pulls_sum_equals_total_rounds(
+    n_arms: int, n_rounds: int
+) -> None:
+    """Property: sum of n_pulls over all arms equals total rounds, always."""
+    selector = UCB1Selector(n_arms=n_arms)
+    for _ in range(n_rounds):
+        arm = selector.select()
+        selector.update(arm, accepted=1)
+    total_pulls = sum(a.n_pulls for a in selector._arms)
+    assert total_pulls == n_rounds, (
+        f"Total pulls={total_pulls} != n_rounds={n_rounds} "
+        f"(n_arms={n_arms})"
+    )
+
+
+@given(
+    n_arms=st.integers(min_value=2, max_value=6),
+    window_size=st.integers(min_value=1, max_value=50),
+)
+@settings(max_examples=20, deadline=None)
+def test_ucb1_json_round_trip_exact_state(
+    n_arms: int, window_size: int
+) -> None:
+    """Property: JSON round-trip preserves t and all arm n_pulls exactly."""
+    import json
+    selector = UCB1Selector(n_arms=n_arms, window_size=window_size)
+    rng = __import__("numpy").random.default_rng(n_arms * 13 + window_size)
+    for _ in range(15):
+        arm = selector.select()
+        selector.update(arm, accepted=int(rng.random() > 0.5))
+
+    restored = UCB1Selector._from_state_dict(json.loads(selector.to_json()))
+    assert restored.t == selector.t, (
+        f"t mismatch: restored={restored.t}, original={selector.t}"
+    )
+    for i in range(n_arms):
+        assert restored._arms[i].n_pulls == selector._arms[i].n_pulls, (
+            f"Arm {i} n_pulls mismatch: "
+            f"restored={restored._arms[i].n_pulls}, original={selector._arms[i].n_pulls}"
+        )

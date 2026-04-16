@@ -57,8 +57,6 @@ class TestGreedySpeculativeEquivalence:
             toy_model_cpu, input_ids, gamma, vocab
         )
 
-        # With identical distributions, greedy u=0 accepts all.
-        # Use rejection_sample with same model for target.
         accepted, first_rej, alpha = rejection_sample(
             input_ids=input_ids,
             draft_logprobs=draft_lp,
@@ -67,8 +65,72 @@ class TestGreedySpeculativeEquivalence:
             gamma=gamma,
         )
 
-        # When draft == target all tokens accepted.
         assert (first_rej == gamma).all(), (
             f"Greedy spec should accept all draft tokens; first_rej={first_rej}"
         )
         assert alpha == 1.0, f"Expected alpha=1.0 when p==q, got {alpha}"
+
+    def test_greedy_speculative_batch_size_one_accepts_all(
+        self, toy_model_cpu: torch.nn.Module
+    ) -> None:
+        """Edge case: batch_size=1 with p==q accepts all gamma tokens."""
+        set_seed(10)
+        gamma, vocab = 4, 1000
+        input_ids = torch.randint(0, vocab, (1, 8))
+        draft_ids, draft_lp, target_lp = _greedy_logprobs(
+            toy_model_cpu, input_ids, gamma, vocab
+        )
+        _accepted, first_rej, alpha = rejection_sample(
+            input_ids=input_ids,
+            draft_logprobs=draft_lp,
+            target_logprobs=target_lp,
+            draft_token_ids=draft_ids,
+            gamma=gamma,
+        )
+        assert first_rej[0].item() == gamma, (
+            f"batch_size=1: expected first_rej=={gamma}, got {first_rej[0]}"
+        )
+        assert alpha == 1.0, f"batch_size=1: expected alpha=1.0, got {alpha}"
+
+    def test_greedy_speculative_gamma_one_accepts_single_token(
+        self, toy_model_cpu: torch.nn.Module
+    ) -> None:
+        """Edge case: gamma=1 with p==q must always accept the single draft token."""
+        set_seed(11)
+        batch_size, vocab = 2, 1000
+        input_ids = torch.randint(0, vocab, (batch_size, 8))
+        draft_ids, draft_lp, target_lp = _greedy_logprobs(
+            toy_model_cpu, input_ids, gamma=1, vocab_size=vocab
+        )
+        _accepted, first_rej, alpha = rejection_sample(
+            input_ids=input_ids,
+            draft_logprobs=draft_lp,
+            target_logprobs=target_lp,
+            draft_token_ids=draft_ids,
+            gamma=1,
+        )
+        assert (first_rej == 1).all(), (
+            f"gamma=1 with p==q: expected first_rej==1, got {first_rej}"
+        )
+        assert alpha == 1.0, f"gamma=1 with p==q: expected alpha=1.0, got {alpha}"
+
+    def test_greedy_speculative_short_context_length_one_succeeds(
+        self, toy_model_cpu: torch.nn.Module
+    ) -> None:
+        """Edge case: context length=1 (minimal prefix) must not crash."""
+        set_seed(12)
+        gamma, vocab = 2, 1000
+        input_ids = torch.randint(0, vocab, (1, 1))  # minimal context
+        draft_ids, draft_lp, target_lp = _greedy_logprobs(
+            toy_model_cpu, input_ids, gamma, vocab
+        )
+        accepted, first_rej, alpha = rejection_sample(
+            input_ids=input_ids,
+            draft_logprobs=draft_lp,
+            target_logprobs=target_lp,
+            draft_token_ids=draft_ids,
+            gamma=gamma,
+        )
+        assert accepted.shape == (1, gamma), (
+            f"Short context: accepted.shape={accepted.shape}, expected (1, {gamma})"
+        )
