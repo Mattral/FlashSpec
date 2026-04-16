@@ -87,7 +87,7 @@ def export_draft_to_onnx(
 
     drafter.eval()
     try:
-        import onnx  # type: ignore[import]
+        import onnx  # type: ignore[import]  # onnx is an optional dep; not in core requirements
         torch.onnx.export(
             drafter,
             (example_input_ids,),
