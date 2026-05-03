@@ -157,7 +157,7 @@ def run_toy_benchmark() -> None:
         ctx = torch.randint(0, vocab, (batch_size, seq_len))
         rejection_sample(ctx, dlp, tlp, ids, gamma=gamma)
 
-    # Measurement (§6: 200 steps, mean ± std).
+    # Measurement (§6: 200 steps, mean ± std, synchronize around timed region).
     latencies_ms: list[float] = []
     for _ in range(N_MEASUREMENT_STEPS):
         dlp = torch.randn(batch_size, gamma, vocab).log_softmax(-1)
@@ -165,8 +165,13 @@ def run_toy_benchmark() -> None:
         ids = torch.randint(0, vocab, (batch_size, gamma))
         ctx = torch.randint(0, vocab, (batch_size, seq_len))
 
+        # §6: synchronize before AND after timed region.
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
         t0 = time.perf_counter()
         _acc, _frej, _alpha = rejection_sample(ctx, dlp, tlp, ids, gamma=gamma)
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
         latencies_ms.append((time.perf_counter() - t0) * 1000.0)
 
     mean_ms = sum(latencies_ms) / len(latencies_ms)
@@ -235,6 +240,8 @@ def run_full_benchmark(
     # §6: log GPU memory watermark after benchmark.
     if torch.cuda.is_available():
         torch.cuda.reset_peak_memory_stats()
+        # §6: synchronize before starting timed measurement.
+        torch.cuda.synchronize()
 
     # NOTE: Full model loading + inference requires real weights at runtime.
     # The scaffold below shows the required metric schema (§14).
