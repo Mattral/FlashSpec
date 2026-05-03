@@ -21,9 +21,11 @@ test-chaos:
 
 bench:
 	python benchmarks/run_all.py --config benchmarks/configs/
+	python benchmarks/benchmark_kernels.py --output benchmarks/results/
 
 bench-quick:
 	python benchmarks/run_all.py --config benchmarks/configs/ --toy
+	python benchmarks/benchmark_kernels.py --toy
 
 docs:
 	mkdocs build
