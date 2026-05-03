@@ -160,7 +160,7 @@ make bench          # full benchmark (requires H100 + weights)
   title   = {{FlashSpec}: Adaptive Speculative Decoding with Online Bandit
              Draft Selection and {Triton}-Optimised Verification},
   author  = {Myet, Min Htet},
-  year    = {2025},
+  year    = {2026},
   note    = {preprint to be added soon. \url{https://github.com/Mattral/FlashSpec}},
 }
 ```
