@@ -120,6 +120,16 @@ Versioning follows [Semantic Versioning 2.0.0](https://semver.org/).
 
 ---
 
+
+## [0.1.1] - 2026-06-12
+### Fixed
+- Corrected inline `# type: ignore` annotations in `engine/verifier.py` (≤100 chars, explanation inline).
+- Added mandatory `mattral2025flashspec` BibTeX entry to `paper/flashspec.bib`.
+
+### Documentation
+- All docs audited and updated to v0.2.2 spec compliance.
+
+
 ## [0.1.0] — 2025-11-01
 
 - Initial release (scaffold only; no real model weights required).

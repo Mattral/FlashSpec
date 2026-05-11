@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "flashspec"
-version = "0.1.0"
+version = "0.1.1"
 description = "Adaptive speculative-decoding inference engine with Triton-optimised verification and online bandit draft selection"
 readme = "README.md"
 license = { file = "LICENSE" }
