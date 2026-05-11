@@ -12,7 +12,7 @@
   <a href="./CITATION.cff"><img alt="Cite" src="https://img.shields.io/badge/cite-CITATION.cff-brightgreen?style=for-the-badge"></a>
   <!--a href="https://github.com/Mattral/FlashSpec/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/Mattral/FlashSpec/ci.yml?branch=main&label=CI&style=for-the-badge&logo=github"></a>-->
   <!--<a href="https://github.com/Mattral/FlashSpec/actions/workflows/gpu_tests.yml"><img alt="GPU Tests" src="https://img.shields.io/github/actions/workflow/status/Mattral/FlashSpec/gpu_tests.yml?branch=main&label=GPU%20Tests&style=for-the-badge&logo=nvidia"></a>-->
-  <a href="https://codecov.io/gh/Mattral/FlashSpec"><img alt="Coverage" src="https://img.shields.io/codecov/c/github/Mattral/FlashSpec?style=for-the-badge&logo=codecov&color=blue"></a>
+  <!--<a href="https://codecov.io/gh/Mattral/FlashSpec"><img alt="Coverage" src="https://img.shields.io/codecov/c/github/Mattral/FlashSpec?style=for-the-badge&logo=codecov&color=blue"></a>-->
   <img alt="Python" src="https://img.shields.io/pypi/pyversions/flashspec?style=for-the-badge&logo=python&logoColor=white">
   <a href="https://flashspec.readthedocs.io"><img alt="Docs" src="https://img.shields.io/badge/docs-readthedocs-22C55E?style=for-the-badge&logo=readthedocs&logoColor=white"></a>
   <a href="./LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-A78BFA?style=for-the-badge"></a>
