@@ -1,15 +1,24 @@
-# FlashSpec
+<h1 align="center">⚡ FlashSpec</h1>
 
-**Adaptive speculative-decoding inference engine with Triton-optimised
-verification and online bandit draft selection.**
+<p align="center">
+  <strong>Adaptive speculative-decoding inference engine</strong><br>
+  <em>Triton-optimised verification + online bandit draft selection</em>
+</p>
 
-[![CI](https://github.com/Mattral/FlashSpec/actions/workflows/ci.yml/badge.svg)](https://github.com/Mattral/FlashSpec/actions/workflows/ci.yml)
-[![GPU Tests](https://github.com/Mattral/FlashSpec/actions/workflows/gpu_tests.yml/badge.svg)](https://github.com/Mattral/FlashSpec/actions/workflows/gpu_tests.yml)
-[![codecov](https://codecov.io/gh/Mattral/FlashSpec/branch/main/graph/badge.svg)](https://codecov.io/gh/Mattral/FlashSpec)
-[![PyPI](https://img.shields.io/pypi/v/flashspec.svg)](https://pypi.org/project/flashspec/)
-[![arXiv](https://img.shields.io/badge/arXiv-TBD-b31b1b.svg)](https://arxiv.org/abs/TBD)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://python.org)
-[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-green.svg)](LICENSE)
+<p align="center">
+  <a href="https://pypi.org/project/flashspec/"><img alt="PyPI" src="https://img.shields.io/pypi/v/flashspec?style=for-the-badge&logo=pypi&logoColor=white&color=7C3AED"></a>
+  <a href="https://pepy.tech/project/flashspec"><img alt="Downloads" src="https://img.shields.io/pypi/dm/flashspec?style=for-the-badge&color=A78BFA"></a>
+  <a href="https://pepy.tech/project/flashspec"><img alt="Total Downloads" src="https://img.shields.io/pepy/dt/flashspec?style=for-the-badge&color=F87171"></a>
+  <a href="./CITATION.cff"><img alt="Cite" src="https://img.shields.io/badge/cite-CITATION.cff-brightgreen?style=for-the-badge"></a>
+  <!--a href="https://github.com/Mattral/FlashSpec/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/Mattral/FlashSpec/ci.yml?branch=main&label=CI&style=for-the-badge&logo=github"></a>-->
+  <!--<a href="https://github.com/Mattral/FlashSpec/actions/workflows/gpu_tests.yml"><img alt="GPU Tests" src="https://img.shields.io/github/actions/workflow/status/Mattral/FlashSpec/gpu_tests.yml?branch=main&label=GPU%20Tests&style=for-the-badge&logo=nvidia"></a>-->
+  <a href="https://codecov.io/gh/Mattral/FlashSpec"><img alt="Coverage" src="https://img.shields.io/codecov/c/github/Mattral/FlashSpec?style=for-the-badge&logo=codecov&color=blue"></a>
+  <img alt="Python" src="https://img.shields.io/pypi/pyversions/flashspec?style=for-the-badge&logo=python&logoColor=white">
+  <a href="https://flashspec.readthedocs.io"><img alt="Docs" src="https://img.shields.io/badge/docs-readthedocs-22C55E?style=for-the-badge&logo=readthedocs&logoColor=white"></a>
+  <a href="./LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-A78BFA?style=for-the-badge"></a>
+  <!--<a href="https://doi.org/10.5281/zenodo.XXXXXXX"><img alt="DOI" src="https://img.shields.io/badge/DOI-10.5281%2Fzenodo.XXXXXXX-7C3AED?style=for-the-badge&logo=zenodo&logoColor=white"></a>-->
+</p>
+
 
 ### ⚠️ Project Status: Active Research & Development
 > **Note to early adopters:** FlashSpec is currently in a pre-alpha research phase. As indicated by the badges above, core CI and GPU tests are currently failing due to active refactoring of the kernels. We are building in public. Expect rough edges, missing documentation, and breaking changes.
