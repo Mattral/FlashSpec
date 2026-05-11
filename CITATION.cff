@@ -1,0 +1,56 @@
+# This CITATION.cff file was generated for FlashSpec.
+# Schema: https://citation-file-format.github.io/
+#
+# GitHub renders a "Cite this repository" button from this file.
+# Zenodo also reads this file automatically when archiving a GitHub
+# release, and uses it to pre-populate the deposit metadata.
+
+cff-version: 1.2.0
+message: >-
+  If you use FlashSpec in your research or software, please cite it
+  using the metadata below. A version-specific citation with a DOI
+  will be available once the project is archived on Zenodo (see
+  CHANGELOG.md for the DOI badge once minted).
+title: >-
+  FlashSpec: Adaptive Speculative Decoding with Online Bandit Draft
+  Selection and Triton-Optimised Verification
+authors:
+  - family-names: Myet
+    given-names: "Min Htet"
+    alias: Mattral
+abstract: >-
+  FlashSpec is an open-source adaptive speculative-decoding inference
+  engine for large language models. It implements GPU-native token
+  verification via a Triton kernel with O(1) SRAM usage in vocabulary
+  size, and frames draft-model selection as a K-armed bandit problem
+  solved online via UCB1 or Thompson sampling with a provable
+  O(sqrt(K T log T)) regret bound. The output distribution is
+  provably identical to standard autoregressive sampling, verified
+  continuously via a Kolmogorov-Smirnov test in CI.
+version: 0.1.0
+date-released: "2026-06-12"
+license: Apache-2.0
+repository-code: "https://github.com/Mattral/FlashSpec"
+url: "https://flashspec.readthedocs.io"
+type: software
+keywords:
+  - large-language-models
+  - speculative-decoding
+  - gpu-kernels
+  - triton
+  - multi-armed-bandits
+  - inference-optimization
+  - pytorch
+preferred-citation:
+  type: article
+  title: >-
+    FlashSpec: Adaptive Speculative Decoding with Online Bandit Draft
+    Selection and Triton-Optimised Verification
+  authors:
+    - family-names: Myet
+      given-names: "Min Htet"
+      alias: Mattral
+  year: 2025
+  notes: >-
+    Preprint. Replace with the arXiv ID and/or JOSS DOI once the
+    submission is accepted. See CHANGELOG.md [Unreleased] for status.

@@ -1,0 +1,31 @@
+{
+  "title": "FlashSpec: Adaptive Speculative Decoding with Online Bandit Draft Selection and Triton-Optimised Verification",
+  "description": "FlashSpec is an open-source adaptive speculative-decoding inference engine for large language models. It implements GPU-native token verification via a Triton kernel with O(1) SRAM usage in vocabulary size, and frames draft-model selection as a K-armed bandit problem solved online via UCB1 or Thompson sampling with a provable O(sqrt(K T log T)) regret bound. The output distribution is provably identical to standard autoregressive sampling from the target model, verified continuously in CI via a Kolmogorov-Smirnov test (alpha=0.01, N=10,000).",
+  "creators": [
+    {
+      "name": "Myet, Min Htet",
+      "affiliation": "Independent Researcher"
+    }
+  ],
+  "license": "Apache-2.0",
+  "upload_type": "software",
+  "access_right": "open",
+  "keywords": [
+    "large-language-models",
+    "speculative-decoding",
+    "gpu-kernels",
+    "triton",
+    "multi-armed-bandits",
+    "inference-optimization",
+    "pytorch",
+    "machine-learning"
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "https://github.com/Mattral/FlashSpec",
+      "relation": "isSupplementTo",
+      "resource_type": "software"
+    }
+  ],
+  "notes": "Generated for Zenodo archival via GitHub release integration. To activate: (1) sign in to zenodo.org with GitHub, (2) enable the FlashSpec repository under Settings > GitHub, (3) create a new GitHub Release (e.g. v0.1.0) — Zenodo will automatically mint a DOI and archive a snapshot of the repository at that tag. Update CITATION.cff and README.md with the resulting DOI badge afterward."
+}
