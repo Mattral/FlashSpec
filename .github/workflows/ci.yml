@@ -22,7 +22,7 @@ jobs:
           python-version: "3.11"
           cache: pip
       - name: Install dev dependencies
-        run: pip install -e ".[dev]" --extra-index-url https://download.pytorch.org/whl/cpu
+        run: pip install -e ".[dev,gpu]" --extra-index-url https://download.pytorch.org/whl/cpu
       - name: make lint
         run: make lint
       - name: pip-audit (fail on CRITICAL CVE — §15)
@@ -46,7 +46,7 @@ jobs:
           python-version: "3.11"
           cache: pip
       - name: Install
-        run: pip install -e ".[dev]" --extra-index-url https://download.pytorch.org/whl/cpu
+        run: pip install -e ".[dev,gpu]" --extra-index-url https://download.pytorch.org/whl/cpu
       - name: make test
         run: make test
       - name: Upload coverage XML
@@ -70,7 +70,7 @@ jobs:
           python-version: "3.11"
           cache: pip
       - name: Install
-        run: pip install -e ".[dev]" --extra-index-url https://download.pytorch.org/whl/cpu
+        run: pip install -e ".[dev,gpu]" --extra-index-url https://download.pytorch.org/whl/cpu
       - name: make test-chaos
         run: make test-chaos
 
@@ -86,7 +86,7 @@ jobs:
           python-version: "3.11"
           cache: pip
       - name: Install
-        run: pip install -e ".[dev]" --extra-index-url https://download.pytorch.org/whl/cpu
+        run: pip install -e ".[dev,gpu]" --extra-index-url https://download.pytorch.org/whl/cpu
       - name: Download coverage artifact
         uses: actions/download-artifact@v4
         with:
@@ -117,7 +117,7 @@ jobs:
           cache: pip
       - name: Install with ONNX extras
         run: |
-          pip install -e ".[dev,onnx]" \
+          pip install -e ".[dev,onnx,gpu]" \
             --extra-index-url https://download.pytorch.org/whl/cpu
       - name: Run ONNX parity tests
         run: pytest tests/integration/test_onnx_parity.py -v

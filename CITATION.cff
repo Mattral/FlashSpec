@@ -27,7 +27,7 @@ abstract: >-
   O(sqrt(K T log T)) regret bound. The output distribution is
   provably identical to standard autoregressive sampling, verified
   continuously via a Kolmogorov-Smirnov test in CI.
-version: 0.1.0
+version: 0.1.3
 date-released: "2026-06-12"
 license: Apache-2.0
 repository-code: "https://github.com/Mattral/FlashSpec"

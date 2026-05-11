@@ -14,6 +14,7 @@ Public API surface (AGENTS.md §13.2 — do not modify without explicit approval
     flashspec.register          (draft model decorator)
     flashspec.get_drafter
     flashspec.list_drafters
+    flashspec.TRITON_AVAILABLE  (bool — True only on Linux with triton installed)
 
 References
 ----------
@@ -25,6 +26,7 @@ References
 
 from flashspec.engine.drafter import get_drafter, list_drafters, register
 from flashspec.engine.speculative import GenerationResult, SpeculativeEngine
+from flashspec.kernels import TRITON_AVAILABLE
 from flashspec.utils.config import BanditConfig, FlashSpecConfig, MetricsConfig, SamplingConfig
 
 __all__ = [
@@ -34,10 +36,11 @@ __all__ = [
     "MetricsConfig",
     "SamplingConfig",
     "SpeculativeEngine",
+    "TRITON_AVAILABLE",
     "get_drafter",
     "list_drafters",
     "register",
 ]
 
-__version__ = "0.1.0"
+__version__ = "0.1.3"
 __author__ = "Min Htet Myet (Mattral)"
