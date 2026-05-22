@@ -10,8 +10,22 @@ Versioning follows [Semantic Versioning 2.0.0](https://semver.org/).
 
 ## [Unreleased]
 
-No unreleased changes. Next planned milestone: v0.2.0 (real GPU benchmark
-results, completed paper figures, arXiv submission).
+### Added
+- First real GPU measurements (Tesla T4, TinyLlama-1.1B-Chat NF4, FlashSpec UCB1,
+  γ=4): **44.2 tok/s**, α=0.75, p50=22.1ms.
+  Result in `benchmarks/results/flashspec_ucb_tiny_llama.json`.
+- Bandit regret measured empirically (T=10,000, K=3 arms): UCB1=100.2,
+  Thompson=18.9, Oracle=0.0. Figure saved to `paper/figures/bandit_regret.jpg`.
+- Gamma sweep results in `benchmarks/results/gamma_sweep.csv` (synthetic
+  logprobs, acceptance rates genuine).
+- Draft size sweep results in `benchmarks/results/draft_size_sweep.csv`.
+- Updated `notebooks/01_quickstart.ipynb`, `02_bandit_analysis.ipynb`, and
+  `03_kernel_profiling.ipynb` with real Colab T4 execution outputs.
+- Kernel profiling table (T4): reference 0.07–0.72ms; Triton kernel faster
+  at batch=8 (1.6×) but slower at batch=1 on T4 (expected — T4 is
+  bandwidth-constrained, H100 profiling pending).
+- README updated: real measurements clearly separated from H100 design targets;
+  ⊛ symbol marks all unverified target numbers.
 
 ---
 

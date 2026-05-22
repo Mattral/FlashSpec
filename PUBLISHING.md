@@ -26,7 +26,20 @@ FlashSpec, and gives you a clear sequence of actions.
 
 ## Recommended sequence
 
-### Step 0 — Run the benchmarks (you, on GPU)
+### Step 0 — Run the benchmarks
+
+**Status: partially done.**
+
+✅ Initial measurements on Tesla T4 (Colab) with TinyLlama-1.1B-Chat NF4:
+- 44.2 tok/s, α=0.75, p50=22.1ms
+- Results: `benchmarks/results/flashspec_ucb_tiny_llama.json`
+- Bandit regret figure: `paper/figures/bandit_regret.jpg`
+- Gamma/draft-size sweeps: `benchmarks/results/gamma_sweep.csv`, `draft_size_sweep.csv`
+
+⏳ Still needed for paper Table 1 and arXiv submission:
+- H100 SXM5 runs with Llama-3-8B-Instruct, Llama-3-70B-Instruct, Mistral-7B
+- Vanilla AR baseline on same hardware (to compute speedup ratio)
+- Medusa and EAGLE baselines for the comparison table
 
 ```bash
 export HF_TOKEN=hf_your_token
@@ -34,8 +47,6 @@ python scripts/download_models.py
 make bench
 git add benchmarks/results/ && git commit -m "bench: H100 results" && git push
 ```
-
-This unblocks everything in the second table above.
 
 ### Step 1 — Create a GitHub Release (5 minutes)
 
