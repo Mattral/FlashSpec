@@ -51,9 +51,6 @@ benchmarks/results/*.json
 !benchmarks/results/baseline.json
 !benchmarks/results/.gitkeep
 
-# Jupyter
-*.ipynb
-.ipynb_checkpoints/
 
 # Paper build artefacts
 paper/*.aux

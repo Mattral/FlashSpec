@@ -78,11 +78,12 @@ code existed.
 ---
 
 **8/**
-Early numbers vs vanilla autoregressive decoding on Llama-3-8B
-(H100, γ=4): [X.Xx]× throughput, [XX]% token acceptance.
+First real numbers (Tesla T4, TinyLlama-1.1B NF4, γ=4):
+- **44.2 tok/s**, α=0.75, p50=22.1ms
 
-Full benchmark suite (vs Medusa, EAGLE) running now — results landing in
-`benchmarks/results/` this week.
+T4 is bandwidth-constrained, so the Triton kernel is slower than reference
+at batch=1 (expected). H100 numbers — and comparisons vs Medusa/EAGLE —
+coming soon.
 
 ---
 

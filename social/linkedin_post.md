@@ -66,9 +66,13 @@ against a pure-PyTorch reference (both float32 and bfloat16), a MkDocs
 documentation site with architecture diagrams, and CI workflows that run
 pip-audit and Trivy security scans before anything ships.
 
-Early benchmarks against vanilla autoregressive decoding on Llama-3-8B
-(H100, γ=4) show [X.Xx]× throughput with [XX]% token acceptance. Full
-comparisons against Medusa and EAGLE are running now.
+First measurements on a Tesla T4 (Colab) with TinyLlama-1.1B at 4-bit
+quantization: **44.2 tok/s**, α=0.75, p50=22.1ms. The T4 is
+bandwidth-constrained relative to the target H100 hardware, so the Triton
+kernel speedup doesn't fully materialise at batch=1 on this GPU — an honest
+result that tells us the kernel's benefit is most visible at larger batches
+and on higher-bandwidth hardware. Full Llama-3 comparisons vs Medusa and
+EAGLE on H100 are next.
 
 **5. The biggest lesson:**
 
