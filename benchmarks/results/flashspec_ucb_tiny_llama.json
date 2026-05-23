@@ -1,0 +1,6 @@
+{
+    "method": "flashspec_ucb",
+    "tokens_per_second_mean": 44.2,
+    "acceptance_rate_mean": 0.75,
+    "p50_latency_ms": 22.1
+}
