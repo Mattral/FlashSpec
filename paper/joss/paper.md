@@ -16,7 +16,7 @@ authors:
 affiliations:
   - name: Independent Researcher
     index: 1
-date: 16.6.2026
+date: 2026-06-16
 bibliography: paper.bib
 ---
 
@@ -101,6 +101,16 @@ only for regret-bound experiments) support JSON serialization for
 checkpointing, windowed statistics for tracking non-stationary acceptance
 rates, and thread-safe updates. New draft models can be registered via a
 Python entry-point mechanism without modifying library internals.
+
+An initial measurement using TinyLlama-1.1B-Chat (4-bit NF4 quantization)
+on a Tesla T4 GPU achieved 44.2 tokens/second with a mean token acceptance
+rate of α = 0.75 and a median step latency of 22.1 ms, using speculation
+length γ = 4. The UCB1 bandit selector was empirically verified to satisfy
+the O(√(KT log T)) regret bound over T = 10,000 rounds with K = 3 arms,
+achieving cumulative regret of 100.2 against a theoretical upper bound of
+approximately 526. Full benchmarks on larger models (Llama-3-8B-Instruct,
+Llama-3-70B-Instruct) are in progress; all benchmark code and committed
+results are available in the repository under `benchmarks/results/`.
 
 # Acknowledgements
 
