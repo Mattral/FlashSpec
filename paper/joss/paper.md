@@ -11,12 +11,12 @@ tags:
   - multi-armed bandits
 authors:
   - name: Min Htet Myet
-    orcid: 0000-0000-0000-0000
+    orcid: 0009-0005-0853-8301
     affiliation: 1
 affiliations:
   - name: Independent Researcher
     index: 1
-date: TODO — set submission date
+date: 16.6.2026
 bibliography: paper.bib
 ---
 
