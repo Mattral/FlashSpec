@@ -97,8 +97,7 @@ config = FlashSpecConfig(
 ## Results
 
 All numbers below are clearly labelled by hardware, model, and measurement
-status. The project is committed to honest reporting — see
-[AGENTS.md §18](AGENTS.md) for the policy.
+status. 
 
 ### Measured — TinyLlama-1.1B · NF4 (4-bit) · Tesla T4 · γ=4
 
