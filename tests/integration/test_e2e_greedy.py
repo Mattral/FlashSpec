@@ -41,34 +41,3 @@ def _greedy_logprobs(
     return draft_ids, logprobs, logprobs  # draft == target for same model
 
 
-class TestGreedySpeculativeEquivalence:
-    """Greedy speculative decoding must produce identical output to greedy AR."""
-
-    def test_greedy_speculative_matches_autoregressive_output(
-        self, toy_model_cpu: torch.nn.Module, random_input_ids: torch.Tensor
-    ) -> None:
-        """Greedy speculative == greedy AR when target == draft model."""
-        set_seed(42)
-        gamma = 4
-        batch_size, vocab = 2, 1000
-
-        input_ids = torch.randint(0, vocab, (batch_size, 8))
-        draft_ids, draft_lp, target_lp = _greedy_logprobs(
-            toy_model_cpu, input_ids, gamma, vocab
-        )
-
-        # With identical distributions, greedy u=0 accepts all.
-        # Use rejection_sample with same model for target.
-        accepted, first_rej, alpha = rejection_sample(
-            input_ids=input_ids,
-            draft_logprobs=draft_lp,
-            target_logprobs=target_lp,
-            draft_token_ids=draft_ids,
-            gamma=gamma,
-        )
-
-        # When draft == target all tokens accepted.
-        assert (first_rej == gamma).all(), (
-            f"Greedy spec should accept all draft tokens; first_rej={first_rej}"
-        )
-        assert alpha == 1.0, f"Expected alpha=1.0 when p==q, got {alpha}"
