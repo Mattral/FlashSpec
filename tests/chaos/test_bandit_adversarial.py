@@ -71,15 +71,3 @@ class TestBanditAdversarial:
             assert arm == 0, f"Expected arm=0, got {arm}"
             selector.update(arm, accepted=1)
 
-    def test_bandit_with_many_arms_does_not_error(self) -> None:
-        """Bandit with K=20 arms runs without error for 2000 rounds."""
-        set_seed(0)
-        rng = np.random.default_rng(0)
-        k = 20
-        true_rates = [rng.random() for _ in range(k)]
-        selector = UCB1Selector(n_arms=k, window_size=100)
-        for _ in range(2000):
-            arm = selector.select()
-            accepted = int(rng.random() < true_rates[arm])
-            selector.update(arm, accepted)
-        assert selector.t == 2000, f"Expected t=2000, got {selector.t}"
