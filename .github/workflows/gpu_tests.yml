@@ -1,17 +1,18 @@
 name: GPU Tests
 
 on:
-  push:
+  pull_request:
     branches: [main]
   schedule:
     - cron: "0 2 * * *"  # Nightly at 02:00 UTC
   workflow_dispatch:
 
 jobs:
-  gpu-tests:
-    name: GPU tests (H100)
-    runs-on: [self-hosted, gpu, H100]
-    timeout-minutes: 60
+  # ── Job 1: test-gpu ──────────────────────────────────────────────────────────
+  test-gpu:
+    name: test-gpu
+    runs-on: [self-hosted, gpu, A10G]
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -20,13 +21,34 @@ jobs:
           cache: pip
       - name: Install
         run: pip install -e ".[dev]"
-      - name: Run GPU tests
-        run: pytest tests/ -m gpu -x --cov=flashspec --cov-report=xml
-      - name: Run slow distribution tests
-        run: pytest tests/integration/test_e2e_sampling.py -m slow -x
+      - name: make test-gpu
+        run: make test-gpu
+      - name: Run slow distribution tests (N=10,000 KS gate)
+        run: pytest tests/integration/test_e2e_sampling.py -m slow -x -v
       - name: Upload coverage
         uses: codecov/codecov-action@v4
         with:
           files: coverage.xml
           flags: gpu
           fail_ci_if_error: false
+
+  # ── Job 2: bench-quick ───────────────────────────────────────────────────────
+  bench-quick:
+    name: bench-quick
+    runs-on: [self-hosted, gpu, A10G]
+    needs: test-gpu
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install bench dependencies
+        run: pip install -e ".[bench]"
+      - name: make bench-quick
+        run: make bench-quick
+      - name: Assert throughput ≥ 1.5× AR
+        # The toy benchmark prints pass/fail; exit code 1 on failure.
+        run: |
+          python benchmarks/run_all.py --config benchmarks/configs/ --toy

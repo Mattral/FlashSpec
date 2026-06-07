@@ -136,7 +136,11 @@ def _load_entry_points() -> None:
     """Load external drafters registered via Python entry points."""
     try:
         eps = importlib.metadata.entry_points(group="flashspec.drafters")
-    except Exception:
+    except Exception as exc:  # importlib.metadata may raise on broken env
+        logger.debug(
+            "Could not read flashspec.drafters entry points",
+            extra={"error": str(exc)},
+        )
         return
     for ep in eps:
         try:

@@ -4,29 +4,61 @@ on:
   push:
     branches: [main]
   schedule:
-    - cron: "0 4 * * 1"  # Every Monday at 04:00 UTC
+    - cron: "0 4 * * *"  # Nightly at 04:00 UTC
   workflow_dispatch:
 
 jobs:
-  benchmark:
-    name: Nightly performance benchmark
+  # ── Job: bench-full ──────────────────────────────────────────────────────────
+  bench-full:
+    name: bench-full
     runs-on: [self-hosted, gpu, H100]
-    timeout-minutes: 180
+    timeout-minutes: 240
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Need push access for committing results back to main.
+          token: ${{ secrets.BENCHMARK_COMMIT_TOKEN }}
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: pip
-      - name: Install
+
+      - name: Install bench dependencies
         run: pip install -e ".[bench]"
-      - name: Run benchmarks (Llama-3-8B)
-        run: python benchmarks/run_all.py --config benchmarks/configs/llama3_8b.yaml
-      - name: Upload results
+
+      - name: Run full benchmark suite (make bench)
+        run: make bench
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+
+      - name: Validate and commit results
+        run: python scripts/update_benchmark_results.py
+        env:
+          GIT_AUTHOR_NAME: "FlashSpec Benchmark Bot"
+          GIT_AUTHOR_EMAIL: "ci@flashspec"
+          GIT_COMMITTER_NAME: "FlashSpec Benchmark Bot"
+          GIT_COMMITTER_EMAIL: "ci@flashspec"
+
+      - name: Check performance regression
+        run: python scripts/check_regression.py --threshold 0.05
+
+      - name: Upload result artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: benchmark-results-${{ github.sha }}
           path: benchmarks/results/
           retention-days: 90
-      - name: Check performance regression
-        run: python scripts/check_regression.py --threshold 0.05
+
+      - name: Notify on failure
+        if: failure()
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "text": ":red_circle: FlashSpec nightly benchmark FAILED on `${{ github.sha }}`.\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View run>"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
