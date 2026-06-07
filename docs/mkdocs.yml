@@ -1,0 +1,73 @@
+site_name: FlashSpec
+site_description: >
+  Adaptive speculative-decoding inference engine with Triton-optimised
+  verification and online bandit draft selection.
+site_url: https://flashspec.readthedocs.io
+repo_url: https://github.com/Mattral/FlashSpec
+repo_name: Mattral/FlashSpec
+
+docs_dir: docs
+site_dir: site
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: cyan
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: cyan
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - content.code.annotate
+    - content.code.copy
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
+  - footnotes
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            docstring_style: numpy
+            show_source: true
+            show_root_heading: true
+            heading_level: 3
+
+nav:
+  - Home: index.md
+  - Architecture: architecture.md
+  - Kernels: kernels.md
+  - Bandit: bandit.md
+  - Benchmarks: benchmarks.md
+  - API Reference:
+      - flashspec: api/index.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/Mattral/FlashSpec
