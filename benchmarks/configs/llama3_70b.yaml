@@ -1,0 +1,26 @@
+# FlashSpec benchmark configuration: Llama-3-70B-Instruct
+# WARNING: Do not modify after results for this config are committed (AGENTS.md §14).
+
+model: meta-llama/Llama-3-70B-Instruct
+drafter: meta-llama/Llama-3-8B-Instruct
+dtype: bfloat16
+device: cuda:0
+
+gamma: 4
+batch_size: 1
+max_new_tokens: 256
+n_warmup_steps: 50
+n_measurement_steps: 200
+
+datasets:
+  - mt_bench
+  - humaneval
+  - alpaca
+
+methods:
+  - flashspec_ucb
+  - vanilla_ar
+
+performance_targets:
+  speedup_vs_ar_min: 2.5
+  speedup_vs_ar_regression_threshold: 2.2

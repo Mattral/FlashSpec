@@ -1,0 +1,25 @@
+# FlashSpec benchmark configuration: Mistral-7B-Instruct
+# WARNING: Do not modify after results for this config are committed (AGENTS.md §14).
+
+model: mistralai/Mistral-7B-Instruct-v0.2
+drafter: mistralai/Mistral-7B-Instruct-v0.2  # placeholder: replace with smaller draft
+dtype: bfloat16
+device: cuda:0
+
+gamma: 4
+batch_size: 1
+max_new_tokens: 256
+n_warmup_steps: 50
+n_measurement_steps: 200
+
+datasets:
+  - mt_bench
+  - humaneval
+
+methods:
+  - flashspec_ucb
+  - vanilla_ar
+
+performance_targets:
+  speedup_vs_ar_min: 1.9
+  speedup_vs_ar_regression_threshold: 1.7
