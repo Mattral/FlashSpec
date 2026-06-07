@@ -1,0 +1,77 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+*.whl
+
+# Virtual environments
+.venv/
+venv/
+env/
+.env
+
+# Testing & coverage
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+*.cover
+
+# Mypy
+.mypy_cache/
+
+# Ruff
+.ruff_cache/
+
+# Triton cache
+.triton/
+triton_cache/
+
+# Model weights (NEVER commit)
+*.bin
+*.safetensors
+*.pt
+*.pth
+*.gguf
+*.ggml
+hf_cache/
+models/
+
+# Benchmark results (committed selectively)
+benchmarks/results/*.json
+!benchmarks/results/baseline.json
+!benchmarks/results/.gitkeep
+
+# Jupyter
+*.ipynb
+.ipynb_checkpoints/
+
+# Paper build artefacts
+paper/*.aux
+paper/*.bbl
+paper/*.blg
+paper/*.log
+paper/*.out
+paper/*.pdf
+paper/figures/*.pdf
+paper/figures/*.png
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Secrets
+.env
+*.key
+*.pem
+secrets/
