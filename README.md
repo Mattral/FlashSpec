@@ -124,8 +124,6 @@ make bench          # full benchmark (requires H100 + weights)
 
 ## Links
 
-- **Paper**: [arXiv TBD](https://arxiv.org/abs/TBD)
-- **Docs**: [flashspec.readthedocs.io](https://flashspec.readthedocs.io)
 - **Benchmarks**: [benchmarks/README.md](benchmarks/README.md)
 - **CHANGELOG**: [CHANGELOG.md](CHANGELOG.md)
 
