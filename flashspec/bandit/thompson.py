@@ -88,6 +88,14 @@ class ThompsonSelector(DraftSelector):
         int
             Arm index in ``[0, n_arms)``.
 
+        Notes
+        -----
+        One sample is drawn from Beta(α_k, β_k) for each arm k.  The arm
+        with the largest sample is returned.  This exploration-exploitation
+        trade-off naturally scales with posterior uncertainty: arms with fewer
+        pulls have wider Beta distributions and are therefore more likely to
+        be explored.
+
         Examples
         --------
         >>> arm = selector.select()
@@ -114,6 +122,12 @@ class ThompsonSelector(DraftSelector):
         ------
         ValueError
             If ``arm`` is not in ``[0, n_arms)``.
+
+        Notes
+        -----
+        Conjugate Beta-Binomial update: α_k += accepted, β_k += (1 - accepted).
+        The global round counter ``t`` is incremented and the arm's raw
+        statistics are forwarded to :meth:`ArmStats.record`.
 
         Examples
         --------

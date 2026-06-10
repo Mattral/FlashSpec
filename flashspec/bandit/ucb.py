@@ -92,6 +92,13 @@ class UCB1Selector(DraftSelector):
             Arm index in ``[0, n_arms)``.  Unpulled arms are always chosen
             before pulled arms.
 
+        Notes
+        -----
+        Unpulled arms have an implicit score of +∞ and are always explored
+        before any pulled arm.  Once all arms have been pulled at least once,
+        the arm with the maximum UCB1 score is returned.  The lock is held
+        for the duration of the score computation.
+
         Examples
         --------
         >>> arm = selector.select()
@@ -125,6 +132,12 @@ class UCB1Selector(DraftSelector):
         ------
         ValueError
             If ``arm`` is not in ``[0, n_arms)``.
+
+        Notes
+        -----
+        Increments the global round counter ``t`` and delegates to
+        ``self._arms[arm].record(accepted)``.  The lock is held for the
+        duration of the mutation.
 
         Examples
         --------
