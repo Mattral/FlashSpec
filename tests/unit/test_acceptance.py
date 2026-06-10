@@ -68,11 +68,17 @@ class TestAcceptanceTracker:
     def test_step_count_increments_correctly(self) -> None:
         """step_count increments by 1 for each call to record()."""
         tracker = AcceptanceTracker(gamma=4)
-        assert tracker.step_count == 0
+        assert tracker.step_count == 0, (
+            "step_count must be 0 before any records"
+        )
         tracker.record(2)
-        assert tracker.step_count == 1
+        assert tracker.step_count == 1, (
+            "step_count must be 1 after one record() call"
+        )
         tracker.record(0)
-        assert tracker.step_count == 2
+        assert tracker.step_count == 2, (
+            "step_count must be 2 after two record() calls"
+        )
 
     def test_reset_clears_all_counters(self) -> None:
         """reset() zeros out all counters."""

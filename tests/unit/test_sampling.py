@@ -184,3 +184,88 @@ class TestRejectionSample:
                 f"Token {k}: obs={obs_k}, exp={exp_k:.1f}, "
                 f"deviation={deviation:.1f} > 5σ={5*sigma:.1f}"
             )
+
+
+# ── Hypothesis property-based tests (§5.1) ───────────────────────────────────
+
+from hypothesis import given, settings
+from hypothesis import strategies as st
+
+
+@given(
+    batch_size=st.integers(min_value=1, max_value=8),
+    gamma=st.integers(min_value=1, max_value=8),
+    vocab_size=st.integers(min_value=10, max_value=200),
+)
+@settings(max_examples=30, deadline=None)
+def test_rejection_sample_output_shape_invariant(
+    batch_size: int, gamma: int, vocab_size: int
+) -> None:
+    """Property: accepted_ids is always (batch_size, gamma) for any valid input shape."""
+    set_seed(batch_size * 1000 + gamma * 100 + vocab_size)
+    dlp = torch.randn(batch_size, gamma, vocab_size).log_softmax(-1)
+    tlp = torch.randn(batch_size, gamma, vocab_size).log_softmax(-1)
+    ids = torch.randint(0, vocab_size, (batch_size, gamma))
+    ctx = torch.zeros(batch_size, 4, dtype=torch.long)
+    accepted, first_rej, alpha = rejection_sample(ctx, dlp, tlp, ids, gamma=gamma)
+    assert accepted.shape == (batch_size, gamma), (
+        f"Shape invariant violated: accepted.shape={accepted.shape}, "
+        f"expected ({batch_size}, {gamma})"
+    )
+    assert first_rej.shape == (batch_size,), (
+        f"Shape invariant violated: first_rej.shape={first_rej.shape}, "
+        f"expected ({batch_size},)"
+    )
+    assert 0.0 <= alpha <= 1.0, (
+        f"Acceptance rate out of range: alpha={alpha}"
+    )
+
+
+@given(
+    batch_size=st.integers(min_value=1, max_value=4),
+    gamma=st.integers(min_value=1, max_value=6),
+)
+@settings(max_examples=20, deadline=None)
+def test_rejection_sample_first_rejection_in_valid_range(
+    batch_size: int, gamma: int
+) -> None:
+    """Property: first_rejection is always in [0, gamma] for any valid input."""
+    set_seed(batch_size * 31 + gamma * 7)
+    vocab = 50
+    dlp = torch.randn(batch_size, gamma, vocab).log_softmax(-1)
+    tlp = torch.randn(batch_size, gamma, vocab).log_softmax(-1)
+    ids = torch.randint(0, vocab, (batch_size, gamma))
+    ctx = torch.zeros(batch_size, 4, dtype=torch.long)
+    _accepted, first_rej, _alpha = rejection_sample(ctx, dlp, tlp, ids, gamma=gamma)
+    assert (first_rej >= 0).all(), (
+        f"first_rej has negative values: {first_rej.tolist()}"
+    )
+    assert (first_rej <= gamma).all(), (
+        f"first_rej exceeds gamma={gamma}: {first_rej.tolist()}"
+    )
+
+
+@given(
+    batch_size=st.integers(min_value=1, max_value=4),
+    gamma=st.integers(min_value=1, max_value=6),
+)
+@settings(max_examples=20, deadline=None)
+def test_rejection_sample_padding_beyond_first_rejection(
+    batch_size: int, gamma: int
+) -> None:
+    """Property: accepted_ids slots after first_rejection are always -1 (padding)."""
+    set_seed(batch_size * 53 + gamma * 11)
+    vocab = 50
+    dlp = torch.randn(batch_size, gamma, vocab).log_softmax(-1)
+    tlp = torch.randn(batch_size, gamma, vocab).log_softmax(-1)
+    ids = torch.randint(0, vocab, (batch_size, gamma))
+    ctx = torch.zeros(batch_size, 4, dtype=torch.long)
+    accepted, first_rej, _alpha = rejection_sample(ctx, dlp, tlp, ids, gamma=gamma)
+    for b in range(batch_size):
+        frej = int(first_rej[b].item())
+        for col in range(frej + 1, gamma):
+            val = int(accepted[b, col].item())
+            assert val == -1, (
+                f"accepted[{b}, {col}]={val} should be -1 "
+                f"(first_rej={frej}, gamma={gamma})"
+            )
