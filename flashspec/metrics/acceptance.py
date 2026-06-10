@@ -10,9 +10,6 @@ from dataclasses import dataclass, field
 
 __all__ = ["AcceptanceTracker"]
 
-# Guard for division by zero.
-_MIN_STEPS: int = 1
-
 
 @dataclass(slots=True, frozen=False)
 class AcceptanceTracker:
@@ -26,7 +23,8 @@ class AcceptanceTracker:
     Notes
     -----
     ``mean_acceptance_rate`` is the fraction of draft tokens accepted
-    (alpha in the paper), averaged over all recorded steps.
+    (α in the paper), averaged over all recorded steps.  It equals
+    ``total_accepted / (step_count * gamma)``.
 
     Examples
     --------
@@ -50,14 +48,27 @@ class AcceptanceTracker:
             Number of draft tokens accepted in this step.
             Must be in ``[0, gamma]``.
 
+        Returns
+        -------
+        None
+
         Raises
         ------
         ValueError
             If ``n_accepted`` is negative or exceeds ``gamma``.
 
+        Notes
+        -----
+        Updates ``_total_accepted``, ``_total_possible`` (always incremented
+        by ``gamma``), and ``_step_count`` atomically.  Thread safety is the
+        caller's responsibility; the tracker itself does not lock.
+
         Examples
         --------
+        >>> tracker = AcceptanceTracker(gamma=4)
         >>> tracker.record(n_accepted=2)
+        >>> tracker.total_accepted
+        2
         """
         if not (0 <= n_accepted <= self.gamma):
             raise ValueError(
@@ -69,17 +80,25 @@ class AcceptanceTracker:
 
     @property
     def mean_acceptance_rate(self) -> float:
-        """Mean acceptance rate (alpha) across all recorded steps.
+        """Mean acceptance rate (α) across all recorded steps.
 
         Returns
         -------
         float
             Value in ``[0.0, 1.0]``.  Returns 0.0 if no steps recorded.
 
+        Notes
+        -----
+        Computed as ``total_accepted / total_possible`` where
+        ``total_possible == step_count * gamma``.  This is the α used in
+        the expected tokens-per-step formula: ``E[tokens/step] = γ·α + 1``.
+
         Examples
         --------
-        >>> tracker.mean_acceptance_rate
-        0.75
+        >>> tracker = AcceptanceTracker(gamma=4)
+        >>> tracker.record(3); tracker.record(1)
+        >>> tracker.mean_acceptance_rate  # (3+1) / (4+4) = 0.5
+        0.5
         """
         if self._total_possible == 0:
             return 0.0
@@ -92,6 +111,19 @@ class AcceptanceTracker:
         Returns
         -------
         int
+            Non-negative integer; 0 before any calls to :meth:`record`.
+
+        Notes
+        -----
+        Each call to :meth:`record` increments this by exactly 1 regardless
+        of ``n_accepted``.
+
+        Examples
+        --------
+        >>> tracker = AcceptanceTracker(gamma=4)
+        >>> tracker.record(2)
+        >>> tracker.step_count
+        1
         """
         return self._step_count
 
@@ -102,11 +134,35 @@ class AcceptanceTracker:
         Returns
         -------
         int
+            Cumulative sum of all ``n_accepted`` values passed to
+            :meth:`record`.
+
+        Notes
+        -----
+        Equals ``sum(n_accepted_i for all i)``.  Used together with
+        ``step_count * gamma`` to compute ``mean_acceptance_rate``.
+
+        Examples
+        --------
+        >>> tracker = AcceptanceTracker(gamma=4)
+        >>> tracker.record(3); tracker.record(2)
+        >>> tracker.total_accepted
+        5
         """
         return self._total_accepted
 
     def reset(self) -> None:
         """Reset all counters to zero.
+
+        Returns
+        -------
+        None
+
+        Notes
+        -----
+        Intended for per-request or per-context-window resets so that
+        acceptance statistics reflect only the current generation session.
+        After calling this method, all properties return their initial values.
 
         Examples
         --------
