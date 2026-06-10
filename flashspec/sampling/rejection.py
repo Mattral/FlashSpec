@@ -29,7 +29,6 @@ def rejection_sample(
     target_logprobs: torch.Tensor,
     draft_token_ids: torch.Tensor,
     gamma: int,
-    temperature: float = 1.0,
 ) -> tuple[torch.Tensor, torch.Tensor, float]:
     """Speculative sampling via token-level acceptance/rejection (Algorithm 1).
 
@@ -44,24 +43,25 @@ def rejection_sample(
     draft_logprobs : torch.Tensor
         Log-probabilities under the draft model for each draft step.
         Shape: ``(batch_size, gamma, vocab_size)``, dtype float32 or bfloat16.
+        Temperature **must** be applied to the raw logits by the caller before
+        computing log-softmax (§7).  This function operates on the already-scaled
+        log-probs and does not apply any further temperature rescaling.
     target_logprobs : torch.Tensor
         Log-probabilities under the target model at each draft position.
         Shape: ``(batch_size, gamma, vocab_size)``, dtype float32 or bfloat16.
+        Temperature **must** be applied before log-softmax by the caller (§7).
     draft_token_ids : torch.Tensor
         Token indices proposed by the draft model.
         Shape: ``(batch_size, gamma)``, dtype int64.
     gamma : int
         Speculation length.  Must equal ``draft_logprobs.shape[1]``.
-    temperature : float
-        Temperature already applied to target logits **before** log-softmax.
-        Default 1.0 (no scaling beyond what the model returns).
 
     Returns
     -------
     accepted_ids : torch.Tensor
         Accepted token IDs (draft tokens that passed the test, plus the
-        residual token).  Shape: ``(batch_size, n_accepted)`` where
-        ``n_accepted`` varies per sequence; padding with ``-1``.
+        residual token).  Shape: ``(batch_size, gamma)`` with ``-1`` padding
+        at positions beyond ``first_rejection``.
     first_rejection : torch.Tensor
         Position of first rejection per sequence (or ``gamma`` if all accepted).
         Shape: ``(batch_size,)``, dtype int32.
@@ -90,6 +90,10 @@ def rejection_sample(
 
     No temperature rescaling is applied to the residual.  No ``softmax``
     is applied to the residual (it is already a proper probability vector).
+
+    Temperature scaling must be applied **before** log-softmax in the caller
+    (``TargetModel.score_draft`` and the draft model's ``generate_draft``).
+    See §7 of AGENTS.md.
 
     References
     ----------
