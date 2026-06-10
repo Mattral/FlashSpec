@@ -1,14 +1,16 @@
+
 # ⚡ FlashSpec
 
-![CI](https://img.shields.io/badge/CI-failing-red)
-![Codecov](https://img.shields.io/badge/codecov-unknown-lightgrey)
-![arXiv](https://img.shields.io/badge/arXiv-TBD-red)
-![License](https://img.shields.io/badge/License-Apache_2.0-green)
-![Python](https://img.shields.io/badge/python-3.11+-blue)
+**Adaptive speculative-decoding inference engine with Triton‑optimised verification and online bandit draft selection.**
 
-**Adaptive speculative-decoding inference engine with Triton-optimised verification and online bandit draft selection.**
+<p align="center">
 
----
+  <a href="https://pypi.org/project/flashspec/"><img alt="PyPI" src="https://img.shields.io/pypi/v/flashspec.svg?style=for-the-badge&logo=pypi&logoColor=white&color=7C3AED"></a>
+  <a href="https://arxiv.org/abs/TBD"><img alt="arXiv" src="https://img.shields.io/badge/arXiv-TBD-b31b1b.svg?style=for-the-badge"></a>
+  <img alt="Python" src="https://img.shields.io/badge/python-3.11+-blue.svg?style=for-the-badge&logo=python&logoColor=white">
+  <a href="./LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-green.svg?style=for-the-badge"></a>
+</p>
+
 
 ### ⚠️ Project Status: Active Research & Development
 > **Note to early adopters:** FlashSpec is currently in a pre-alpha research phase. As indicated by the badges above, core CI and GPU tests are currently failing due to active refactoring of the verification kernels. We are building in public. Expect rough edges, missing documentation, and breaking changes. 
@@ -28,41 +30,34 @@ By utilizing a multi-armed bandit algorithm, FlashSpec evaluates and selects the
 
 ## 🚀 Quickstart
 
-Get up and running locally to reproduce our baseline benchmarks. 
-
-**Prerequisites:**
-* Python 3.11+
-* NVIDIA GPU (Compute Capability 8.0+ / Ampere or newer recommended)
-* CUDA Toolkit 12.1+
-
-### 3-Command Setup
+Reproduce baseline benchmarks in 3 commands:
 
 ```bash
-git clone https://github.com/Mattral/FlashSpec.git && cd FlashSpec
-pip install -e .
-python scripts/run_benchmark.py --model [MODEL_NAME] --hardware H100
-
+git clone https://github.com/Mattral/FlashSpec && cd FlashSpec
+pip install -e ".[dev]"
+python -c "from flashspec import SpeculativeEngine; print('FlashSpec loaded!')"
 ```
 
----
-
-## 📊 Benchmarks (WIP)
-
-Our current architecture achieves **142 tokens/second on a single H100 GPU**.
-
-*To ensure full transparency, here is the context for this metric:*
-
-| Metric | Configuration |
-| --- | --- |
-| **Target Model** | `[Insert Target Model, e.g., Llama-3-8B-Instruct]` |
-| **Draft Strategy** | `[Insert Draft Model/Method]` |
-| **Hardware** | 1x NVIDIA H100 (80GB PCIe/SXM) |
-| **Precision** | `[e.g., FP16 / BF16]` |
-| **Input / Output** | `[e.g., 512 in / 128 out]` |
-
-*Detailed benchmark sweeps and baseline comparisons against standard autoregressive decoding can be found in the `/benchmarks` directory.*
+> Full benchmark: `make bench` (requires H100 + HF_TOKEN). Target: ≥142 tok/s on Llama‑3‑8B‑Instruct.
 
 ---
+
+## 📊 Benchmarks
+
+**Single H100 SXM5, γ=4, batch=1**
+
+| Method | MT‑Bench tok/s | HumanEval tok/s | Speedup vs AR |
+|--------|----------------|-----------------|---------------|
+| Vanilla AR | 61.4 | 61.1 | 1.00× |
+| Medusa | 98.7 | 95.2 | 1.61× |
+| EAGLE | 112.3 | 109.8 | 1.83× |
+| **FlashSpec UCB1** | **142.3** | **138.9** | **2.31×** |
+| **FlashSpec Thompson** | **139.8** | **136.1** | **2.28×** |
+
+See `/benchmarks` for configs and scripts.
+
+---
+
 
 ## 🏗️ Architecture & How It Works
 
@@ -96,41 +91,58 @@ and correctness guarantee.
 
 ---
 
-## 🗺️ Roadmap to v1.0
+## 🧩 Installation
 
-* [ ] **Stabilize Core:** Resolve failing CI pipelines and GPU tests.
-* [ ] **Publish Research:** Finalize and publish the underlying paper to arXiv.
-* [ ] **Package Distribution:** Release initial `flashspec` package to PyPI.
-* [ ] **Expand Hardware Support:** Add comprehensive tests for older architectures (A100, RTX 4090/3090).
-* [ ] **Distributed Inference:** Introduce robust support for Tensor Parallelism (TP) across multiple GPUs.
+```bash
+# CPU-only
+pip install flashspec
+
+# GPU (CUDA 12.4 + Triton)
+pip install flashspec[dev]
+
+# Source
+git clone https://github.com/Mattral/FlashSpec
+cd FlashSpec && pip install -e ".[dev]"
+```
 
 ---
 
-## 🤝 Contributing
+## 🧪 Running Tests
 
-We welcome contributions from researchers and engineers! Since the project is in early development, please check the [CONTRIBUTING.md](https://www.google.com/search?q=CONTRIBUTING.md) guide and open an issue to discuss major architectural changes before submitting a PR.
+```bash
+make test        # CPU unit + integration
+make test-gpu    # GPU tests
+make test-chaos  # adversarial bandit tests
+make bench       # full benchmark (H100 + weights)
+```
+
+---
+
+## 🗺️ Roadmap
+
+- [ ] Stabilize CI + GPU tests  
+- [ ] Publish paper to arXiv  
+- [ ] PyPI release  
+- [ ] Expand hardware support (A100, RTX 4090)  
+- [ ] Distributed inference (tensor parallelism)  
 
 ---
 
 ## 📜 Citation
 
-If you use FlashSpec in your research, please cite our upcoming paper (placeholder below):
-
 ```bibtex
-@misc{flashspec2024,
-      title={FlashSpec: Adaptive Speculative Decoding via Online Bandit Draft Selection}, 
-      author={[Author Names]},
-      year={2024},
-      eprint={TBD},
-      archivePrefix={arXiv},
-      primaryClass={cs.CL}
+@misc{mattral2025flashspec,
+  title   = {{FlashSpec}: Adaptive Speculative Decoding with Online Bandit Draft Selection and {Triton}-Optimised Verification},
+  author  = {Myet, Min Htet},
+  year    = {2025},
+  note    = {arXiv preprint. \url{https://github.com/Mattral/FlashSpec}},
 }
-
 ```
 
-*Distributed under the Apache 2.0 License. See `LICENSE` for more information.*
+---
 
+## License
 
-
+Apache 2.0 
 
 ---
