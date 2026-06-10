@@ -1,0 +1,5 @@
+# Documentation build dependencies for Read the Docs.
+# These are installed by .readthedocs.yaml before mkdocs runs.
+mkdocs-material>=9.5
+mkdocstrings[python]>=0.24
+pymdown-extensions>=10.7
