@@ -90,6 +90,19 @@ def gather_accepted(
     RuntimeError
         If tensors are not on the same CUDA device.
 
+    Notes
+    -----
+    This is the Triton-accelerated production implementation.  The ground-truth
+    reference is :func:`flashspec.kernels._reference.gather_accepted_reference`;
+    both must produce identical outputs (verified in tests).
+
+    The kernel tiles over the flat ``(batch_size * gamma)`` space.  Each thread
+    reads its batch index from ``first_rejection[batch_idx]`` and writes the
+    token ID if ``gamma_pos < first_rejection``, otherwise writes ``-1``.
+    SRAM footprint is O(BLOCK_SIZE) — constant in vocab size.
+
+    See ``docs/kernels.md §2.2`` for the full tiling strategy.
+
     Examples
     --------
     >>> ids   = torch.tensor([[10, 20, 30, 40]], device="cuda")
