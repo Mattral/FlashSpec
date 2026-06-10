@@ -25,6 +25,12 @@ jobs:
         run: pip install -e ".[dev]" --extra-index-url https://download.pytorch.org/whl/cpu
       - name: make lint
         run: make lint
+      - name: pip-audit (fail on CRITICAL CVE — §15)
+        run: |
+          pip install pip-audit
+          pip-audit --strict --vulnerability-service pypi -r <(pip freeze) 2>&1 | tee pip-audit.txt
+          # Exit non-zero only on CRITICAL severity
+          grep -q "CRITICAL" pip-audit.txt && exit 1 || true
 
   # ── Job 2: test-cpu ──────────────────────────────────────────────────────────
   test-cpu:

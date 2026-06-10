@@ -27,6 +27,18 @@ jobs:
       - name: Install bench dependencies
         run: pip install -e ".[bench]"
 
+      - name: Build Docker image
+        run: docker build -t flashspec:latest -f deploy/Dockerfile .
+
+      - name: Trivy image scan — CRITICAL CVEs block build (§15)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: "flashspec:latest"
+          format: "table"
+          exit-code: "1"
+          severity: "CRITICAL"
+          ignore-unfixed: true
+
       - name: Run full benchmark suite (make bench)
         run: make bench
         env:
