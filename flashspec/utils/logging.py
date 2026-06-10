@@ -30,7 +30,41 @@ class _JsonFormatter(logging.Formatter):
     ``extra`` fields passed by the caller.
     """
 
-    def format(self, record: logging.LogRecord) -> str:  # noqa: D102
+    def format(self, record: logging.LogRecord) -> str:
+        """Format a log record as a single-line JSON object.
+
+        Parameters
+        ----------
+        record : logging.LogRecord
+            The log record to format.
+
+        Returns
+        -------
+        str
+            A single-line JSON string with keys ``v``, ``level``, ``logger``,
+            ``message``, ``timestamp``, and any ``extra`` fields passed by the
+            caller.  Exception info is included under ``"exc_info"`` when
+            present.
+
+        Notes
+        -----
+        Extra fields are extracted by taking the difference between the
+        record's ``__dict__`` and the set of standard ``LogRecord`` attribute
+        names.  Private keys (starting with ``_``) are excluded.
+
+        This method overrides ``logging.Formatter.format`` and is called
+        automatically by the logging framework; it should not be called
+        directly.
+
+        Examples
+        --------
+        >>> import logging
+        >>> formatter = _JsonFormatter()
+        >>> record = logging.LogRecord("test", logging.INFO, "", 0, "hello", (), None)
+        >>> import json; data = json.loads(formatter.format(record))
+        >>> data["message"]
+        'hello'
+        """
         payload: dict[str, Any] = {
             "v": _JSON_FORMAT_VERSION,
             "level": record.levelname,
