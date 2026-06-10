@@ -82,12 +82,13 @@ class TargetModel:
         input_ids: torch.Tensor,
         draft_token_ids: torch.Tensor,
         gamma: int,
+        temperature: float = 1.0,
     ) -> torch.Tensor:
         """Score all gamma draft positions in a single forward pass.
 
         Concatenates ``draft_token_ids`` to ``input_ids`` and runs one
-        forward pass.  Returns log-softmax probabilities at each draft
-        position (offset by 1 due to causal shift).
+        forward pass.  Temperature is applied to the raw logits **before**
+        ``log_softmax`` as required by §7 of AGENTS.md.
 
         Parameters
         ----------
@@ -97,19 +98,30 @@ class TargetModel:
             Draft token IDs.  Shape: ``(batch_size, gamma)``, dtype int64.
         gamma : int
             Number of draft positions.  Must equal ``draft_token_ids.shape[1]``.
+        temperature : float
+            Sampling temperature.  Applied as ``logits / temperature`` **before**
+            ``log_softmax``.  Must be > 0.  Default 1.0 (no scaling).
 
         Returns
         -------
         torch.Tensor
             Log-probabilities.  Shape: ``(batch_size, gamma, vocab_size)``,
-            dtype float32.
+            dtype float32.  Temperature scaling has already been applied.
 
         Raises
         ------
         ValueError
-            If ``gamma`` does not match ``draft_token_ids.shape[1]``.
+            If ``gamma`` does not match ``draft_token_ids.shape[1]``, or if
+            ``temperature`` ≤ 0.
         RuntimeError
             If tensors are not on the model's device.
+
+        Notes
+        -----
+        Temperature scaling must be applied before ``log_softmax``, not after
+        (AGENTS.md §7).  This means the returned log-probs are
+        ``log_softmax(logits / temperature)``, **not**
+        ``log_softmax(logits) / temperature``.
 
         Examples
         --------
@@ -121,6 +133,10 @@ class TargetModel:
             raise ValueError(
                 f"gamma={gamma} must match draft_token_ids.shape[1]="
                 f"{draft_token_ids.shape[1]}."
+            )
+        if temperature <= 0.0:
+            raise ValueError(
+                f"temperature must be > 0; got {temperature}."
             )
         input_ids = input_ids.to(self._device)
         draft_token_ids = draft_token_ids.to(self._device)
@@ -134,11 +150,16 @@ class TargetModel:
         logits = outputs.logits  # (B, context_len + gamma, vocab_size)
 
         # Causal offset: logits at position i predict token i+1.
-        # Extract logits at positions (context_len - 1) .. (context_len + gamma - 2).
         context_len = input_ids.shape[1]
-        draft_logits = logits[:, context_len - 1 : context_len + gamma - 1, :]  # (B, gamma, V)
+        draft_logits = logits[
+            :, context_len - 1 : context_len + gamma - 1, :
+        ].float()  # (B, gamma, V)
 
-        return torch.log_softmax(draft_logits.float(), dim=-1)
+        # §7: Apply temperature BEFORE log_softmax — never after.
+        if temperature != 1.0:
+            draft_logits = draft_logits / temperature
+
+        return torch.log_softmax(draft_logits, dim=-1)
 
     @property
     def device(self) -> torch.device:
@@ -147,6 +168,17 @@ class TargetModel:
         Returns
         -------
         torch.device
+            The device passed to the constructor (e.g. ``cuda:0``).
+
+        Notes
+        -----
+        All tensors passed to :meth:`score_draft` are moved to this device
+        automatically; callers do not need to pre-move inputs.
+
+        Examples
+        --------
+        >>> target.device
+        device(type='cuda', index=0)
         """
         return self._device
 
@@ -157,5 +189,17 @@ class TargetModel:
         Returns
         -------
         int
+            Number of tokens in the model's vocabulary, as reported by
+            ``model.config.vocab_size``.
+
+        Notes
+        -----
+        Used by the engine to validate that draft and target models share the
+        same vocabulary before running speculative decoding.
+
+        Examples
+        --------
+        >>> target.vocab_size
+        32000
         """
         return self._model.config.vocab_size  # type: ignore[attr-defined]

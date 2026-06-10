@@ -65,8 +65,20 @@ class DraftModel(Protocol):
         draft_token_ids : torch.Tensor
             Shape: ``(batch_size, gamma)``, dtype int64.
         draft_logprobs : torch.Tensor
-            Log-probabilities at each draft step.
+            Log-probabilities at each draft step after temperature scaling.
             Shape: ``(batch_size, gamma, vocab_size)``, dtype float32.
+
+        Notes
+        -----
+        Temperature scaling must be applied to the raw logits **before**
+        ``log_softmax`` (§7 of AGENTS.md).  The returned ``draft_logprobs``
+        are already temperature-scaled log-probs, not raw logits.
+
+        Examples
+        --------
+        >>> draft_ids, draft_lp = drafter.generate_draft(input_ids, gamma=4)
+        >>> draft_ids.shape
+        torch.Size([1, 4])
         """
         ...
 
@@ -87,7 +99,20 @@ class DraftModel(Protocol):
         Returns
         -------
         torch.Tensor
-            Log-probabilities.  Shape: ``(batch_size, gamma, vocab_size)``.
+            Temperature-scaled log-probabilities.
+            Shape: ``(batch_size, gamma, vocab_size)``, dtype float32.
+
+        Notes
+        -----
+        Used when the drafter needs to re-score previously generated tokens,
+        for example after the context has been updated.  Temperature must be
+        applied before ``log_softmax`` (§7 of AGENTS.md).
+
+        Examples
+        --------
+        >>> lp = drafter.compute_logprobs(input_ids, draft_ids)
+        >>> lp.shape
+        torch.Size([1, 4, 32000])
         """
         ...
 
@@ -100,17 +125,26 @@ def register(name: str) -> Any:
     Parameters
     ----------
     name : str
-        Registry key (e.g. ``"llama3-1b"``).  Must be unique.
+        Registry key (e.g. ``"llama3-1b"``).  Must be unique across all
+        registered drafters.
 
     Returns
     -------
     Callable
-        The decorator function; returns the class unchanged.
+        The decorator function; returns the decorated class unchanged so
+        the class can still be used normally after decoration.
 
     Raises
     ------
     ValueError
         If ``name`` is already registered.
+
+    Notes
+    -----
+    The registry is a module-level dict ``_REGISTRY``.  Names are
+    case-sensitive.  External packages can also register drafters via Python
+    entry points under the ``flashspec.drafters`` group without modifying
+    this module (see §4.4 of AGENTS.md).
 
     Examples
     --------
@@ -158,17 +192,23 @@ def get_drafter(name: str) -> type[DraftModel]:
     Parameters
     ----------
     name : str
-        Registry key.
+        Registry key, as used in :func:`register`.
 
     Returns
     -------
     type[DraftModel]
-        The registered class.
+        The registered class (not an instance; caller must instantiate it).
 
     Raises
     ------
     KeyError
-        If ``name`` is not found in the registry.
+        If ``name`` is not found in the registry after loading all entry points.
+
+    Notes
+    -----
+    Triggers :func:`_load_entry_points` on every call so that external packages
+    installed after the interpreter started are discovered automatically.
+    The lookup is O(1) dict access after entry-point loading.
 
     Examples
     --------
@@ -185,12 +225,18 @@ def get_drafter(name: str) -> type[DraftModel]:
 
 
 def list_drafters() -> list[str]:
-    """Return all registered drafter names.
+    """Return all registered drafter names in alphabetical order.
 
     Returns
     -------
     list[str]
         Sorted list of registry keys.
+
+    Notes
+    -----
+    Triggers :func:`_load_entry_points` to discover any externally registered
+    drafters before returning the list.  The list reflects the state of the
+    registry at call time; it is not a live view.
 
     Examples
     --------

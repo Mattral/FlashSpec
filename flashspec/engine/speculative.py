@@ -135,12 +135,31 @@ class SpeculativeEngine:
         Returns
         -------
         GenerationResult
-            Contains output token IDs and generation metrics.
+            Contains output token IDs and generation metrics (acceptance rate,
+            tokens per second).
 
         Raises
         ------
         ValueError
             If ``input_ids`` is not 2-D or has batch size 0.
+
+        Notes
+        -----
+        The output distribution of this method is provably identical to
+        autoregressive sampling from the target model (Leviathan et al., 2023
+        Theorem 1).  This invariant is enforced by the KS-test gate in
+        ``tests/integration/test_e2e_sampling.py`` at α=0.01, N=10,000.
+
+        The generation loop follows these steps on each iteration:
+
+        1. Bandit selects a draft model arm.
+        2. Draft model proposes ``gamma`` tokens autoregressively.
+        3. Target model scores all ``gamma`` positions in one forward pass
+           with temperature applied before log-softmax (§7).
+        4. Rejection sampling accepts/rejects tokens (Algorithm 1).
+        5. Bandit is updated with the acceptance outcome.
+        6. Metrics are updated.
+        7. Accepted tokens are appended to the context.
 
         Examples
         --------
@@ -174,8 +193,11 @@ class SpeculativeEngine:
             # 2. Draft model proposes gamma tokens.
             draft_token_ids, draft_logprobs = drafter.generate_draft(context, gamma)
 
-            # 3. Target model scores draft positions.
-            target_logprobs = self._target.score_draft(context, draft_token_ids, gamma)
+            # 3. Target model scores draft positions (temperature applied inside).
+            target_logprobs = self._target.score_draft(
+                context, draft_token_ids, gamma,
+                temperature=config_sampling.temperature,
+            )
 
             # 4. Accept/reject sampling.
             if config_sampling.variant == "rejection":
@@ -185,7 +207,6 @@ class SpeculativeEngine:
                     target_logprobs=target_logprobs,
                     draft_token_ids=draft_token_ids,
                     gamma=gamma,
-                    temperature=config_sampling.temperature,
                 )
             else:
                 accepted_ids, first_rejection, alpha = typical_sample(
