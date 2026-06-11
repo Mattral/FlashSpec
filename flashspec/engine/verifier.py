@@ -8,7 +8,7 @@ in a single forward pass, and returns log-softmax probabilities.
 from __future__ import annotations
 
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer  # type: ignore[import]  # transformers stubs not shipped
+from transformers import AutoModelForCausalLM, AutoTokenizer  # type: ignore[import]  # no stubs
 
 from flashspec.utils.logging import get_logger
 
@@ -202,4 +202,5 @@ class TargetModel:
         >>> target.vocab_size
         32000
         """
-        return self._model.config.vocab_size  # type: ignore[attr-defined]  # HF config is dynamic; vocab_size always present on CausalLM
+        # HF config is dynamic; vocab_size always present on CausalLM.
+        return self._model.config.vocab_size  # type: ignore[attr-defined]  # HF config is untyped
