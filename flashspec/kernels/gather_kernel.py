@@ -15,8 +15,8 @@ flashspec.kernels._reference : Pure-PyTorch reference ``gather_accepted_referenc
 from __future__ import annotations
 
 import torch
-import triton  # type: ignore[import]
-import triton.language as tl  # type: ignore[import]
+import triton  # type: ignore[import]  # triton ships no py.typed; stubs unavailable
+import triton.language as tl  # type: ignore[import]  # same as above
 
 __all__ = ["gather_accepted"]
 
