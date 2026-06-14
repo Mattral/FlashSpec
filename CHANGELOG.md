@@ -10,7 +10,47 @@ Versioning follows [Semantic Versioning 2.0.0](https://semver.org/).
 
 ## [Unreleased]
 
-### Added
+No unreleased changes. Next planned milestone: v0.2.0 (real GPU benchmark
+results, completed paper figures, arXiv submission).
+
+---
+
+## [0.1.3] — Critical packaging fix (Windows/macOS install)
+
+### Fixed
+- **Critical**: `pip install flashspec` failed completely on Windows and
+  macOS with `ERROR: No matching distribution found for triton>=3.0.0` —
+  Triton publishes official PyPI wheels for Linux only, but `triton>=3.0.0`
+  was a hard core dependency, making the package uninstallable on those
+  platforms. (Reported against v0.1.0–v0.1.2.)
+  - `pyproject.toml`: moved `triton` out of `dependencies` into a new
+    `gpu` extra with a `platform_system == 'Linux'` environment marker:
+    `pip install flashspec[gpu]`.
+  - `flashspec/kernels/__init__.py`: now imports `verify_kernel` and
+    `gather_kernel` inside a `try/except ImportError`. If Triton is
+    unavailable, `verify_tokens` and `gather_accepted` are bound to a
+    wrapper that raises an actionable `ImportError` only when *called*
+    (not at import time), explaining `pip install flashspec[gpu]`
+    (Linux-only) and pointing to the cross-platform
+    `flashspec.kernels._reference` module (identical numerics, verified in
+    `tests/unit/test_verify_kernel.py`). Adds module-level
+    `flashspec.kernels.TRITON_AVAILABLE: bool`.
+  - `tests/unit/test_verify_kernel.py`: added
+    `TestKernelsPackageWithoutTriton` (3 tests, CPU-only, no GPU/Triton
+    required) verifying the package imports cleanly and raises the
+    actionable error when Triton is absent.
+  - `.github/workflows/{ci,gpu_tests,benchmark}.yml`: updated `pip install`
+    steps to request the `gpu` extra wherever Triton-backed kernel tests
+    or benchmarks actually run (all on `ubuntu-22.04`/self-hosted Linux
+    runners, where the extra resolves normally).
+  - `README.md`: rewrote the Installation section — `pip install flashspec`
+    is now correctly described as cross-platform (CPU reference kernels),
+    with `pip install flashspec[gpu]` for Linux+CUDA accelerated kernels.
+  - Bumped version `0.1.0` → `0.1.3` in `pyproject.toml` and
+    `flashspec/__init__.py` (0.1.0–0.1.2 are broken on non-Linux and
+    should be marked yanked on PyPI after this release).
+
+---
 - Initial project scaffold following AGENTS.md specification.
 - `flashspec.utils.config`: Pydantic v2 configuration models (`FlashSpecConfig`,
   `BanditConfig`, `SamplingConfig`, `MetricsConfig`). All immutable (`frozen=True`).

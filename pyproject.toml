@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "flashspec"
-version = "0.1.2"
+version = "0.1.3"
 description = "Adaptive speculative-decoding inference engine with Triton-optimised verification and online bandit draft selection"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -20,13 +20,18 @@ classifiers = [
 ]
 dependencies = [
     "torch>=2.2.0",
-    "triton>=3.0.0",
     "transformers>=4.40.0",
     "pydantic>=2.0.0",
     "numpy>=1.26.0",
 ]
 
 [project.optional-dependencies]
+# Triton has no official PyPI wheels for Windows or macOS — it is Linux-only.
+# Without this extra, flashspec runs on the pure-PyTorch reference kernels
+# (flashspec.kernels._reference), which are numerically identical (see
+# tests/unit/test_verify_kernel.py) but slower. Install this extra on Linux
+# with a CUDA-capable GPU to enable the accelerated Triton kernels.
+gpu = ["triton>=3.0.0; platform_system == 'Linux'"]
 onnx = ["onnx>=1.16", "onnxruntime-gpu>=1.18"]
 dev = [
     "pytest>=8.0",

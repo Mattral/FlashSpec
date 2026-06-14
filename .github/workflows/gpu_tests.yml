@@ -20,7 +20,7 @@ jobs:
           python-version: "3.11"
           cache: pip
       - name: Install
-        run: pip install -e ".[dev]"
+        run: pip install -e ".[dev,gpu]"
       - name: make test-gpu
         run: make test-gpu
       - name: Run slow distribution tests (N=10,000 KS gate)
@@ -45,7 +45,7 @@ jobs:
           python-version: "3.11"
           cache: pip
       - name: Install bench dependencies
-        run: pip install -e ".[bench]"
+        run: pip install -e ".[bench,gpu]"
       - name: make bench-quick
         run: make bench-quick
       - name: Assert throughput ≥ 1.5× AR

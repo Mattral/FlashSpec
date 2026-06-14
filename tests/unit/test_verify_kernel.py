@@ -368,3 +368,103 @@ class TestVerifyTokensTritonParity:
         assert (first_rej.cpu() == 0).all(), (
             f"Expected all first_rej==0, got {first_rej.cpu().tolist()}"
         )
+
+
+# ── Triton-unavailable fallback (cross-platform, no GPU required) ───────────
+
+
+class TestKernelsPackageWithoutTriton:
+    """``flashspec.kernels`` must import successfully even if Triton is
+    absent (e.g. on Windows or macOS, where Triton ships no PyPI wheels).
+
+    Simulates the absence of Triton by removing ``triton`` and the kernel
+    submodules from ``sys.modules`` and blocking their import, then
+    re-importing ``flashspec.kernels`` fresh.
+    """
+
+    def test_kernels_package_imports_without_triton(self) -> None:
+        """``import flashspec.kernels`` succeeds even when Triton is missing."""
+        import builtins
+        import importlib
+        import sys
+
+        real_import = builtins.__import__
+
+        def fake_import(name, *args, **kwargs):
+            if name == "triton" or name.startswith("triton."):
+                raise ModuleNotFoundError(f"No module named '{name}'")
+            return real_import(name, *args, **kwargs)
+
+        # Drop any cached modules so re-import re-triggers the try/except.
+        for mod in list(sys.modules):
+            if mod.startswith("flashspec.kernels"):
+                del sys.modules[mod]
+
+        builtins.__import__ = fake_import
+        try:
+            kernels = importlib.import_module("flashspec.kernels")
+        finally:
+            builtins.__import__ = real_import
+            for mod in list(sys.modules):
+                if mod.startswith("flashspec.kernels"):
+                    del sys.modules[mod]
+
+        assert kernels.TRITON_AVAILABLE is False, (
+            "TRITON_AVAILABLE should be False when triton import fails"
+        )
+
+    def test_verify_tokens_raises_actionable_import_error_without_triton(self) -> None:
+        """Calling verify_tokens without Triton raises ImportError mentioning flashspec[gpu]."""
+        import builtins
+        import importlib
+        import sys
+
+        real_import = builtins.__import__
+
+        def fake_import(name, *args, **kwargs):
+            if name == "triton" or name.startswith("triton."):
+                raise ModuleNotFoundError(f"No module named '{name}'")
+            return real_import(name, *args, **kwargs)
+
+        for mod in list(sys.modules):
+            if mod.startswith("flashspec.kernels"):
+                del sys.modules[mod]
+
+        builtins.__import__ = fake_import
+        try:
+            kernels = importlib.import_module("flashspec.kernels")
+            with pytest.raises(ImportError, match=r"flashspec\[gpu\]"):
+                kernels.verify_tokens(None, None, None, None)
+        finally:
+            builtins.__import__ = real_import
+            for mod in list(sys.modules):
+                if mod.startswith("flashspec.kernels"):
+                    del sys.modules[mod]
+
+    def test_gather_accepted_raises_actionable_import_error_without_triton(self) -> None:
+        """Calling gather_accepted without Triton raises ImportError mentioning _reference."""
+        import builtins
+        import importlib
+        import sys
+
+        real_import = builtins.__import__
+
+        def fake_import(name, *args, **kwargs):
+            if name == "triton" or name.startswith("triton."):
+                raise ModuleNotFoundError(f"No module named '{name}'")
+            return real_import(name, *args, **kwargs)
+
+        for mod in list(sys.modules):
+            if mod.startswith("flashspec.kernels"):
+                del sys.modules[mod]
+
+        builtins.__import__ = fake_import
+        try:
+            kernels = importlib.import_module("flashspec.kernels")
+            with pytest.raises(ImportError, match="_reference"):
+                kernels.gather_accepted(None, None)
+        finally:
+            builtins.__import__ = real_import
+            for mod in list(sys.modules):
+                if mod.startswith("flashspec.kernels"):
+                    del sys.modules[mod]
