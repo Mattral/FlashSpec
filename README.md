@@ -115,18 +115,20 @@ and correctness guarantee.
 ## Installation
 
 ```bash
-# From PyPI (CPU-only, no Triton):
+# From PyPI — cross-platform (Windows, macOS, Linux), pure-PyTorch
+# reference kernels. No Triton required:
 pip install flashspec
 
-# GPU (CUDA 12.4, includes Triton):
-pip install flashspec[dev]
+# From PyPI — GPU-accelerated Triton kernels (Linux + CUDA only;
+# Triton has no official Windows/macOS wheels):
+pip install flashspec[gpu]
 
 # From source:
 git clone https://github.com/Mattral/FlashSpec
 cd FlashSpec
-pip install -e ".[dev]"
+pip install -e ".[dev,gpu]"   # drop ",gpu" on Windows/macOS
 
-# Docker:
+# Docker (includes Triton, Linux + CUDA):
 docker pull ghcr.io/mattral/flashspec:latest
 docker run --gpus all ghcr.io/mattral/flashspec:latest make test
 ```
