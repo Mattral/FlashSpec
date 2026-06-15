@@ -10,26 +10,35 @@ Versioning follows [Semantic Versioning 2.0.0](https://semver.org/).
 
 ## [Unreleased]
 
-### Added
-- First real GPU measurements (Tesla T4, TinyLlama-1.1B-Chat NF4, FlashSpec UCB1,
-  γ=4): **44.2 tok/s**, α=0.75, p50=22.1ms.
-  Result in `benchmarks/results/flashspec_ucb_tiny_llama.json`.
-- Bandit regret measured empirically (T=10,000, K=3 arms): UCB1=100.2,
-  Thompson=18.9, Oracle=0.0. Figure saved to `paper/figures/bandit_regret.jpg`.
-- Gamma sweep results in `benchmarks/results/gamma_sweep.csv` (synthetic
-  logprobs, acceptance rates genuine).
-- Draft size sweep results in `benchmarks/results/draft_size_sweep.csv`.
-- Updated `notebooks/01_quickstart.ipynb`, `02_bandit_analysis.ipynb`, and
-  `03_kernel_profiling.ipynb` with real Colab T4 execution outputs.
-- Kernel profiling table (T4): reference 0.07–0.72ms; Triton kernel faster
-  at batch=8 (1.6×) but slower at batch=1 on T4 (expected — T4 is
-  bandwidth-constrained, H100 profiling pending).
-- README updated: real measurements clearly separated from H100 design targets;
-  ⊛ symbol marks all unverified target numbers.
+No unreleased changes. Next milestone: v0.2.0 — H100 benchmarks with
+Llama-3-8B/70B, arXiv preprint, JOSS submission.
 
 ---
 
-## [0.1.3] — Critical packaging fix (Windows/macOS install)
+## [0.1.4] — 2026-06-15 — First real GPU measurements
+
+### Added
+- First real GPU measurements (Tesla T4, TinyLlama-1.1B-Chat NF4, FlashSpec UCB1,
+  γ=4): **44.2 tok/s**, α=0.75, p50=22.1ms.
+  Result committed to `benchmarks/results/flashspec_ucb_tiny_llama.json`.
+- Bandit regret empirically measured (T=10,000, K=3 arms, true_rates=[0.3,0.7,0.5]):
+  UCB1=100.2, Thompson=18.9, Oracle=0.0. Theory bound O(√(KT log T))≈526.
+  Figure committed to `paper/figures/bandit_regret.jpg`.
+- Gamma sweep results committed to `benchmarks/results/gamma_sweep.csv`
+  (acceptance rates genuine; throughput values reflect sampling kernel only,
+  not end-to-end inference — see CSV for details).
+- Draft model size sweep committed to `benchmarks/results/draft_size_sweep.csv`.
+- Notebooks updated with real Colab T4 execution outputs:
+  `notebooks/01_quickstart.ipynb`, `02_bandit_analysis.ipynb`,
+  `03_kernel_profiling.ipynb`.
+- Triton kernel profiling on Tesla T4 committed (notebook 03). Reference
+  kernel: 0.07–0.72ms. Triton kernel: faster at batch=8 (1.6×), slower at
+  batch=1 (0.2×) on T4 due to HBM bandwidth constraints — expected;
+  H100 profiling pending.
+- README updated: all real T4 measurements separated from H100 design targets;
+  ⊛ symbol marks every unverified number.
+
+
 
 ### Fixed
 - **Critical**: `pip install flashspec` failed completely on Windows and
