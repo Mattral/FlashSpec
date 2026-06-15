@@ -1,6 +1,33 @@
 {
-    "method": "flashspec_ucb",
+  "timestamp": "2026-06-14T09:37:00Z",
+  "git_commit": "v0.1.3",
+  "hardware": {
+    "gpu": "Tesla T4",
+    "driver": "unknown",
+    "cuda": "12.8"
+  },
+  "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+  "method": "flashspec_ucb",
+  "gamma": 4,
+  "dataset": "custom_prompts",
+  "n_samples": 1,
+  "metrics": {
     "tokens_per_second_mean": 44.2,
+    "tokens_per_second_std": 0.0,
+    "speedup_vs_ar_mean": 0.0,
+    "speedup_vs_ar_std": 0.0,
     "acceptance_rate_mean": 0.75,
-    "p50_latency_ms": 22.1
+    "acceptance_rate_std": 0.0,
+    "p50_latency_ms": 22.1,
+    "p95_latency_ms": 0.0,
+    "p99_latency_ms": 0.0,
+    "gpu_memory_gb": 0.0
+  },
+  "_notes": {
+    "quantization": "NF4 (4-bit) via bitsandbytes",
+    "torch_version": "2.11.0+cu128",
+    "flashspec_version": "0.1.3",
+    "vanilla_ar_baseline": "not measured in this run — speedup_vs_ar fields are 0.0 pending AR baseline run",
+    "context": "First real GPU measurement. Single-prompt run on Colab T4. Full multi-prompt benchmark pending H100 run."
+  }
 }
