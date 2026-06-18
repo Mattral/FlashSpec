@@ -6,7 +6,10 @@
 </p>
 
 <p align="center">
-
+  <a href="https://github.com/Mattral/FlashSpec/actions/workflows/ci.yml">
+    <img alt="CI" src="https://img.shields.io/github/actions/workflow/status/Mattral/FlashSpec/ci.yml?branch=main&label=CI&style=for-the-badge&logo=github"></a>
+  <a href="https://github.com/Mattral/FlashSpec/actions/workflows/gpu_tests.yml">
+    <img alt="GPU Tests" src="https://img.shields.io/github/actions/workflow/status/Mattral/FlashSpec/gpu_tests.yml?branch=main&label=GPU%20Tests&style=for-the-badge&logo=nvidia"></a>
   <a href="https://codecov.io/gh/Mattral/FlashSpec">
     <img alt="Coverage" src="https://img.shields.io/codecov/c/github/Mattral/FlashSpec?style=for-the-badge&logo=codecov&color=22c55e"></a>
   <a href="https://pypi.org/project/flashspec/">
@@ -27,7 +30,7 @@
 
 ---
 
-> **Project status: active research / pre-alpha.**
+> **Project status: active research**
 > The software architecture, test suite, and documentation are complete.
 > Initial GPU measurements are in — see the [Results](#results) section for
 > what has actually been measured and what remains as a target.
@@ -313,7 +316,7 @@ social/             X thread and LinkedIn post drafts for project launch
   title   = {{FlashSpec}: Adaptive Speculative Decoding with Online Bandit
              Draft Selection and {Triton}-Optimised Verification},
   author  = {Myet, Min Htet},
-  year    = {2025},
+  year    = {2026},
   note    = {Preprint. \url{https://github.com/Mattral/FlashSpec}},
 }
 ```
