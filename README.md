@@ -16,8 +16,8 @@
     <img alt="Downloads" src="https://img.shields.io/pypi/dm/flashspec?style=for-the-badge&color=A78BFA"></a>
   <a href="https://flashspec.readthedocs.io">
     <img alt="Docs" src="https://img.shields.io/badge/docs-readthedocs-22C55E?style=for-the-badge&logo=readthedocs&logoColor=white"></a>
-  <a href="https://arxiv.org/abs/TBD">
-    <img alt="arXiv" src="https://img.shields.io/badge/arXiv-preprint%20coming%20soon-b31b1b?style=for-the-badge"></a>
+  <a href="https://doi.org/10.5281/zenodo.20766119">
+    <img alt="DOI" src="https://img.shields.io/badge/DOI-10.5281%2Fzenodo.20766119-7C3AED?style=for-the-badge"></a>
   <a href="./CITATION.cff">
     <img alt="Cite" src="https://img.shields.io/badge/cite-CITATION.cff-brightgreen?style=for-the-badge"></a>
   <a href="./LICENSE">
@@ -295,7 +295,7 @@ social/             X thread and LinkedIn post drafts for project launch
 | Resource | URL |
 |---|---|
 | Documentation | [flashspec.readthedocs.io](https://flashspec.readthedocs.io) |
-| Paper (arXiv) | Coming after H100 benchmarks — see [PUBLISHING.md](PUBLISHING.md) |
+| Preprint (Zenodo) | [10.5281/zenodo.20766119](https://doi.org/10.5281/zenodo.20766119) |
 | JOSS submission | [`paper/joss/paper.md`](paper/joss/paper.md) |
 | Benchmark guide | [`benchmarks/README.md`](benchmarks/README.md) |
 | Changelog | [`CHANGELOG.md`](CHANGELOG.md) |
@@ -307,17 +307,21 @@ social/             X thread and LinkedIn post drafts for project launch
 ## Citation
 
 ```bibtex
-@misc{mattral2025flashspec,
-  title   = {{FlashSpec}: Adaptive Speculative Decoding with Online Bandit
+@misc{myet2026flashspec,
+  title = {{FlashSpec}: Adaptive Speculative Decoding with Online Bandit
              Draft Selection and {Triton}-Optimised Verification},
-  author  = {Myet, Min Htet},
-  year    = {2026},
-  note    = {Preprint. \url{https://github.com/Mattral/FlashSpec}},
+  author = {Myet, Min Htet},
+  year = {2026},
+  month = jun,
+  howpublished = {Zenodo preprint},
+  doi = {10.5281/zenodo.20766119},
+  url = {https://doi.org/10.5281/zenodo.20766119},
 }
 ```
 
-Machine-readable metadata in [`CITATION.cff`](CITATION.cff). A Zenodo DOI
-will be minted on the first tagged release — see [`PUBLISHING.md`](PUBLISHING.md).
+**Preprint DOI**: [10.5281/zenodo.20766119](https://doi.org/10.5281/zenodo.20766119) (June 2026)
+
+Machine-readable metadata in [`CITATION.cff`](CITATION.cff).
 
 ---
 
