@@ -22,6 +22,10 @@
     <img alt="Cite" src="https://img.shields.io/badge/cite-CITATION.cff-brightgreen?style=for-the-badge"></a>
   <a href="./LICENSE">
     <img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-A78BFA?style=for-the-badge"></a>
+  <a href="https://github.com/Mattral/FlashSpec/tree/main/notebooks">
+    <img alt="Open Notebooks in Colab" src="https://colab.research.google.com/assets/colab-badge.svg" style="height:28px;">
+  </a>
+
 </p>
 
 ---
