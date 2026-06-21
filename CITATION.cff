@@ -2,15 +2,14 @@
 # Schema: https://citation-file-format.github.io/
 #
 # GitHub renders a "Cite this repository" button from this file.
-# Zenodo also reads this file automatically when archiving a GitHub
+# Zenodo reads this file when archiving GitHub releases (for code DOIs).
 # release, and uses it to pre-populate the deposit metadata.
 
 cff-version: 1.2.0
 message: >-
   If you use FlashSpec in your research or software, please cite it
-  using the metadata below. A version-specific citation with a DOI
-  will be available once the project is archived on Zenodo (see
-  CHANGELOG.md for the DOI badge once minted).
+  using the metadata below. The preprint is available on Zenodo with
+  DOI 10.5281/zenodo.20766119.
 title: >-
   FlashSpec: Adaptive Speculative Decoding with Online Bandit Draft
   Selection and Triton-Optimised Verification
@@ -28,7 +27,7 @@ abstract: >-
   provably identical to standard autoregressive sampling, verified
   continuously via a Kolmogorov-Smirnov test in CI.
 version: 0.1.4
-date-released: "2026-06-12"
+date-released: "2026-06-19"
 license: Apache-2.0
 repository-code: "https://github.com/Mattral/FlashSpec"
 url: "https://flashspec.readthedocs.io"
@@ -50,7 +49,8 @@ preferred-citation:
     - family-names: Myet
       given-names: "Min Htet"
       alias: Mattral
-  year: 2025
+  year: 2026
+  doi: 10.5281/zenodo.20766119
   notes: >-
-    Preprint. Replace with the arXiv ID and/or JOSS DOI once the
-    submission is accepted. See CHANGELOG.md [Unreleased] for status.
+    Preprint. DOI: https://doi.org/10.5281/zenodo.20766119
+    JOSS and arXiv submission pending.
