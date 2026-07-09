@@ -35,7 +35,7 @@
 > Initial GPU measurements are in — see the [Results](#results) section for
 > what has actually been measured and what remains as a target.
 > CI and GPU workflow badges will turn green once a self-hosted runner is
-> connected. Breaking changes are possible before v1.0.
+> connected. Breaking changes are possible before v0.1.3.
 
 ---
 
