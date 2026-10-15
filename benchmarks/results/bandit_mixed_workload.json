@@ -1,0 +1,52 @@
+{
+  "status": "measured",
+  "measurement_kind": "controlled_mixed_workload_simulation",
+  "git_commit": "da8182b",
+  "hardware": {
+    "platform": "Windows-11-10.0.26200-SP0",
+    "machine": "AMD64",
+    "processor": "Intel64 Family 6 Model 158 Stepping 13, GenuineIntel",
+    "python": "3.14.8",
+    "torch": "2.14.1+cpu",
+    "avx2": true
+  },
+  "model": "synthetic_peaked_drafters",
+  "method": "ucb_vs_fixed",
+  "gamma": 4,
+  "dataset": "midstream_distribution_switch",
+  "n_samples": 1,
+  "metrics": {
+    "acceptance_rate": {
+      "fixed_a": 0.2,
+      "fixed_b": 0.2,
+      "ucb": 0.5555555555555556,
+      "single_drafter_control": 0.2
+    },
+    "tokens_per_second": {
+      "fixed_a": 2574.002574098843,
+      "fixed_b": 3215.4340838834096,
+      "ucb": 5794.162381923592,
+      "single_drafter_control": 2876.111497299474
+    }
+  },
+  "unmeasured": [
+    "speedup_vs_vanilla_ar",
+    "llama_acceptance",
+    "gpu_throughput"
+  ],
+  "improved_acceptance_vs_best_fixed": true,
+  "improved_throughput_vs_best_fixed": true,
+  "best_fixed_acceptance": 0.2,
+  "best_fixed_tokens_per_second": 3215.4340838834096,
+  "single_drafter_matches_fixed_a": true,
+  "settings": {
+    "max_new_tokens": 24,
+    "vocab": 32,
+    "seed": 0,
+    "window_size": 4,
+    "switch_after_context_length": 16,
+    "peak_a": 3,
+    "peak_b": 9
+  },
+  "notes": "Synthetic peaked distributions, not a trained model. The target peak flips once. fixed_a and fixed_b each match only one phase. single_drafter_control is the same run shape as fixed_a and exists to show that one arm cannot adapt. On this controlled switch, UCB improved at least one of acceptance or throughput relative to the better fixed drafter."
+}

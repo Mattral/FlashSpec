@@ -150,7 +150,8 @@ class TestVerifyTokensReference:
                 saved = dlp_b[b, g, tok].clone()
                 dlp_b[b, g, :] = -1e9
                 dlp_b[b, g, tok] = saved
-        dlp_b = dlp_b.log_softmax(-1)
+        # Do not log_softmax again. That would change the selected token's
+        # log-probability, which is the only value the acceptance test reads.
 
         accepted_b, frej_b = verify_tokens_reference(dlp_b, tlp, u, ids)
         assert (accepted_a == accepted_b).all(), (

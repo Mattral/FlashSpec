@@ -1,26 +1,26 @@
 {
-  "timestamp": "1970-01-01T00:00:00Z",
-  "git_commit": "pending",
-  "hardware": {
-    "gpu": "NVIDIA H100 SXM5 80GB",
-    "driver": "550.54.15",
-    "cuda": "12.4"
-  },
-  "model": "meta-llama/Llama-3-8B-Instruct",
-  "method": "flashspec_ucb",
-  "gamma": 4,
-  "dataset": "mt_bench",
-  "n_samples": 0,
-  "metrics": {
-    "tokens_per_second_mean": 0.0,
-    "tokens_per_second_std": 0.0,
-    "speedup_vs_ar_mean": 0.0,
-    "speedup_vs_ar_std": 0.0,
-    "acceptance_rate_mean": 0.0,
-    "acceptance_rate_std": 0.0,
-    "p50_latency_ms": 0.0,
-    "p95_latency_ms": 0.0,
-    "p99_latency_ms": 0.0,
-    "gpu_memory_gb": 0.0
-  }
+  "status": "template",
+  "measurement_kind": "schema_example",
+  "timestamp": null,
+  "git_commit": null,
+  "hardware": {},
+  "model": null,
+  "method": null,
+  "gamma": null,
+  "dataset": null,
+  "n_samples": null,
+  "metrics": {},
+  "unmeasured": [
+    "tokens_per_second_mean",
+    "tokens_per_second_std",
+    "speedup_vs_ar_mean",
+    "speedup_vs_ar_std",
+    "acceptance_rate_mean",
+    "acceptance_rate_std",
+    "p50_latency_ms",
+    "p95_latency_ms",
+    "p99_latency_ms",
+    "gpu_memory_gb"
+  ],
+  "notes": "Schema template only. This file is not a measurement. No H100 result has been committed. Earlier revisions of this file stored zeros under an H100 hardware label; those zeros were not a run."
 }

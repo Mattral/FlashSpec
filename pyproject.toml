@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "flashspec"
-version = "0.1.4"
+version = "0.1.5"
 description = "Adaptive speculative-decoding inference engine with Triton-optimised verification and online bandit draft selection"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -32,6 +32,16 @@ dependencies = [
 # tests/unit/test_verify_kernel.py) but slower. Install this extra on Linux
 # with a CUDA-capable GPU to enable the accelerated Triton kernels.
 gpu = ["triton>=3.0.0; platform_system == 'Linux'"]
+# Linux x86-64 ELF only. On other platforms the extra installs nothing
+# and the pure-PyTorch residual path stays selected.
+asm = [
+    "flashspec-asm-kernel>=0.1.0,<2.0.0; platform_system == 'Linux' and platform_machine == 'x86_64'",
+]
+serve = [
+    "fastapi>=0.110",
+    "uvicorn>=0.27",
+    "httpx>=0.27",
+]
 onnx = ["onnx>=1.16", "onnxruntime-gpu>=1.18"]
 dev = [
     "pytest>=8.0",
@@ -40,6 +50,8 @@ dev = [
     "ruff>=0.4.0",
     "mypy>=1.9.0",
     "import-linter>=2.0",
+    "fastapi>=0.110",
+    "httpx>=0.27",
 ]
 bench = [
     "pandas>=2.2",
@@ -60,6 +72,7 @@ Homepage = "https://github.com/Mattral/FlashSpec"
 Repository = "https://github.com/Mattral/FlashSpec"
 Documentation = "https://flashspec.readthedocs.io"
 Paper = "https://arxiv.org/abs/TBD"
+"ASM Kernel" = "https://github.com/Mattral/flashspec-asm"
 
 [tool.hatch.build.targets.wheel]
 packages = ["flashspec"]

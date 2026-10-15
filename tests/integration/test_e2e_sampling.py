@@ -209,9 +209,16 @@ class TestDistributionEquivalence:
         """
         set_seed(55)
         batch_size, gamma, vocab = 1, 1, 100
-        # Make target << draft → acceptance ≈ 0 for any positive u.
-        draft_lp = torch.zeros(batch_size, gamma, vocab).log_softmax(-1)
-        target_lp = torch.full((batch_size, gamma, vocab), -1e6).log_softmax(-1)
+        # log_softmax of a constant vector is uniform, so a flat -1e6
+        # target is the same distribution as a flat 0 draft. Put the mass
+        # on different tokens: the draft proposes 0, and the target puts
+        # almost no mass there.
+        draft_logits = torch.zeros(batch_size, gamma, vocab)
+        draft_logits[..., 0] = 8.0
+        target_logits = torch.zeros(batch_size, gamma, vocab)
+        target_logits[..., 0] = -8.0
+        draft_lp = draft_logits.log_softmax(-1)
+        target_lp = target_logits.log_softmax(-1)
         draft_ids = torch.zeros(batch_size, gamma, dtype=torch.long)
         ctx = torch.zeros(batch_size, 4, dtype=torch.long)
 

@@ -49,11 +49,20 @@ models/
 # Benchmark results (committed selectively)
 benchmarks/results/*.json
 !benchmarks/results/baseline.json
+!benchmarks/results/flashspec_ucb_tiny_llama.json
+!benchmarks/results/residual_cpu.json
+!benchmarks/results/bandit_mixed_workload.json
+!benchmarks/results/tiny_cpu_*.json
+!benchmarks/results/tinyllama_gpu_*.json
+!benchmarks/results/larger_gpu_*.json
+!benchmarks/results/residual_colab_cpu.json
 !benchmarks/results/.gitkeep
 
 # Jupyter
 *.ipynb
 .ipynb_checkpoints/
+# This measurement notebook is source. Executed outputs should stay small.
+!notebooks/04_gpu_measurement.ipynb
 
 # Paper build artefacts
 paper/*.aux

@@ -5,15 +5,20 @@
 All benchmarks follow the **immutable result schema** defined in AGENTS.md §14.
 Once a result JSON is committed, the config that produced it is frozen.
 
-### Hardware
+### Hardware the paper configs were written for
 
-| Field        | Value              |
-|--------------|--------------------|
-| GPU          | NVIDIA H100 SXM5   |
-| CUDA         | 12.4               |
-| Driver       | 550.x              |
-| Precision    | bfloat16           |
-| Batch size   | 1                  |
+These rows describe the machine the Llama configs target. They are not
+a record of a run. This checkout has no committed H100 result. A config
+whose device is missing, or whose checkpoint cannot be loaded, writes
+no JSON.
+
+| Field        | Intended paper machine |
+|--------------|------------------------|
+| GPU          | NVIDIA H100 SXM5       |
+| CUDA         | 12.4                   |
+| Driver       | 550.x                  |
+| Precision    | bfloat16               |
+| Batch size   | 1                      |
 
 ### Warmup
 
@@ -32,8 +37,8 @@ Once a result JSON is committed, the config that produced it is frozen.
 | Method            | Description                               |
 |-------------------|-------------------------------------------|
 | `vanilla_ar`      | Standard autoregressive generation        |
-| `medusa`          | Cai et al. (2024), multi-head draft heads |
-| `eagle`           | Li et al. (2024), feature-level drafting  |
+| `medusa`          | Not implemented. The harness skips it and writes nothing. |
+| `eagle`           | Not implemented. The harness skips it and writes nothing. |
 | `flashspec_ucb`   | FlashSpec with UCB1 bandit                |
 | `flashspec_thompson` | FlashSpec with Thompson sampling        |
 
@@ -42,14 +47,24 @@ Once a result JSON is committed, the config that produced it is frozen.
 ## Running benchmarks
 
 ```bash
-# Fast smoke-test (no GPU or weights required):
+# Fast smoke-test (no GPU or weights required). Writes no quoted result.
 make bench-quick
+
+# This machine's CPU measurements: residual, synthetic bandit, toy model.
+make bench-cpu
 
 # Full benchmark (requires GPU + model weights):
 make bench
 ```
 
-Results are written to `benchmarks/results/` as JSON files.
+`make bench` and `make bench-cpu` write JSON under `benchmarks/results/`.
+The Windows CPU files from this checkout are listed in the README
+section "This checkout". `make bench-quick` is a smoke test.
+
+`notebooks/04_gpu_measurement.ipynb` is the GPU measurement. A Tesla T4
+is enough for the TinyLlama pair. Run it in Colab, download
+`flashspec_bring_back.zip`, and copy the JSON into `benchmarks/results/`.
+Google Drive is not this repository.
 
 ---
 

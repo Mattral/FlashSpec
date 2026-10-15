@@ -16,36 +16,60 @@ import argparse
 import json
 import subprocess
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-# Required top-level keys in every result file (§14 schema).
-REQUIRED_KEYS: frozenset[str] = frozenset({
-    "timestamp",
-    "git_commit",
-    "hardware",
-    "model",
-    "method",
-    "gamma",
-    "dataset",
-    "n_samples",
-    "metrics",
-})
+# Required top-level keys in a measured result file.
+# ``status: template`` files are schema examples and are not measurements.
+REQUIRED_KEYS: frozenset[str] = frozenset(
+    {
+        "timestamp",
+        "git_commit",
+        "hardware",
+        "model",
+        "method",
+        "gamma",
+        "dataset",
+        "n_samples",
+        "metrics",
+    }
+)
+
+# Older result files had to carry every metric, including zeros for things
+# that were never measured. Measured files may omit those keys when they
+# are listed in ``unmeasured``.
+OPTIONAL_WHEN_LISTED: frozenset[str] = frozenset(
+    {
+        "tokens_per_second_mean",
+        "tokens_per_second_std",
+        "speedup_vs_ar_mean",
+        "speedup_vs_ar_std",
+        "acceptance_rate_mean",
+        "acceptance_rate_std",
+        "p50_latency_ms",
+        "p95_latency_ms",
+        "p99_latency_ms",
+        "gpu_memory_gb",
+    }
+)
 
 # Required metric keys inside the "metrics" object.
-REQUIRED_METRIC_KEYS: frozenset[str] = frozenset({
-    "tokens_per_second_mean",
-    "tokens_per_second_std",
-    "speedup_vs_ar_mean",
-    "speedup_vs_ar_std",
-    "acceptance_rate_mean",
-    "acceptance_rate_std",
-    "p50_latency_ms",
-    "p95_latency_ms",
-    "p99_latency_ms",
-    "gpu_memory_gb",
-})
+REQUIRED_METRIC_KEYS: frozenset[str] = frozenset(
+    {
+        "tokens_per_second_mean",
+        "tokens_per_second_std",
+        "speedup_vs_ar_mean",
+        "speedup_vs_ar_std",
+        "acceptance_rate_mean",
+        "acceptance_rate_std",
+        "p50_latency_ms",
+        "p95_latency_ms",
+        "p99_latency_ms",
+        "gpu_memory_gb",
+    }
+)
 
 RESULTS_DIR: Path = Path("benchmarks/results")
 
@@ -71,14 +95,61 @@ def _validate_result_file(path: Path) -> list[str]:
         errors.append(f"  {path.name}: invalid JSON — {exc}")
         return errors
 
+    status = data.get("status")
+    if status in {"template", "not_measured"}:
+        if status == "template" and data.get("metrics") not in ({}, None):
+            # A template must not carry numbers that could be quoted.
+            if isinstance(data.get("metrics"), dict) and data["metrics"]:
+                errors.append(f"  {path.name}: template results must not contain metrics")
+        return errors
+
     missing_keys = REQUIRED_KEYS - set(data.keys())
     for key in sorted(missing_keys):
         errors.append(f"  {path.name}: missing top-level key '{key}'")
 
     if "metrics" in data and isinstance(data["metrics"], dict):
-        missing_metrics = REQUIRED_METRIC_KEYS - set(data["metrics"].keys())
-        for key in sorted(missing_metrics):
-            errors.append(f"  {path.name}: missing metric key '{key}'")
+        if status == "measured":
+            omitted = set(data.get("unmeasured") or [])
+            missing_metrics = REQUIRED_METRIC_KEYS - set(data["metrics"].keys()) - omitted
+            for key in sorted(missing_metrics):
+                errors.append(
+                    f"  {path.name}: missing metric key '{key}' "
+                    "(omit it only by listing it in 'unmeasured')"
+                )
+            for key, value in data["metrics"].items():
+                if isinstance(value, bool) or not isinstance(value, (int, float)):
+                    # Nested rows are allowed for microbenchmarks.
+                    if not isinstance(value, (dict, list)):
+                        errors.append(
+                            f"  {path.name}: metric '{key}' is not a number or a nested measurement"
+                        )
+        else:
+            missing_metrics = REQUIRED_METRIC_KEYS - set(data["metrics"].keys())
+            for key in sorted(missing_metrics):
+                errors.append(f"  {path.name}: missing metric key '{key}'")
+            if data.get("n_samples") == 0 and data["metrics"]:
+                numeric = [
+                    value
+                    for value in data["metrics"].values()
+                    if isinstance(value, (int, float)) and not isinstance(value, bool)
+                ]
+                if numeric and all(value == 0 for value in numeric):
+                    errors.append(
+                        f"  {path.name}: all-zero metrics with n_samples=0 "
+                        "are not a measurement. Mark status=template or delete the file."
+                    )
+
+    hardware = data.get("hardware")
+    if (
+        isinstance(hardware, dict)
+        and isinstance(hardware.get("gpu"), str)
+        and "H100" in hardware["gpu"]
+        and status != "measured"
+    ):
+        errors.append(
+            f"  {path.name}: names an H100 but status is not 'measured'. "
+            "Design targets do not belong in result JSON."
+        )
 
     return errors
 
@@ -101,13 +172,9 @@ def _git_run(*cmd: str) -> str:
     SystemExit
         If the git command returns a non-zero exit code.
     """
-    result = subprocess.run(
-        ["git", *cmd], capture_output=True, text=True
-    )
+    result = subprocess.run(["git", *cmd], capture_output=True, text=True)
     if result.returncode != 0:
-        sys.stderr.write(
-            f"git {' '.join(cmd)} failed:\n{result.stderr}\n"
-        )
+        sys.stderr.write(f"git {' '.join(cmd)} failed:\n{result.stderr}\n")
         sys.exit(1)
     return result.stdout.strip()
 
@@ -118,11 +185,14 @@ def main() -> None:
         description="Validate and commit nightly benchmark results (AGENTS.md §12.3)",
     )
     parser.add_argument(
-        "--dry-run", action="store_true",
+        "--dry-run",
+        action="store_true",
         help="Validate schema and print git commands without executing them.",
     )
     parser.add_argument(
-        "--results-dir", type=str, default=str(RESULTS_DIR),
+        "--results-dir",
+        type=str,
+        default=str(RESULTS_DIR),
         help=f"Results directory (default: {RESULTS_DIR}).",
     )
     args = parser.parse_args()
@@ -151,9 +221,7 @@ def main() -> None:
     sys.stdout.write(f"All {len(json_files)} files are valid.\n")
 
     # Stage, commit, and push.
-    git_date = subprocess.run(
-        ["date", "+%Y-%m-%d"], capture_output=True, text=True
-    ).stdout.strip()
+    git_date = datetime.now(UTC).strftime("%Y-%m-%d")
 
     commit_msg = f"bench: nightly results {git_date}"
 

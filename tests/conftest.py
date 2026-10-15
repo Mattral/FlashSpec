@@ -15,6 +15,22 @@ import torch.nn as nn
 
 from flashspec.utils.device import set_seed
 
+
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+    """Skip ``gpu`` tests when this process has no CUDA device.
+
+    ``@pytest.mark.gpu`` is the marker the CPU lane uses. Creating
+    ``torch.device("cuda")`` on a CPU-only build raises before a test
+    body can skip itself.
+    """
+    if torch.cuda.is_available():
+        return
+    skip_gpu = pytest.mark.skip(reason="CUDA is not available")
+    for item in items:
+        if "gpu" in item.keywords:
+            item.add_marker(skip_gpu)
+
+
 # ── Constants ─────────────────────────────────────────────────────────────────
 TOY_VOCAB_SIZE: int = 1_000
 TOY_HIDDEN: int = 128

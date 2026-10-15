@@ -15,9 +15,34 @@ python benchmarks/sweep_gamma.py --toy
 python benchmarks/sweep_draft_sizes.py --toy
 ```
 
+`make bench-quick` is a sampling-kernel smoke test. It does not write a
+result file you should quote.
+
+`make bench-cpu` runs three commands and writes JSON under
+`benchmarks/results/`:
+
+```bash
+python benchmarks/bench_residual.py
+python scripts/demo_bandit_mixed.py
+python benchmarks/run_all.py --config benchmarks/configs/tiny_cpu.yaml
+```
+
+On Windows, if `make` is not installed, run those three Python commands.
+The files are a CPU residual microbench, a synthetic two-drafter switch,
+and a randomly initialised transformer. They are not Llama and not H100.
+
 ---
 
-## Full benchmark (requires H100 SXM5 + model weights)
+## Full benchmark
+
+`make bench` runs every YAML file in `benchmarks/configs/`. A config that
+asks for CUDA when CUDA is absent, or names a checkpoint that cannot be
+loaded, writes nothing and the process exits 2 after the configs that
+could run. `benchmarks/configs/tiny_cpu.yaml` is an in-process random
+network. Its JSON is a CPU toy measurement, not Llama and not H100.
+
+Medusa and EAGLE are not implemented. The harness prints that and writes
+no file for them.
 
 ```bash
 # Pull model weights via HuggingFace Hub (requires HF_TOKEN env var).
@@ -64,41 +89,40 @@ Result file: `benchmarks/results/draft_size_sweep.csv`
 
 ### Figure 3 — Bandit regret convergence
 
-Run `notebooks/02_bandit_analysis.ipynb`.
+The recorded figure is `paper/figures/bandit_regret.jpg`. Changelog 0.1.4
+names `notebooks/02_bandit_analysis.ipynb`, which is not in this checkout.
+The unit test `test_ucb1_regret_within_theoretical_bound` is the check
+that still runs here. Cumulative regret at T=10,000 was UCB1 100.2 and
+Thompson 18.9.
 
 ---
 
 ## Benchmark result schema (AGENTS.md §14)
 
-Every JSON result in `benchmarks/results/` contains:
+`benchmarks/results/baseline.json` is a schema template. Its `status` is
+`template` and its `metrics` object is empty. It is not a measurement.
+The numbers in the example below are the shape of a measured file. They
+are not a result from this repository. A measured file sets
+`"status": "measured"`, omits metric keys it did not record, and lists
+those keys under `unmeasured`. Copying the design-target 142.3 tok/s
+figure into a JSON file is a failure of the validator when the hardware
+string contains H100 and the file is not a real measured run.
 
 ```json
 {
-  "schema_version": "1.0",
-  "timestamp": "2025-11-01T14:32:00Z",
+  "status": "measured",
+  "measurement_kind": "end_to_end",
+  "timestamp": "2026-01-01T00:00:00+00:00",
   "git_commit": "abc1234",
-  "hardware": {
-    "gpu": "NVIDIA H100 SXM5 80GB",
-    "driver": "550.54.15",
-    "cuda": "12.4"
-  },
-  "model": "meta-llama/Llama-3-8B-Instruct",
+  "hardware": {"platform": "recorded by the harness"},
+  "model": "the checkpoint that was loaded",
   "method": "flashspec_ucb",
   "gamma": 4,
-  "dataset": "mt_bench",
+  "dataset": "the prompt source",
   "n_samples": 200,
-  "metrics": {
-    "tokens_per_second_mean": 142.3,
-    "tokens_per_second_std": 4.1,
-    "speedup_vs_ar_mean": 2.31,
-    "speedup_vs_ar_std": 0.08,
-    "acceptance_rate_mean": 0.73,
-    "acceptance_rate_std": 0.05,
-    "p50_latency_ms": 38.1,
-    "p95_latency_ms": 44.2,
-    "p99_latency_ms": 47.8,
-    "gpu_memory_gb": 18.4
-  }
+  "metrics": {"tokens_per_second_mean": 0.0},
+  "unmeasured": [],
+  "notes": "Replace this example. Do not commit it as a result."
 }
 ```
 
@@ -116,12 +140,5 @@ Every JSON result in `benchmarks/results/` contains:
 
 ## Hardware and software versions
 
-| Item | Value |
-|------|-------|
-| GPU | NVIDIA H100 SXM5 80 GB |
-| CUDA | 12.4 |
-| PyTorch | 2.3.0 |
-| Triton | 3.0.0 |
-| Transformers | 4.40.0 |
-
-Exact versions are recorded in every result JSON file.
+Record them in the result JSON that the harness writes. Do not copy a
+target-machine table into a file that was produced on different hardware.

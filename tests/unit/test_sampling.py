@@ -94,11 +94,16 @@ class TestRejectionSample:
         input_ids = torch.randint(0, vocab, (batch, 8))
         # Force u = 0 for guaranteed acceptance via seed that produces low u.
         # Instead, verify via multiple seeds that first_rejection <= gamma.
-        _out, first_rej, alpha = rejection_sample(input_ids, lp, lp, ids, gamma=gamma)
+        out, first_rej, alpha = rejection_sample(input_ids, lp, lp, ids, gamma=gamma)
         # When draft == target, acceptance prob = 1 for all positions.
         assert (first_rej == gamma).all(), (
             f"When p==q, all tokens accepted but first_rej={first_rej}"
         )
+        assert torch.equal(out, ids), (
+            "A fully accepted step must keep the draft tokens. "
+            "Replacing one of them samples from a zero residual."
+        )
+        assert alpha == 1.0
 
     def test_acceptance_rate_float_between_zero_and_one(self) -> None:
         """acceptance_rate is a float in [0.0, 1.0]."""
@@ -127,8 +132,7 @@ class TestRejectionSample:
             for col in range(int(frej) + 1, TOY_GAMMA):
                 val = accepted_ids[b, col].item()
                 assert val == -1, (
-                    f"Batch {b}: accepted_ids[{b}, {col}]={val} should be -1 "
-                    f"(first_rej={frej})"
+                    f"Batch {b}: accepted_ids[{b}, {col}]={val} should be -1 (first_rej={frej})"
                 )
 
     def test_gamma1_matches_standard_multinomial_sampling(self) -> None:
@@ -178,11 +182,12 @@ class TestRejectionSample:
             if exp_k < 1.0:
                 continue
             import math
+
             sigma = math.sqrt(exp_k * (1 - exp_k / n_draws))
             deviation = abs(obs_k - exp_k)
             assert deviation < 5 * sigma + 3, (
                 f"Token {k}: obs={obs_k}, exp={exp_k:.1f}, "
-                f"deviation={deviation:.1f} > 5σ={5*sigma:.1f}"
+                f"deviation={deviation:.1f} > 5σ={5 * sigma:.1f}"
             )
 
 
@@ -213,12 +218,9 @@ def test_rejection_sample_output_shape_invariant(
         f"expected ({batch_size}, {gamma})"
     )
     assert first_rej.shape == (batch_size,), (
-        f"Shape invariant violated: first_rej.shape={first_rej.shape}, "
-        f"expected ({batch_size},)"
+        f"Shape invariant violated: first_rej.shape={first_rej.shape}, expected ({batch_size},)"
     )
-    assert 0.0 <= alpha <= 1.0, (
-        f"Acceptance rate out of range: alpha={alpha}"
-    )
+    assert 0.0 <= alpha <= 1.0, f"Acceptance rate out of range: alpha={alpha}"
 
 
 @given(
@@ -226,9 +228,7 @@ def test_rejection_sample_output_shape_invariant(
     gamma=st.integers(min_value=1, max_value=6),
 )
 @settings(max_examples=20, deadline=None)
-def test_rejection_sample_first_rejection_in_valid_range(
-    batch_size: int, gamma: int
-) -> None:
+def test_rejection_sample_first_rejection_in_valid_range(batch_size: int, gamma: int) -> None:
     """Property: first_rejection is always in [0, gamma] for any valid input."""
     set_seed(batch_size * 31 + gamma * 7)
     vocab = 50
@@ -237,12 +237,8 @@ def test_rejection_sample_first_rejection_in_valid_range(
     ids = torch.randint(0, vocab, (batch_size, gamma))
     ctx = torch.zeros(batch_size, 4, dtype=torch.long)
     _accepted, first_rej, _alpha = rejection_sample(ctx, dlp, tlp, ids, gamma=gamma)
-    assert (first_rej >= 0).all(), (
-        f"first_rej has negative values: {first_rej.tolist()}"
-    )
-    assert (first_rej <= gamma).all(), (
-        f"first_rej exceeds gamma={gamma}: {first_rej.tolist()}"
-    )
+    assert (first_rej >= 0).all(), f"first_rej has negative values: {first_rej.tolist()}"
+    assert (first_rej <= gamma).all(), f"first_rej exceeds gamma={gamma}: {first_rej.tolist()}"
 
 
 @given(
@@ -250,9 +246,7 @@ def test_rejection_sample_first_rejection_in_valid_range(
     gamma=st.integers(min_value=1, max_value=6),
 )
 @settings(max_examples=20, deadline=None)
-def test_rejection_sample_padding_beyond_first_rejection(
-    batch_size: int, gamma: int
-) -> None:
+def test_rejection_sample_padding_beyond_first_rejection(batch_size: int, gamma: int) -> None:
     """Property: accepted_ids slots after first_rejection are always -1 (padding)."""
     set_seed(batch_size * 53 + gamma * 11)
     vocab = 50
@@ -266,6 +260,5 @@ def test_rejection_sample_padding_beyond_first_rejection(
         for col in range(frej + 1, gamma):
             val = int(accepted[b, col].item())
             assert val == -1, (
-                f"accepted[{b}, {col}]={val} should be -1 "
-                f"(first_rej={frej}, gamma={gamma})"
+                f"accepted[{b}, {col}]={val} should be -1 (first_rej={frej}, gamma={gamma})"
             )

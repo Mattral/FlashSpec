@@ -7,8 +7,10 @@ in a single forward pass, and returns log-softmax probabilities.
 
 from __future__ import annotations
 
+from typing import Any
+
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer  # type: ignore[import]  # no stubs
+from transformers import AutoModelForCausalLM  # type: ignore[import-untyped]
 
 from flashspec.utils.logging import get_logger
 
@@ -57,9 +59,19 @@ class TargetModel:
         model_name_or_path: str,
         device: torch.device,
         dtype: torch.dtype = torch.bfloat16,
+        model: Any | None = None,  # noqa: ANN401 — injected modules are duck-typed
     ) -> None:
         self._device = device
         self._dtype = dtype
+        self._name = model_name_or_path
+        if model is not None:
+            self._model = model.to(device)
+            self._model.eval()
+            logger.debug(
+                "Using injected target module",
+                extra={"model": model_name_or_path, "device": str(device)},
+            )
+            return
         logger.debug(
             "Loading target model",
             extra={"model": model_name_or_path, "device": str(device), "dtype": str(dtype)},
@@ -131,13 +143,10 @@ class TargetModel:
         """
         if gamma != draft_token_ids.shape[1]:
             raise ValueError(
-                f"gamma={gamma} must match draft_token_ids.shape[1]="
-                f"{draft_token_ids.shape[1]}."
+                f"gamma={gamma} must match draft_token_ids.shape[1]={draft_token_ids.shape[1]}."
             )
         if temperature <= 0.0:
-            raise ValueError(
-                f"temperature must be > 0; got {temperature}."
-            )
+            raise ValueError(f"temperature must be > 0; got {temperature}.")
         input_ids = input_ids.to(self._device)
         draft_token_ids = draft_token_ids.to(self._device)
 
@@ -202,5 +211,12 @@ class TargetModel:
         >>> target.vocab_size
         32000
         """
-        # HF config is dynamic; vocab_size always present on CausalLM.
-        return self._model.config.vocab_size  # type: ignore[attr-defined]  # HF config is untyped
+        config = getattr(self._model, "config", None)
+        size = getattr(config, "vocab_size", None) if config is not None else None
+        if not isinstance(size, int):
+            size = getattr(self._model, "vocab_size", None)
+        if not isinstance(size, int):
+            raise RuntimeError(
+                f"Target model '{self._name}' does not expose an integer vocab_size."
+            )
+        return size

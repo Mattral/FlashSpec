@@ -1,6 +1,6 @@
-gamma,mean_acceptance_rate,mean_step_ms,mean_tokens_per_second
-1,0.7200,0.502,1991.6
-2,0.6800,0.433,4622.5
-4,0.6900,0.410,9745.6
-8,0.7475,0.451,17748.4
-16,0.7137,0.449,35659.3
+gamma,mean_acceptance_rate,mean_step_ms,mean_tokens_per_second,measurement_kind
+1,0.7200,0.502,1991.6,sampling_kernel_only_random_logprobs
+2,0.6800,0.433,4622.5,sampling_kernel_only_random_logprobs
+4,0.6900,0.410,9745.6,sampling_kernel_only_random_logprobs
+8,0.7475,0.451,17748.4,sampling_kernel_only_random_logprobs
+16,0.7137,0.449,35659.3,sampling_kernel_only_random_logprobs

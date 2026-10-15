@@ -1,0 +1,25 @@
+# In-process measurement. Not a checkpoint and not an H100 result.
+# Safe to edit: no published numbers are tied to this file.
+
+model: toy
+drafter: toy
+device: cpu
+dtype: float32
+gamma: 4
+batch_size: 1
+max_new_tokens: 8
+n_warmup: 1
+n_samples: 3
+prompt_length: 8
+vocab_size: 64
+target_hidden: 64
+target_layers: 2
+drafter_hidden: 32
+drafter_layers: 1
+seed: 0
+dataset: synthetic_prompts
+temperature: 1.0
+
+methods:
+  - flashspec_ucb
+  - vanilla_ar

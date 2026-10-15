@@ -1,4 +1,4 @@
-.PHONY: lint format test test-gpu test-chaos bench bench-quick docs docs-serve \
+.PHONY: lint format test test-gpu test-chaos bench bench-quick bench-cpu docs docs-serve \
         paper docker-build docker-test clean
 
 lint:
@@ -26,6 +26,11 @@ bench:
 bench-quick:
 	python benchmarks/run_all.py --config benchmarks/configs/ --toy
 	python benchmarks/benchmark_kernels.py --toy
+
+bench-cpu:
+	python benchmarks/bench_residual.py
+	python scripts/demo_bandit_mixed.py
+	python benchmarks/run_all.py --config benchmarks/configs/tiny_cpu.yaml
 
 docs:
 	mkdocs build

@@ -6,6 +6,8 @@ and metrics trackers into a single generation loop.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import torch
 
 from flashspec.bandit.base import DraftSelector
@@ -23,10 +25,6 @@ from flashspec.utils.logging import get_logger
 __all__ = ["SpeculativeEngine", "GenerationResult"]
 
 logger = get_logger(__name__)
-
-# ── Result dataclass ──────────────────────────────────────────────────────────
-
-from dataclasses import dataclass, field
 
 
 @dataclass(slots=True, frozen=True)
@@ -106,6 +104,13 @@ class SpeculativeEngine:
                 f"len(drafters)={len(drafters)} must match "
                 f"config.bandit.n_arms={config.bandit.n_arms}."
             )
+        if config.bandit.n_arms < 2:
+            logger.warning(
+                "Bandit has a single arm and cannot adapt. Register two or "
+                "more drafters before expecting a throughput or acceptance "
+                "gain over a fixed drafter.",
+                extra={"n_arms": config.bandit.n_arms},
+            )
         self._config = config
         self._drafters = drafters
         self._target = target
@@ -177,14 +182,29 @@ class SpeculativeEngine:
         max_tokens = max_new_tokens if max_new_tokens is not None else self._config.max_new_tokens
         gamma = self._config.sampling.gamma
         config_sampling = self._config.sampling
+        batch_size = int(input_ids.shape[0])
 
-        context = input_ids.to(self._device)
-        generated_ids: list[torch.Tensor] = []
+        # One context per row. Rows whose contexts share a length are scored
+        # together. Rows that accept a different number of tokens no longer
+        # have to be rectangular for torch.Tensor.view to succeed.
+        contexts = [input_ids[i : i + 1].to(self._device) for i in range(batch_size)]
+        generated_rows: list[list[torch.Tensor]] = [[] for _ in range(batch_size)]
+
+        def _row_count(index: int) -> int:
+            return sum(piece.shape[1] for piece in generated_rows[index])
 
         self._throughput_tracker.start()
 
-        while sum(t.shape[1] for t in generated_ids) < max_tokens:
+        while any(_row_count(i) < max_tokens for i in range(batch_size)):
             self._latency_tracker.start()
+            active = [i for i in range(batch_size) if _row_count(i) < max_tokens]
+            groups: dict[int, list[int]] = {}
+            for index in active:
+                groups.setdefault(int(contexts[index].shape[1]), []).append(index)
+            # One bandit decision per loop. The largest equal-length group
+            # runs now; other lengths run on the next iteration.
+            idxs = max(groups.values(), key=len)
+            context = torch.cat([contexts[i] for i in idxs], dim=0)
 
             # 1. Bandit selects a draft arm.
             arm = self._bandit.select()
@@ -195,13 +215,15 @@ class SpeculativeEngine:
 
             # 3. Target model scores draft positions (temperature applied inside).
             target_logprobs = self._target.score_draft(
-                context, draft_token_ids, gamma,
+                context,
+                draft_token_ids,
+                gamma,
                 temperature=config_sampling.temperature,
             )
 
             # 4. Accept/reject sampling.
             if config_sampling.variant == "rejection":
-                accepted_ids, first_rejection, alpha = rejection_sample(
+                accepted_ids, first_rejection, _alpha = rejection_sample(
                     input_ids=context,
                     draft_logprobs=draft_logprobs,
                     target_logprobs=target_logprobs,
@@ -209,7 +231,7 @@ class SpeculativeEngine:
                     gamma=gamma,
                 )
             else:
-                accepted_ids, first_rejection, alpha = typical_sample(
+                accepted_ids, first_rejection, _alpha = typical_sample(
                     draft_logprobs=draft_logprobs,
                     target_logprobs=target_logprobs,
                     draft_token_ids=draft_token_ids,
@@ -217,27 +239,52 @@ class SpeculativeEngine:
                     typical_p=config_sampling.top_p,
                 )
 
-            # 5. Update bandit with acceptance count.
+            # 5. Update bandit with the mean accepted-draft count.
+            # first_rejection is in [0, gamma]; the tracker requires that range.
             n_accepted = int(first_rejection.float().mean().item())
+            n_accepted = min(gamma, max(0, n_accepted))
             self._bandit.update(arm, accepted=n_accepted)
 
             # 6. Update metrics.
             self._acceptance_tracker.record(n_accepted)
 
-            # Collect non-padding accepted tokens.
-            new_tokens = accepted_ids[accepted_ids != -1].view(input_ids.shape[0], -1)
-            if new_tokens.shape[1] > 0:
-                generated_ids.append(new_tokens)
-                context = torch.cat([context, new_tokens], dim=1)
+            progressed = False
+            for local, index in enumerate(idxs):
+                row = accepted_ids[local]
+                valid = row[row != -1]
+                room = max_tokens - _row_count(index)
+                if room <= 0 or valid.numel() == 0:
+                    continue
+                piece = valid[:room].view(1, -1)
+                generated_rows[index].append(piece)
+                contexts[index] = torch.cat([contexts[index], piece], dim=1)
+                progressed = True
 
             self._latency_tracker.stop()
+            if not progressed:
+                logger.warning(
+                    "Speculative step accepted no tokens; stopping early.",
+                    extra={"batch_size": batch_size},
+                )
+                break
 
-        total_new = sum(t.shape[1] for t in generated_ids)
-        output_ids = (
-            torch.cat(generated_ids, dim=1)[:, :max_tokens]
-            if generated_ids
-            else input_ids[:, :0]
-        )
+        output_rows: list[torch.Tensor] = []
+        for index in range(batch_size):
+            if generated_rows[index]:
+                row_ids = torch.cat(generated_rows[index], dim=1)
+            else:
+                row_ids = input_ids.new_empty((1, 0), device=self._device)
+            if row_ids.shape[1] < max_tokens:
+                pad = torch.full(
+                    (1, max_tokens - row_ids.shape[1]),
+                    -1,
+                    dtype=row_ids.dtype,
+                    device=row_ids.device,
+                )
+                row_ids = torch.cat([row_ids, pad], dim=1)
+            output_rows.append(row_ids[:, :max_tokens])
+        output_ids = torch.cat(output_rows, dim=0)
+        total_new = int((output_ids != -1).sum().item())
         tokens_per_second = self._throughput_tracker.stop(n_tokens=total_new)
 
         logger.debug(

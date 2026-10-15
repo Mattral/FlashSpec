@@ -1,0 +1,63 @@
+{
+  "status": "measured",
+  "measurement_kind": "cpu_residual_and_verification_microbench",
+  "git_commit": "da8182b",
+  "hardware": {
+    "platform": "Windows-11-10.0.26200-SP0",
+    "machine": "AMD64",
+    "processor": "Intel64 Family 6 Model 158 Stepping 13, GenuineIntel",
+    "python": "3.14.8",
+    "torch": "2.14.1+cpu",
+    "avx2": true
+  },
+  "model": "none",
+  "method": "residual_microbench",
+  "gamma": 4,
+  "dataset": "random_logprobs",
+  "n_samples": 30,
+  "metrics": {
+    "rows": [
+      {
+        "vocab": 1024,
+        "pytorch_residual": {
+          "mean_ms": 0.018213333290380735,
+          "std_ms": 0.0009351410855221827,
+          "iterations": 30.0
+        },
+        "pytorch_verification": {
+          "mean_ms": 0.4179066666741467,
+          "std_ms": 0.02211216764067972,
+          "iterations": 30.0
+        }
+      },
+      {
+        "vocab": 4096,
+        "pytorch_residual": {
+          "mean_ms": 0.01968333341816712,
+          "std_ms": 0.0002050745141191995,
+          "iterations": 30.0
+        },
+        "pytorch_verification": {
+          "mean_ms": 0.522750000012214,
+          "std_ms": 0.04348086747832546,
+          "iterations": 30.0
+        }
+      }
+    ]
+  },
+  "unmeasured": [
+    "asm_residual_v1024",
+    "c_baseline_residual_v1024",
+    "asm_verification_v1024",
+    "asm_residual_v4096",
+    "c_baseline_residual_v4096",
+    "asm_verification_v4096"
+  ],
+  "residual_backend": {
+    "backend": "pytorch",
+    "reason": "flashspec-asm-kernel is not installed or its shared library failed to load (ModuleNotFoundError: No module named 'flashspec_asm_kernel')",
+    "host_avx2": true,
+    "expected_abi": 1
+  },
+  "notes": "Pure-PyTorch numbers are measured on this machine. ASM and C-baseline numbers are present only when flashspec-asm-kernel loaded its shared library. Backend reason: flashspec-asm-kernel is not installed or its shared library failed to load (ModuleNotFoundError: No module named 'flashspec_asm_kernel'). Upstream Linux timings published in flashspec-asm are not copied into this file."
+}

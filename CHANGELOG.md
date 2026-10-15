@@ -10,8 +10,74 @@ Versioning follows [Semantic Versioning 2.0.0](https://semver.org/).
 
 ## [Unreleased]
 
-No unreleased changes. Next milestone: v0.2.0 — H100 benchmarks with
-Llama-3-8B/70B, arXiv preprint, JOSS submission.
+Nothing queued. v0.2.0 stays reserved for a measured H100 (or other
+datacenter-GPU) Llama run. Do not tag 0.2.0 for the work below.
+
+---
+
+## [0.1.5] — 2026-10-15 — Honest CPU path, optional ASM, small server
+
+Development status stays Alpha. This version does not claim a production
+deployment or an H100 speedup.
+
+### Added
+- Optional extra `asm`: `flashspec-asm-kernel` on Linux x86-64 only.
+  The CPU residual uses that kernel when the ABI is 1, AVX2 is present,
+  and the inputs are contiguous float32. Every other case, including a
+  kernel exception, stays on pure PyTorch. AVX2 `vmaxps` maps NaN to 0;
+  PyTorch preserves NaN. Finite inputs are required to match within 1e-5.
+  Upstream Linux timings live in flashspec-asm `bench/results/phase5_benchmark.txt`
+  and are not copied into this repo.
+- Optional extra `serve`: one worker, a queue, batches only when prompt
+  length and `max_tokens` match, and a hand-rolled Prometheus text endpoint.
+  `POST /v1/chat/completions` and `POST /v1/completions`. No streaming,
+  no continuous batching, no paged KV, no multi-GPU. Temperature and gamma
+  are fixed at process start. The JSON `model` field does not switch
+  checkpoints.
+- `load_drafters` / `register_hf` for two or more HuggingFace drafters.
+  A single arm logs that the bandit cannot adapt.
+- `benchmarks/harness.py` writes a measured JSON or nothing. CUDA without
+  a GPU, and a checkpoint that fails to load, write no file.
+  Checkpoint loads use the config `dtype` (`float32`, `float16`, or
+  `bfloat16`). A drafter and target with different vocabulary sizes
+  raise before any result file is written.
+  `benchmarks/configs/tiny_cpu.yaml` is an in-process random network.
+  `benchmarks/configs/tinyllama_gpu.yaml` and
+  `notebooks/04_gpu_measurement.ipynb` are the T4-or-newer measurement.
+  The notebook downloads a zip; Colab Drive is not the repo.
+- `benchmarks/bench_residual.py` and `scripts/demo_bandit_mixed.py`.
+
+### Changed
+- `SpeculativeEngine.generate` keeps one context per row. Rows that accept
+  different lengths no longer have to be rectangular for `Tensor.view`.
+  Tokens after the first rejection are discarded. A fully accepted step
+  keeps the draft tokens. A residual whose mass is ~0 (draft matches
+  target) samples from the target distribution instead of calling
+  multinomial on an all-zero vector.
+- `benchmarks/results/baseline.json` is a schema template with empty
+  metrics. The previous all-zero H100 document was not a run.
+- Gamma and draft-size CSVs carry a `measurement_kind` column.
+- Version synced to 0.1.5 in `pyproject.toml`, `flashspec/__init__.py`,
+  and `CITATION.cff`.
+
+### Measured here
+Windows 11 CPU, Python 3.14.8, torch 2.14.1+cpu, git `da8182b`, one
+thread. Host AVX2 is true. The Linux ASM library did not load, so ASM
+and the C baseline are unmeasured. Full figures are in the README
+section "This checkout" and in the JSON files.
+
+- Toy random transformer, `n_samples=3`, γ=4, one drafter:
+  FlashSpec 807.876431892803 tok/s, acceptance 0.3115079365079365,
+  speedup vs vanilla AR 0.3478541784757594. Vanilla AR
+  2322.725711556072 tok/s. Speculative decoding was slower on this toy.
+- Residual microbench, 30 iterations, pure PyTorch: V=1024 residual
+  0.018213333290380735 ms, verification 0.4179066666741467 ms; V=4096
+  residual 0.01968333341816712 ms, verification 0.522750000012214 ms.
+- Synthetic two-drafter switch, `n_samples=1`: UCB acceptance
+  0.5555555555555556 and 5794.162381923592 tok/s, against fixed-drafter
+  peaks of 0.2 acceptance and 3215.4340838834096 tok/s. That win is
+  this controlled switch. It is not a language-model result, and those
+  tok/s are not comparable to the toy end-to-end row.
 
 ---
 

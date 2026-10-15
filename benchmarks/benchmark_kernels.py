@@ -240,6 +240,8 @@ def run_roofline_benchmark(
         f"\nFlashSpec Kernel Roofline Benchmark\n"
         f"Device : {gpu_name}\n"
         f"Shapes : {len(KERNEL_SHAPES)}\n"
+        "The roofline column uses an H100 HBM3 design constant of "
+        f"{_H100_PEAK_BANDWIDTH_TB_S} TB/s. It is not this GPU's bandwidth.\n"
         f"{'Shape':<28} {'Ref (ms)':>10} {'Ref std':>8} "
         f"{'Triton (ms)':>12} {'Triton std':>10} "
         f"{'Roofline (ms)':>14} {'Ratio':>8}\n"

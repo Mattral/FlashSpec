@@ -77,8 +77,12 @@ For each element at flat offset `k`:
 
 ## Roofline analysis
 
-On an H100 SXM5 (989 TFLOP/s bfloat16):
-- Verification kernel is **memory-bandwidth bound** (reads 2 scalars per token).
-- At 3.35 TB/s HBM bandwidth, the kernel is limited by the gather at ~6 μs for
-  B=32, γ=4.
-- Theoretical speedup over a naive implementation: ~14× (avoid V-dimension sweep).
+The figures below are arithmetic from the NVIDIA H100 whitepaper
+(989 TFLOP/s bfloat16, 3.35 TB/s HBM). They are not a profile of this
+repository. No H100 run has been committed. The measured T4 comparison
+is in the README: at batch 1 the Triton kernel was slower than the
+pure-PyTorch reference.
+
+- The verification kernel is memory-bandwidth bound on paper (it reads 2 scalars per token).
+- At 3.35 TB/s, a gather-limited estimate for B=32, γ=4 is about 6 μs.
+- Avoiding a vocabulary sweep is about 14× fewer bytes than a naive scan. That ratio is a byte count, not a measured speedup.

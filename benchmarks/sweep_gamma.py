@@ -56,12 +56,15 @@ def run_sweep(output_path: Path) -> None:
         mean_ms = sum(latencies) / len(latencies)
         mean_tps = (gamma * 1000.0) / mean_ms if mean_ms > 0 else 0.0
 
-        rows.append({
-            "gamma": gamma,
-            "mean_acceptance_rate": f"{mean_alpha:.4f}",
-            "mean_step_ms": f"{mean_ms:.3f}",
-            "mean_tokens_per_second": f"{mean_tps:.1f}",
-        })
+        rows.append(
+            {
+                "gamma": gamma,
+                "mean_acceptance_rate": f"{mean_alpha:.4f}",
+                "mean_step_ms": f"{mean_ms:.3f}",
+                "mean_tokens_per_second": f"{mean_tps:.1f}",
+                "measurement_kind": "sampling_kernel_only_random_logprobs",
+            }
+        )
         print(f"gamma={gamma:2d}  α={mean_alpha:.3f}  {mean_ms:.2f}ms  {mean_tps:.0f}t/s")
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -78,8 +81,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="FlashSpec gamma sweep")
     parser.add_argument("--toy", action="store_true", help="Use toy random data.")
     parser.add_argument(
-        "--output", type=str, default="benchmarks/results/gamma_sweep.csv",
-        help="Output CSV path."
+        "--output", type=str, default="benchmarks/results/gamma_sweep.csv", help="Output CSV path."
     )
     args = parser.parse_args()
 

@@ -1,0 +1,34 @@
+{
+  "status": "measured",
+  "measurement_kind": "toy_random_init_transformer",
+  "timestamp": "2026-10-15T05:48:39.436112+00:00",
+  "git_commit": "da8182b",
+  "hardware": {
+    "platform": "Windows-11-10.0.26200-SP0",
+    "machine": "AMD64",
+    "processor": "Intel64 Family 6 Model 158 Stepping 13, GenuineIntel",
+    "python": "3.14.8",
+    "torch": "2.14.1+cpu",
+    "avx2": true
+  },
+  "model": "toy",
+  "method": "vanilla_ar",
+  "gamma": 4,
+  "dataset": "synthetic_prompts",
+  "n_samples": 3,
+  "metrics": {
+    "tokens_per_second_mean": 2322.725711556072,
+    "tokens_per_second_std": 2.5062180069952222,
+    "p50_latency_ms": 3.442500000005566,
+    "p95_latency_ms": 3.4493999999938296,
+    "p99_latency_ms": 3.4493999999938296
+  },
+  "unmeasured": [
+    "acceptance_rate_mean",
+    "acceptance_rate_std",
+    "speedup_vs_ar_mean",
+    "speedup_vs_ar_std",
+    "gpu_memory_gb"
+  ],
+  "notes": "Vanilla autoregressive loop on the same target and prompts. In-process randomly initialised transformer. Not a published checkpoint and not comparable to the Llama design targets."
+}

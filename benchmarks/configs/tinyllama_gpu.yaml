@@ -1,0 +1,24 @@
+# Paired TinyLlama measurement. Run this on a GPU with at least 8 GB.
+# A Tesla T4 is enough. An H100 is not required.
+# The notebook notebooks/04_gpu_measurement.ipynb writes a runtime copy
+# so Colab can change n_samples without editing this file.
+# Prompts are synthetic token ids. This is not MT-Bench.
+# Do not fill a result JSON by hand if the run fails.
+
+model: TinyLlama/TinyLlama-1.1B-Chat-v1.0
+drafter: Felladrin/Llama-160M-Chat-v1
+device: cuda:0
+dtype: float16
+gamma: 4
+batch_size: 1
+max_new_tokens: 32
+n_warmup: 1
+n_samples: 8
+prompt_length: 16
+seed: 0
+dataset: synthetic_token_ids
+temperature: 1.0
+
+methods:
+  - flashspec_ucb
+  - vanilla_ar

@@ -1,0 +1,34 @@
+{
+  "status": "measured",
+  "measurement_kind": "toy_random_init_transformer",
+  "timestamp": "2026-10-15T05:48:39.361949+00:00",
+  "git_commit": "da8182b",
+  "hardware": {
+    "platform": "Windows-11-10.0.26200-SP0",
+    "machine": "AMD64",
+    "processor": "Intel64 Family 6 Model 158 Stepping 13, GenuineIntel",
+    "python": "3.14.8",
+    "torch": "2.14.1+cpu",
+    "avx2": true
+  },
+  "model": "toy",
+  "method": "flashspec_ucb",
+  "gamma": 4,
+  "dataset": "synthetic_prompts",
+  "n_samples": 3,
+  "metrics": {
+    "tokens_per_second_mean": 807.876431892803,
+    "tokens_per_second_std": 86.40504013928569,
+    "p50_latency_ms": 10.62849999999571,
+    "p95_latency_ms": 10.795500000000402,
+    "p99_latency_ms": 10.795500000000402,
+    "acceptance_rate_mean": 0.3115079365079365,
+    "acceptance_rate_std": 0.0599849859437737,
+    "speedup_vs_ar_mean": 0.3478541784757594,
+    "speedup_vs_ar_std": 0.03759929552875943
+  },
+  "unmeasured": [
+    "gpu_memory_gb"
+  ],
+  "notes": "In-process randomly initialised transformer. Not a published checkpoint and not comparable to the Llama design targets. One drafter is loaded, so the bandit cannot adapt; this row measures speculative decoding with a fixed drafter."
+}

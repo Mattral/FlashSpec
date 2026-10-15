@@ -1,6 +1,6 @@
-draft_size,hidden_dim_proxy,gamma,alpha_mean,alpha_std
-68M,68,4,0.3495,0.0171
-160M,160,4,0.3498,0.0172
-1B,256,4,0.3500,0.0176
-3B,512,4,0.3503,0.0175
-7B,768,4,0.3523,0.0174
+draft_size,hidden_dim_proxy,gamma,alpha_mean,alpha_std,measurement_kind
+68M,68,4,0.3495,0.0171,toy_hidden_dim_proxy_not_a_real_model
+160M,160,4,0.3498,0.0172,toy_hidden_dim_proxy_not_a_real_model
+1B,256,4,0.3500,0.0176,toy_hidden_dim_proxy_not_a_real_model
+3B,512,4,0.3503,0.0175,toy_hidden_dim_proxy_not_a_real_model
+7B,768,4,0.3523,0.0174,toy_hidden_dim_proxy_not_a_real_model

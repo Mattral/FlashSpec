@@ -30,23 +30,29 @@ FlashSpec, and gives you a clear sequence of actions.
 
 **Status: partially done.**
 
-✅ Initial measurements on Tesla T4 (Colab) with TinyLlama-1.1B-Chat NF4:
-- 44.2 tok/s, α=0.75, p50=22.1ms
-- Results: `benchmarks/results/flashspec_ucb_tiny_llama.json`
-- Bandit regret figure: `paper/figures/bandit_regret.jpg`
-- Gamma/draft-size sweeps: `benchmarks/results/gamma_sweep.csv`, `draft_size_sweep.csv`
+The 0.1.4 changelog records a Tesla T4 / TinyLlama-1.1B-Chat NF4 run
+(44.2 tok/s, α=0.75, p50=22.1ms) in
+`benchmarks/results/flashspec_ucb_tiny_llama.json`. That file is one
+prompt. Its speedup, p95, p99, and GPU-memory fields are `0.0` because
+they were not measured. Do not copy those zeros into a new file. The
+gamma and draft-size CSVs are labeled synthetic (`measurement_kind`
+column). They are not H100 end-to-end results.
 
-⏳ Still needed for paper Table 1 and arXiv submission:
-- H100 SXM5 runs with Llama-3-8B-Instruct, Llama-3-70B-Instruct, Mistral-7B
-- Vanilla AR baseline on same hardware (to compute speedup ratio)
-- Medusa and EAGLE baselines for the comparison table
+Still required before those numbers can be published as paper Table 1:
+
+- An H100 (or whatever GPU you actually have) run whose JSON is committed
+- A vanilla autoregressive baseline on that same machine
+- Medusa and EAGLE are not implemented, so they cannot be rows until they exist
 
 ```bash
 export HF_TOKEN=hf_your_token
 python scripts/download_models.py
-make bench
-git add benchmarks/results/ && git commit -m "bench: H100 results" && git push
+python benchmarks/run_all.py --config benchmarks/configs/llama3_8b.yaml
 ```
+
+Commit a result file only after reading its `hardware`, `measurement_kind`,
+and `notes`. Name the commit after the machine that produced the JSON.
+An H100 commit message is accurate only when that string is in the file.
 
 ### Step 1 — Create a GitHub Release (5 minutes)
 
