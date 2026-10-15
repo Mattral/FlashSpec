@@ -96,6 +96,15 @@ files under `benchmarks/results/`.
   0.030213800005185476, C 0.04299199999877601, ASM 0.024774433317512983.
   Verification with ASM selected was slower than pure PyTorch at all
   three sizes. File: `benchmarks/results/residual_linux_gha.json`.
+- Second GitHub-hosted Linux run, git `1b0cda3`, timestamp
+  `2026-10-15T07:18:40.745328+00:00`, same Python and torch, backend
+  `asm`. Residual means in ms: vocab 1024 PyTorch 0.0068616666718905135,
+  C 0.006093900015002873, ASM 0.008056400001047829; vocab 4096 PyTorch
+  0.006851300016326907, C 0.007845133351717474, ASM 0.008722400002625363;
+  vocab 32000 PyTorch 0.012439799998749853, C 0.02345496665914955, ASM
+  0.015084966666260394. ASM residual means are higher than PyTorch at
+  all three sizes. The vocab-32000 ordering from the first file did not
+  repeat. File: `benchmarks/results/residual_linux_gha_1b0cda3.json`.
 - Colab Tesla T4, git `cb02ca1`, Python 3.13.15, torch 2.11.0+cu130,
   CUDA 13.0. TinyLlama-1.1B-Chat float16 with drafter
   `Felladrin/Llama-160M-Chat-v1`, `n_samples=8`, synthetic token ids,

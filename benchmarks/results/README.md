@@ -33,8 +33,11 @@ because this checkout produced them:
   `tinyllama_gpu_vanilla_ar_cb02ca1.json` are the Colab Tesla T4
   float16 run. `tinyllama_throughput.png` is the bar chart of those
   two means. `larger_gpu_*.json` is still absent.
-- `residual_linux_gha.json` is the GitHub-hosted Linux run where the
-  ASM backend loaded. `residual_colab_cpu.json` was not produced. The
-  Colab ASM cell failed.
+- `residual_linux_gha.json` is the GitHub-hosted Linux run at git
+  `4e48c55` where the ASM backend loaded.
+  `residual_linux_gha_1b0cda3.json` is the second run, at git
+  `1b0cda3`. In that file the ASM residual mean is higher than PyTorch
+  at vocab 1024, 4096, and 32000. `residual_colab_cpu.json` was not
+  produced. The Colab ASM cell failed.
 
 Add another negation in `.gitignore` only for a file you have actually produced.

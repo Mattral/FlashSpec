@@ -187,6 +187,25 @@ is slower than pure-PyTorch verification at all three sizes. This does
 not change the Tesla T4 generation numbers below. The GPU path does not
 call this kernel.
 
+`benchmarks/results/residual_linux_gha_1b0cda3.json` is a second run on
+the same class of GitHub-hosted Azure machine, git `1b0cda3`, timestamp
+`2026-10-15T07:18:40.745328+00:00`, Python 3.11.17, torch 2.14.1+cpu,
+backend `asm` / `selected`, 30 iterations, one thread. Absolute
+milliseconds differ from the first file. Compare backends inside one
+file.
+
+| Vocab | PyTorch residual | C baseline | ASM residual | PyTorch verification | ASM verification |
+|---:|---:|---:|---:|---:|---:|
+| 1024 | 0.0068616666718905135 ± 0.0031223192347116756 | 0.006093900015002873 ± 0.0005883164816359798 | 0.008056400001047829 ± 0.0010817141388478313 | 0.15760570000414495 ± 0.04206324120479877 | 0.16410256667237869 ± 0.03050922026468709 |
+| 4096 | 0.006851300016326907 ± 0.00010858764349671019 | 0.007845133351717474 ± 0.0005593922111835134 | 0.008722400002625363 ± 0.0009413872012590269 | 0.23134823333445334 ± 0.033861868369237456 | 0.25041630000638787 ± 0.03895801704112005 |
+| 32000 | 0.012439799998749853 ± 0.002087336818844551 | 0.02345496665914955 ± 0.0026569898685055776 | 0.015084966666260394 ± 0.018729289148999424 | 0.7467555333278142 ± 0.3927247765259523 | 0.7304225666644015 ± 0.3762892778547306 |
+
+In this second run the ASM residual mean is higher than pure PyTorch at
+all three sizes. The vocab-32000 ordering from the first file did not
+repeat, and that row's standard deviation is larger than the gap. At
+vocab 32000 the ASM verification mean is lower than pure PyTorch, and
+the two standard deviations overlap.
+
 ### Measured — TinyLlama-1.1B-Chat float16 · Tesla T4 · γ=4 · git `cb02ca1`
 
 Colab Tesla T4, Linux, Python 3.13.15, torch 2.11.0+cu130, CUDA 13.0,
