@@ -1,11 +1,10 @@
 name: Performance Benchmark
 
 on:
-  # Push is not a trigger. This job asks for a self-hosted H100, runs
-  # every config, and commits results. Start it with workflow_dispatch
-  # when that runner is actually available.
-  schedule:
-    - cron: "0 4 * * *"  # Nightly at 04:00 UTC
+  # Push and the nightly cron are not triggers. This job asks for a
+  # self-hosted H100, runs every config, and commits results. No such
+  # runner is registered. Start it with workflow_dispatch when that
+  # runner is actually available.
   workflow_dispatch:
 
 jobs:

@@ -1,10 +1,10 @@
 name: GPU Tests
 
 on:
-  pull_request:
-    branches: [main]
-  schedule:
-    - cron: "0 2 * * *"  # Nightly at 02:00 UTC
+  # This repository has no self-hosted runner. pull_request and the
+  # nightly cron queued jobs that stayed on "Waiting for a runner".
+  # Start this with workflow_dispatch after a runner labelled
+  # self-hosted, gpu, and A10G is registered.
   workflow_dispatch:
 
 jobs:

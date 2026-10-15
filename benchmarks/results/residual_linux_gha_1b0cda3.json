@@ -1,0 +1,126 @@
+{
+  "status": "measured",
+  "measurement_kind": "cpu_residual_and_verification_microbench",
+  "timestamp": "2026-10-15T07:18:40.745328+00:00",
+  "git_commit": "1b0cda3",
+  "hardware": {
+    "platform": "Linux-6.8.0-1064-azure-x86_64-with-glibc2.35",
+    "machine": "x86_64",
+    "processor": "x86_64",
+    "python": "3.11.17",
+    "torch": "2.14.1+cpu",
+    "avx2": true
+  },
+  "model": "none",
+  "method": "residual_microbench",
+  "gamma": 4,
+  "dataset": "random_logprobs",
+  "n_samples": 30,
+  "metrics": {
+    "rows": [
+      {
+        "vocab": 1024,
+        "pytorch_residual": {
+          "mean_ms": 0.0068616666718905135,
+          "std_ms": 0.0031223192347116756,
+          "iterations": 30.0
+        },
+        "pytorch_verification": {
+          "mean_ms": 0.15760570000414495,
+          "std_ms": 0.04206324120479877,
+          "iterations": 30.0
+        },
+        "asm_residual": {
+          "mean_ms": 0.008056400001047829,
+          "std_ms": 0.0010817141388478313,
+          "iterations": 30.0
+        },
+        "c_baseline_residual": {
+          "mean_ms": 0.006093900015002873,
+          "std_ms": 0.0005883164816359798,
+          "iterations": 30.0
+        },
+        "selected_backend_verification": {
+          "mean_ms": 0.16410256667237869,
+          "std_ms": 0.03050922026468709,
+          "iterations": 30.0
+        }
+      },
+      {
+        "vocab": 4096,
+        "pytorch_residual": {
+          "mean_ms": 0.006851300016326907,
+          "std_ms": 0.00010858764349671019,
+          "iterations": 30.0
+        },
+        "pytorch_verification": {
+          "mean_ms": 0.23134823333445334,
+          "std_ms": 0.033861868369237456,
+          "iterations": 30.0
+        },
+        "asm_residual": {
+          "mean_ms": 0.008722400002625363,
+          "std_ms": 0.0009413872012590269,
+          "iterations": 30.0
+        },
+        "c_baseline_residual": {
+          "mean_ms": 0.007845133351717474,
+          "std_ms": 0.0005593922111835134,
+          "iterations": 30.0
+        },
+        "selected_backend_verification": {
+          "mean_ms": 0.25041630000638787,
+          "std_ms": 0.03895801704112005,
+          "iterations": 30.0
+        }
+      },
+      {
+        "vocab": 32000,
+        "pytorch_residual": {
+          "mean_ms": 0.012439799998749853,
+          "std_ms": 0.002087336818844551,
+          "iterations": 30.0
+        },
+        "pytorch_verification": {
+          "mean_ms": 0.7467555333278142,
+          "std_ms": 0.3927247765259523,
+          "iterations": 30.0
+        },
+        "asm_residual": {
+          "mean_ms": 0.015084966666260394,
+          "std_ms": 0.018729289148999424,
+          "iterations": 30.0
+        },
+        "c_baseline_residual": {
+          "mean_ms": 0.02345496665914955,
+          "std_ms": 0.0026569898685055776,
+          "iterations": 30.0
+        },
+        "selected_backend_verification": {
+          "mean_ms": 0.7304225666644015,
+          "std_ms": 0.3762892778547306,
+          "iterations": 30.0
+        }
+      }
+    ]
+  },
+  "unmeasured": [
+    "tokens_per_second_mean",
+    "tokens_per_second_std",
+    "speedup_vs_ar_mean",
+    "speedup_vs_ar_std",
+    "acceptance_rate_mean",
+    "acceptance_rate_std",
+    "p50_latency_ms",
+    "p95_latency_ms",
+    "p99_latency_ms",
+    "gpu_memory_gb"
+  ],
+  "residual_backend": {
+    "backend": "asm",
+    "reason": "selected",
+    "host_avx2": true,
+    "expected_abi": 1
+  },
+  "notes": "Pure-PyTorch numbers are measured on this machine. ASM and C-baseline numbers are present only when flashspec-asm-kernel loaded its shared library. Backend reason: selected. Upstream Linux timings published in flashspec-asm are not copied into this file. timestamp is the UTC time when this script finished the timings. Timings are Python-level perf_counter calls."
+}
