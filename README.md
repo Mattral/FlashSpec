@@ -169,9 +169,26 @@ and `improved_throughput_vs_best_fixed` are both true for this run.
 unmeasured. These tok/s figures are the synthetic sampler, so they do
 not compare with the toy end-to-end row above.
 
-Upstream Linux ASM timings stay in flashspec-asm
-`bench/results/phase5_benchmark.txt`. They were not copied here and
-were not remeasured on this machine.
+`benchmarks/results/residual_linux_gha.json` is a separate Linux run
+on a GitHub-hosted Azure runner (`Linux-6.8.0-1064-azure`), Python
+3.11.17, torch 2.14.1+cpu, git `4e48c55`, AVX2 true, 30 iterations,
+one thread. The backend is `asm` / `selected`. The clock is
+`perf_counter` around the Python call, so these are not the upstream
+`phase5_benchmark.txt` nanosecond figures.
+
+| Vocab | PyTorch residual | C baseline | ASM residual | PyTorch verification | ASM verification |
+|---:|---:|---:|---:|---:|---:|
+| 1024 | 0.011835766664110755 ± 0.005985123513943725 | 0.010876566682327393 ± 0.0017740324976545188 | 0.01513639999378332 ± 0.009708145936674488 | 0.3658087333368106 ± 0.02092323145453729 | 0.42211776665984263 ± 0.043837769718660935 |
+| 4096 | 0.011573599992213227 ± 0.00028533731359918995 | 0.014012900006340109 ± 0.002142136347826409 | 0.014001300003959235 ± 0.0043043813772100205 | 0.4946278333401703 ± 0.02177673867901501 | 0.5366803666637073 ± 0.015900036405438047 |
+| 32000 | 0.030213800005185476 ± 0.008182700570775277 | 0.04299199999877601 ± 0.002682577742604115 | 0.024774433317512983 ± 0.022975169566975737 | 1.281870599988603 ± 0.6383727894328813 | 1.315531733333349 ± 0.6583396828175976 |
+
+Means are milliseconds. At vocab 1024 and 4096 the ASM residual mean is
+higher than pure PyTorch. At vocab 32000 the ASM residual mean is lower
+than both PyTorch and the C baseline, and its standard deviation is
+almost as large as the mean. Verification with the ASM backend selected
+is slower than pure-PyTorch verification at all three sizes. This does
+not change the Tesla T4 generation numbers below. The GPU path does not
+call this kernel.
 
 ### Measured — TinyLlama-1.1B-Chat float16 · Tesla T4 · γ=4 · git `cb02ca1`
 

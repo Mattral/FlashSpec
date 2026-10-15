@@ -78,6 +78,14 @@ section "This checkout" and in the JSON files.
   peaks of 0.2 acceptance and 3215.4340838834096 tok/s. That win is
   this controlled switch. It is not a language-model result, and those
   tok/s are not comparable to the toy end-to-end row.
+- GitHub-hosted Linux runner, git `4e48c55`, torch 2.14.1+cpu, AVX2,
+  30 iterations. `flashspec-asm` loaded (`backend=asm`). Residual means
+  in ms: vocab 1024 PyTorch 0.011835766664110755, C 0.010876566682327393,
+  ASM 0.01513639999378332; vocab 4096 PyTorch 0.011573599992213227,
+  C 0.014012900006340109, ASM 0.014001300003959235; vocab 32000 PyTorch
+  0.030213800005185476, C 0.04299199999877601, ASM 0.024774433317512983.
+  Verification with ASM selected was slower than pure PyTorch at all
+  three sizes. File: `benchmarks/results/residual_linux_gha.json`.
 - Colab Tesla T4, git `cb02ca1`, Python 3.13.15, torch 2.11.0+cu130,
   CUDA 13.0. TinyLlama-1.1B-Chat float16 with drafter
   `Felladrin/Llama-160M-Chat-v1`, `n_samples=8`, synthetic token ids,

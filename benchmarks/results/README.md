@@ -33,6 +33,8 @@ because this checkout produced them:
   `tinyllama_gpu_vanilla_ar_cb02ca1.json` are the Colab Tesla T4
   float16 run. `tinyllama_throughput.png` is the bar chart of those
   two means. `larger_gpu_*.json` is still absent.
-- `residual_colab_cpu.json` was not produced. The Colab ASM cell failed.
+- `residual_linux_gha.json` is the GitHub-hosted Linux run where the
+  ASM backend loaded. `residual_colab_cpu.json` was not produced. The
+  Colab ASM cell failed.
 
 Add another negation in `.gitignore` only for a file you have actually produced.
