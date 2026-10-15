@@ -84,7 +84,7 @@ def _resolve_asm_backend() -> tuple[bool, Callable[..., Any] | None, str]:
         abi = int(kernel.abi_version())
         has_avx2 = bool(kernel.cpu_supports_avx2())
         residual_fn = kernel.residual_dist
-    except (AttributeError, OSError, RuntimeError, ValueError) as exc:
+    except (AttributeError, ImportError, OSError, RuntimeError, ValueError) as exc:
         return (
             False,
             None,

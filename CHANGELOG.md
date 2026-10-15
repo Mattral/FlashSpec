@@ -60,6 +60,16 @@ deployment or an H100 speedup.
 - Version synced to 0.1.5 in `pyproject.toml`, `flashspec/__init__.py`,
   and `CITATION.cff`.
 
+### Fixed
+- PyPI `flashspec-asm-kernel` 0.1.0 is a source distribution with no
+  `libflashspec_asm.so`. The package imports, then the first call raises
+  `ImportError`. That error keeps the pure-PyTorch residual, so
+  `import flashspec` succeeds on Linux after `pip install flashspec[asm]`.
+- `benchmarks/bench_residual.py` writes `timestamp` and lists the
+  end-to-end metric names in `unmeasured`. `residual_cpu.json` records
+  the `cb02ca1` commit time `2026-10-15T06:26:21Z` for the timestamp
+  the original script omitted. Its millisecond values are unchanged.
+
 ### Measured here
 Windows 11 CPU, Python 3.14.8, torch 2.14.1+cpu, git `da8182b`, one
 thread. Host AVX2 is true. The Linux ASM library did not load, so ASM

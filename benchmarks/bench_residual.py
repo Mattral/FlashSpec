@@ -14,6 +14,7 @@ import json
 import sys
 import time
 from collections.abc import Callable
+from datetime import UTC, datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -23,6 +24,21 @@ from flashspec.sampling.rejection import (  # noqa: E402
     rejection_sample,
     residual_backend_status,
     residual_distribution,
+)
+
+# End-to-end generation fields. This script times one CPU op and does not
+# measure them. Listing them keeps the result schema valid.
+_E2E_UNMEASURED: tuple[str, ...] = (
+    "tokens_per_second_mean",
+    "tokens_per_second_std",
+    "speedup_vs_ar_mean",
+    "speedup_vs_ar_std",
+    "acceptance_rate_mean",
+    "acceptance_rate_std",
+    "p50_latency_ms",
+    "p95_latency_ms",
+    "p99_latency_ms",
+    "gpu_memory_gb",
 )
 
 
@@ -118,7 +134,7 @@ def _kernel_ms(which: str, vocab: int, iterations: int, warmup: int) -> dict[str
                 return None
         else:
             fn = kernel.residual_dist_c_baseline
-    except (AttributeError, OSError, RuntimeError):
+    except (AttributeError, ImportError, OSError, RuntimeError):
         return None
     rng = np.random.default_rng(0)
     p = rng.random(vocab, dtype=np.float32)
@@ -219,10 +235,12 @@ def run(vocabs: list[int], iterations: int, warmup: int) -> dict[str, object]:
         else:
             unmeasured.append(f"asm_verification_v{vocab}")
         rows.append(row)
+    unmeasured.extend(_E2E_UNMEASURED)
     reason = str(residual_backend_status().get("reason"))
     return {
         "status": "measured",
         "measurement_kind": "cpu_residual_and_verification_microbench",
+        "timestamp": datetime.now(UTC).isoformat(),
         "git_commit": git_commit(),
         "hardware": detect_hardware(),
         "model": "none",
@@ -239,7 +257,9 @@ def run(vocabs: list[int], iterations: int, warmup: int) -> dict[str, object]:
             "flashspec-asm-kernel loaded its shared library. "
             f"Backend reason: {reason}. "
             "Upstream Linux timings published in flashspec-asm are not "
-            "copied into this file."
+            "copied into this file. timestamp is the UTC time when this "
+            "script finished the timings. Timings are Python-level "
+            "perf_counter calls."
         ),
     }
 

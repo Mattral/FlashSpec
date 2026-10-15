@@ -173,6 +173,24 @@ class TestBackendResolution:
         assert fn is _residual
         assert reason == "selected"
 
+    def test_missing_shared_library_falls_back(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """PyPI 0.1.0 imports, then raises ImportError because the .so is absent."""
+        module = types.ModuleType("flashspec_asm_kernel")
+
+        def _abi() -> int:
+            raise ImportError(
+                "libflashspec_asm.so not found. "
+                "Build it with `make` from the repo root, or install the wheel."
+            )
+
+        module.abi_version = _abi  # type: ignore[attr-defined]
+        monkeypatch.setitem(sys.modules, "flashspec_asm_kernel", module)
+        available, fn, reason = _resolve_asm_backend()
+        assert available is False
+        assert fn is None
+        assert "ImportError" in reason
+        assert "libflashspec_asm.so" in reason
+
     def test_cpuid_oserror_falls_back(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """A broken shared library does not crash import-time resolution."""
         module = types.ModuleType("flashspec_asm_kernel")
