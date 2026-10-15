@@ -58,8 +58,8 @@ make bench
 ```
 
 `make bench` and `make bench-cpu` write JSON under `benchmarks/results/`.
-The Windows CPU files from this checkout are listed in the README
-section "This checkout". `make bench-quick` is a smoke test.
+CPU result files live under `benchmarks/results/`. The root README
+does not name the host machine. `make bench-quick` is a smoke test.
 
 `notebooks/04_gpu_measurement.ipynb` is the GPU measurement. The Colab
 Tesla T4 run at git `cb02ca1` is in

@@ -116,16 +116,13 @@ config = FlashSpecConfig(
 All numbers below are clearly labelled by hardware, model, and measurement
 status.
 
-### This checkout — Windows 11 CPU · 2026-10-15 · git `da8182b`
+### CPU toy and residual — git `da8182b`
 
-Measured on this machine: Windows 11 (`10.0.26200`), AMD64, Intel64
-Family 6 Model 158 Stepping 13, Python 3.14.8, torch 2.14.1+cpu.
-Host AVX2 is true. `flashspec_asm_kernel` did not load
-(`ModuleNotFoundError`), so the residual backend is pure PyTorch.
-ASM and the C baseline are listed under `unmeasured` in
-`benchmarks/results/residual_cpu.json`. Threads were pinned to 1.
-These rows are a toy network or a synthetic switch. They are CPU
-numbers from this checkout.
+These rows are a toy network or a synthetic switch. Threads were pinned
+to 1. `flashspec_asm_kernel` did not load, so the residual backend is
+pure PyTorch. ASM and the C baseline are listed under `unmeasured` in
+`benchmarks/results/residual_cpu.json`. This README does not name the
+host machine.
 
 `benchmarks/results/tiny_cpu_flashspec_ucb_da8182b.json` and
 `benchmarks/results/tiny_cpu_vanilla_ar_da8182b.json` are
@@ -169,10 +166,10 @@ and `improved_throughput_vs_best_fixed` are both true for this run.
 unmeasured. These tok/s figures are the synthetic sampler, so they do
 not compare with the toy end-to-end row above.
 
-`benchmarks/results/residual_linux_gha.json` is a separate Linux run
-on a GitHub-hosted Azure runner (`Linux-6.8.0-1064-azure`), Python
-3.11.17, torch 2.14.1+cpu, git `4e48c55`, AVX2 true, 30 iterations,
-one thread. The backend is `asm` / `selected`. The clock is
+`benchmarks/results/residual_linux_gha.json` is a separate run on a
+GitHub-hosted Linux machine, Python 3.11.17, torch 2.14.1+cpu, git
+`4e48c55`, AVX2 true, 30 iterations, one thread. The backend is `asm`
+/ `selected`. The clock is
 `perf_counter` around the Python call, so these are not the upstream
 `phase5_benchmark.txt` nanosecond figures.
 

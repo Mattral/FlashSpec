@@ -4,9 +4,8 @@
   "timestamp": "2026-10-15T05:48:39.361949+00:00",
   "git_commit": "da8182b",
   "hardware": {
-    "platform": "Windows-11-10.0.26200-SP0",
+    "platform": "Windows",
     "machine": "AMD64",
-    "processor": "Intel64 Family 6 Model 158 Stepping 13, GenuineIntel",
     "python": "3.14.8",
     "torch": "2.14.1+cpu",
     "avx2": true
@@ -30,5 +29,5 @@
   "unmeasured": [
     "gpu_memory_gb"
   ],
-  "notes": "In-process randomly initialised transformer. Not a published checkpoint and not comparable to the Llama design targets. One drafter is loaded, so the bandit cannot adapt; this row measures speculative decoding with a fixed drafter."
+  "notes": "In-process randomly initialised transformer. Not a published checkpoint and not comparable to the Llama design targets. One drafter is loaded, so the bandit cannot adapt; this row measures speculative decoding with a fixed drafter. The host identifier was removed from this published file. Measured values are unchanged."
 }
