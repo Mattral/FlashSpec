@@ -1,6 +1,7 @@
 {
   "status": "measured",
   "measurement_kind": "cpu_residual_and_verification_microbench",
+  "timestamp": "2026-10-15T06:26:21Z",
   "git_commit": "da8182b",
   "hardware": {
     "platform": "Windows-11-10.0.26200-SP0",
@@ -51,7 +52,17 @@
     "asm_verification_v1024",
     "asm_residual_v4096",
     "c_baseline_residual_v4096",
-    "asm_verification_v4096"
+    "asm_verification_v4096",
+    "tokens_per_second_mean",
+    "tokens_per_second_std",
+    "speedup_vs_ar_mean",
+    "speedup_vs_ar_std",
+    "acceptance_rate_mean",
+    "acceptance_rate_std",
+    "p50_latency_ms",
+    "p95_latency_ms",
+    "p99_latency_ms",
+    "gpu_memory_gb"
   ],
   "residual_backend": {
     "backend": "pytorch",
@@ -59,5 +70,5 @@
     "host_avx2": true,
     "expected_abi": 1
   },
-  "notes": "Pure-PyTorch numbers are measured on this machine. ASM and C-baseline numbers are present only when flashspec-asm-kernel loaded its shared library. Backend reason: flashspec-asm-kernel is not installed or its shared library failed to load (ModuleNotFoundError: No module named 'flashspec_asm_kernel'). Upstream Linux timings published in flashspec-asm are not copied into this file."
+  "notes": "Pure-PyTorch numbers are measured on this machine. ASM and C-baseline numbers are present only when flashspec-asm-kernel loaded its shared library. Backend reason: flashspec-asm-kernel is not installed or its shared library failed to load (ModuleNotFoundError: No module named 'flashspec_asm_kernel'). Upstream Linux timings published in flashspec-asm are not copied into this file. timestamp is the commit time of cb02ca1, which added this file. The bench script at that commit did not write a timestamp. Measured millisecond values are unchanged."
 }

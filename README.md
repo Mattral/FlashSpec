@@ -390,10 +390,16 @@ docker run --gpus all ghcr.io/mattral/flashspec:latest make test
 | Python | ≥ 3.11 | |
 | PyTorch | ≥ 2.2 | CPU or CUDA |
 | Triton | ≥ 3.0 | Optional · Linux + CUDA · `pip install flashspec[gpu]` |
-| flashspec-asm-kernel | ≥ 0.1, < 2 | Optional · Linux x86-64 · `pip install flashspec[asm]` |
+| flashspec-asm-kernel | ≥ 0.1, < 2 | Optional · Linux x86-64 · `pip install flashspec[asm]`. PyPI 0.1.0 is an sdist and does not ship `libflashspec_asm.so`. |
 | FastAPI, uvicorn, httpx | see `serve` extra | Optional · `pip install flashspec[serve]` |
 | CUDA | ≥ 12.0 | GPU path only |
 | transformers | ≥ 4.40 | For HuggingFace model loading |
+
+PyPI `flashspec-asm-kernel` 0.1.0 installs on Linux x86-64. The tarball
+has the ctypes wrapper and no `libflashspec_asm.so`. The first call
+raises `ImportError`, and FlashSpec keeps the pure-PyTorch residual.
+The Linux file `benchmarks/results/residual_linux_gha.json` was measured
+by building the shared library with `make` in the flashspec-asm repo.
 
 ---
 
