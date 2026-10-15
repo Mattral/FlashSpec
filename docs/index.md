@@ -11,6 +11,7 @@ verification and online bandit draft selection.**
 - **[Kernels](kernels.md)** — Triton kernel tiling, SRAM analysis, roofline
 - **[Bandit](bandit.md)** — UCB1/Thompson, regret bound, windowed statistics
 - **[Benchmarks](benchmarks.md)** — how to reproduce every paper number
+- **[Postponed](postponed.md)** — packaging and GPU measurements that are not blockers
 - **[API Reference](api/index.md)** — auto-generated from docstrings
 
 ## Quick links

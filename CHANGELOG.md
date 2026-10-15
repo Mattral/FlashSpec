@@ -10,8 +10,16 @@ Versioning follows [Semantic Versioning 2.0.0](https://semver.org/).
 
 ## [Unreleased]
 
-Nothing queued. v0.2.0 stays reserved for a measured H100 (or other
-datacenter-GPU) Llama run. Do not tag 0.2.0 for the work below.
+Postponed work is listed in [`docs/postponed.md`](docs/postponed.md).
+Those items are not blockers. v0.2.0 stays reserved for a measured
+datacenter-GPU Llama run. Do not tag 0.2.0 before that measurement
+exists.
+
+### Added
+- `notebooks/04_gpu_measurement.ipynb` builds flashspec-asm from source
+  when the PyPI package does not select the ASM backend.
+- CPU tests for typical acceptance, the Linux AVX2 flag reader, ONNX
+  export guards, and the serve command wiring.
 
 ---
 

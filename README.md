@@ -464,6 +464,7 @@ social/             X thread and LinkedIn post drafts for project launch
 | Changelog | [`CHANGELOG.md`](CHANGELOG.md) |
 | Contributing | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
 | Publishing roadmap | [`PUBLISHING.md`](PUBLISHING.md) |
+| Postponed work | [`docs/postponed.md`](docs/postponed.md) |
 
 ---
 

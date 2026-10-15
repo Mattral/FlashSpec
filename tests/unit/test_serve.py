@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import logging
+import sys
+import types
+
 import pytest
 import torch
 
@@ -271,6 +275,78 @@ def test_resolve_device_and_parser(monkeypatch: pytest.MonkeyPatch) -> None:
     assert args.strategy == "ucb1"
     with pytest.raises(RuntimeError, match="Refusing to start"):
         main(["--target", "toy", "--drafter", "a", "--device", "cuda"])
+
+
+def _patch_server_loaders(monkeypatch: pytest.MonkeyPatch, n_drafters: int) -> object:
+    """Replace model loading so the CLI can run without a checkpoint."""
+    import flashspec.serve.__main__ as cli
+
+    monkeypatch.setattr(cli, "load_drafters", lambda *args, **kwargs: [object()] * n_drafters)
+    monkeypatch.setattr(cli, "TargetModel", lambda *args, **kwargs: object())
+    monkeypatch.setattr(cli, "SpeculativeEngine", lambda *args, **kwargs: object())
+
+    class _Tok:
+        pad_token = None
+        eos_token = "<eos>"
+
+        def encode(self, text: str, add_special_tokens: bool = False) -> list[int]:
+            return [3, 4]
+
+        def decode(self, token_ids: list[int], skip_special_tokens: bool = True) -> str:
+            return "ok"
+
+    transformers = types.ModuleType("transformers")
+    transformers.AutoTokenizer = types.SimpleNamespace(from_pretrained=lambda name: _Tok())  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "transformers", transformers)
+    return cli
+
+
+def test_main_wires_thompson_without_loading_weights(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The CLI builds the app and stops at the replaced uvicorn call."""
+    cli = _patch_server_loaders(monkeypatch, n_drafters=2)
+    seen: dict[str, object] = {}
+
+    def _run(app: object, host: str, port: int) -> None:
+        seen["host"] = host
+        seen["port"] = port
+        seen["app"] = app
+
+    uvicorn = types.ModuleType("uvicorn")
+    uvicorn.run = _run  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "uvicorn", uvicorn)
+    cli.main(
+        [
+            "--target",
+            "toy",
+            "--drafter",
+            "a",
+            "--drafter",
+            "b",
+            "--strategy",
+            "thompson",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            "9",
+        ]
+    )
+    assert seen["host"] == "127.0.0.1"
+    assert seen["port"] == 9
+    assert seen["app"] is not None
+
+
+def test_main_one_drafter_warns_and_missing_uvicorn_raises(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """One drafter is a warning. A missing uvicorn install raises ImportError."""
+    cli = _patch_server_loaders(monkeypatch, n_drafters=1)
+    monkeypatch.setitem(sys.modules, "uvicorn", None)
+    with caplog.at_level(logging.WARNING), pytest.raises(ImportError, match="flashspec\\[serve\\]"):
+        cli.main(["--target", "toy", "--drafter", "only"])
+    assert "will not adapt" in caplog.text
 
 
 def test_prompt_helper_rejects_non_string_content() -> None:
