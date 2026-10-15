@@ -89,11 +89,10 @@ Result file: `benchmarks/results/draft_size_sweep.csv`
 
 ### Figure 3 — Bandit regret convergence
 
-The recorded figure is `paper/figures/bandit_regret.jpg`. Changelog 0.1.4
-names `notebooks/02_bandit_analysis.ipynb`, which is not in this checkout.
-The unit test `test_ucb1_regret_within_theoretical_bound` is the check
-that still runs here. Cumulative regret at T=10,000 was UCB1 100.2 and
-Thompson 18.9.
+The recorded figure is `paper/figures/bandit_regret.jpg`.
+`notebooks/02_bandit_analysis.ipynb` is in this checkout. The unit test
+`test_ucb1_regret_within_theoretical_bound` also checks the bound.
+Cumulative regret at T=10,000 was UCB1 100.2 and Thompson 18.9.
 
 ---
 

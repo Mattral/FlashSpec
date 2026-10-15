@@ -78,6 +78,14 @@ section "This checkout" and in the JSON files.
   peaks of 0.2 acceptance and 3215.4340838834096 tok/s. That win is
   this controlled switch. It is not a language-model result, and those
   tok/s are not comparable to the toy end-to-end row.
+- Colab Tesla T4, git `cb02ca1`, Python 3.13.15, torch 2.11.0+cu130,
+  CUDA 13.0. TinyLlama-1.1B-Chat float16 with drafter
+  `Felladrin/Llama-160M-Chat-v1`, `n_samples=8`, synthetic token ids,
+  γ=4. FlashSpec 17.576979879136424 tok/s, acceptance
+  0.20834964273981926, speedup vs vanilla AR 0.6061833262227975.
+  Vanilla AR 29.006488905704696 tok/s. Speculative decoding was slower
+  on this pair. Process peak memory 2.3778347969055176 GB. The ASM
+  cell on that runtime failed and wrote no file.
 
 ---
 

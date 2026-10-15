@@ -1,0 +1,37 @@
+{
+  "status": "measured",
+  "measurement_kind": "end_to_end",
+  "timestamp": "2026-10-15T06:33:36.952301+00:00",
+  "git_commit": "cb02ca1",
+  "hardware": {
+    "platform": "Linux-6.6.122+-x86_64-with-glibc2.39",
+    "machine": "x86_64",
+    "processor": "x86_64",
+    "python": "3.13.15",
+    "torch": "2.11.0+cu130",
+    "avx2": true,
+    "gpu": "Tesla T4",
+    "cuda": "13.0",
+    "gpu_count": 1
+  },
+  "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+  "method": "vanilla_ar",
+  "gamma": 4,
+  "dataset": "synthetic_token_ids",
+  "n_samples": 8,
+  "metrics": {
+    "tokens_per_second_mean": 29.006488905704696,
+    "tokens_per_second_std": 0.7566173596579463,
+    "p50_latency_ms": 1089.8987889999603,
+    "p95_latency_ms": 1167.0006600000136,
+    "p99_latency_ms": 1167.0006600000136,
+    "gpu_memory_gb": 2.3778347969055176
+  },
+  "unmeasured": [
+    "acceptance_rate_mean",
+    "acceptance_rate_std",
+    "speedup_vs_ar_mean",
+    "speedup_vs_ar_std"
+  ],
+  "notes": "Vanilla autoregressive loop on the same target and prompts. End-to-end generation on the loaded checkpoint versus a vanilla autoregressive loop on the same target. Weights were loaded as torch.float16. Prompts are synthetic token ids drawn from the shared vocabulary, not MT-Bench, HumanEval, or Alpaca."
+}

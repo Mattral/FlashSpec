@@ -29,9 +29,10 @@ because this checkout produced them:
 - `residual_cpu.json`
 - `bandit_mixed_workload.json`
 - `tiny_cpu_*.json`
-- `tinyllama_gpu_*.json` and `larger_gpu_*.json`, after
-  `notebooks/04_gpu_measurement.ipynb` has been run and the downloaded
-  files have been copied here
-- `residual_colab_cpu.json`, only if that notebook's ASM cell wrote it
+- `tinyllama_gpu_flashspec_ucb_cb02ca1.json` and
+  `tinyllama_gpu_vanilla_ar_cb02ca1.json` are the Colab Tesla T4
+  float16 run. `tinyllama_throughput.png` is the bar chart of those
+  two means. `larger_gpu_*.json` is still absent.
+- `residual_colab_cpu.json` was not produced. The Colab ASM cell failed.
 
 Add another negation in `.gitignore` only for a file you have actually produced.

@@ -1,0 +1,49 @@
+name: asm-residual
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/asm-residual.yml
+      - benchmarks/bench_residual.py
+      - flashspec/sampling/rejection.py
+
+jobs:
+  bench:
+    name: linux-avx2-residual
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: Mattral/flashspec-asm
+          path: flashspec-asm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Build libflashspec_asm.so
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nasm build-essential
+          make -C flashspec-asm
+          test -f flashspec-asm/flashspec_asm_kernel/libflashspec_asm.so
+      - name: Install CPU dependencies
+        run: |
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -e . numpy
+      - name: Time the residual
+        env:
+          PYTHONPATH: ${{ github.workspace }}/flashspec-asm
+          OMP_NUM_THREADS: "1"
+          MKL_NUM_THREADS: "1"
+        run: |
+          python benchmarks/bench_residual.py \
+            --output benchmarks/results/residual_linux_gha.json \
+            --iterations 30 \
+            --vocab 1024 4096 32000
+      - uses: actions/upload-artifact@v4
+        with:
+          name: residual-linux-gha
+          path: benchmarks/results/residual_linux_gha.json
+          if-no-files-found: error

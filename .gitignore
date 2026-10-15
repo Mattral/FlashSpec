@@ -56,6 +56,7 @@ benchmarks/results/*.json
 !benchmarks/results/tinyllama_gpu_*.json
 !benchmarks/results/larger_gpu_*.json
 !benchmarks/results/residual_colab_cpu.json
+!benchmarks/results/residual_linux_gha.json
 !benchmarks/results/.gitkeep
 
 # Jupyter

@@ -61,10 +61,12 @@ make bench
 The Windows CPU files from this checkout are listed in the README
 section "This checkout". `make bench-quick` is a smoke test.
 
-`notebooks/04_gpu_measurement.ipynb` is the GPU measurement. A Tesla T4
-is enough for the TinyLlama pair. Run it in Colab, download
-`flashspec_bring_back.zip`, and copy the JSON into `benchmarks/results/`.
-Google Drive is not this repository.
+`notebooks/04_gpu_measurement.ipynb` is the GPU measurement. The Colab
+Tesla T4 run at git `cb02ca1` is in
+`benchmarks/results/tinyllama_gpu_flashspec_ucb_cb02ca1.json` and
+`benchmarks/results/tinyllama_gpu_vanilla_ar_cb02ca1.json`. A later run
+still has to be downloaded from Colab and copied here. Google Drive is
+not this repository.
 
 ---
 

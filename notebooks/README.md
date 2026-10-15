@@ -3,16 +3,16 @@
 This checkout ships `01_quickstart.py` and
 `04_gpu_measurement.ipynb`.
 
-`04_gpu_measurement.ipynb` is the notebook to run on a free Colab T4,
-or on a larger Colab GPU if you want the optional cell. An H100 is not
-required. The Quadro P2000 (compute capability 6.1, 5 GB) is refused
-by the probe cell. Colab does not save into this repo. Run the last
-code cell, download `flashspec_bring_back.zip`, and copy the JSON files
-into `benchmarks/results/` before committing.
+`04_gpu_measurement.ipynb` is the notebook that was run on a free Colab
+T4. The `n_samples=8` JSON and the bar chart are in
+`benchmarks/results/`. An H100 is not required. The Quadro P2000
+(compute capability 6.1, 5 GB) is refused by the probe cell. A rerun
+still downloads `flashspec_bring_back.zip`. Copy new JSON into
+`benchmarks/results/`. Colab Drive is not this repo.
 
-The Colab badges below point at `main` on GitHub. Those `.ipynb` files
-are not in this checkout. Open them only if that branch actually
-contains the notebook.
+The Colab badges below point at `main`. The matching notebooks are in
+this checkout: `01_quickstart.ipynb`, `02_bandit_analysis.ipynb`,
+`03_kernel_profiling.ipynb`, and `Colab_Benchmarks_T4.ipynb`.
 
 Easily launch and explore FlashSpec notebooks in Google Colab:
 

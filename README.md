@@ -173,17 +173,38 @@ Upstream Linux ASM timings stay in flashspec-asm
 `bench/results/phase5_benchmark.txt`. They were not copied here and
 were not remeasured on this machine.
 
-A paired TinyLlama GPU run is not in this checkout.
-`notebooks/04_gpu_measurement.ipynb` is the run that produces one.
-A free Colab Tesla T4 is enough. An H100 is not required. Colab Pro
-is only for the optional larger-model cell, and only when that cell's
-memory check passes. The Quadro P2000 on this workstation is Pascal
-(compute capability 6.1, 5 GB). The notebook stops on that GPU and
-writes nothing.
+### Measured — TinyLlama-1.1B-Chat float16 · Tesla T4 · γ=4 · git `cb02ca1`
 
-Colab and Google Drive do not update this repo. The notebook's last
-code cell downloads `flashspec_bring_back.zip`. Put the JSON files
-from that zip into `benchmarks/results/` and commit them here.
+Colab Tesla T4, Linux, Python 3.13.15, torch 2.11.0+cu130, CUDA 13.0,
+2026-10-15. Target `TinyLlama/TinyLlama-1.1B-Chat-v1.0`, drafter
+`Felladrin/Llama-160M-Chat-v1` from `benchmarks/configs/tinyllama_gpu.yaml`
+at that commit. Weights are float16. `n_samples=8`, 32 new tokens,
+prompt length 16, dataset `synthetic_token_ids`. One drafter is loaded,
+so the bandit does not adapt. Percentiles are nearest-rank, so p95 and
+p99 are the same sample. `gpu_memory_gb` is the process peak after both
+models were resident, and both files store that same peak.
+
+| | FlashSpec UCB | Vanilla AR |
+|---|---:|---:|
+| tok/s mean | 17.576979879136424 | 29.006488905704696 |
+| tok/s std | 1.4290891437599451 | 0.7566173596579463 |
+| p50 latency (ms) | 1860.4352799999901 | 1089.8987889999603 |
+| p95 = p99 (ms) | 2139.223847999972 | 1167.0006600000136 |
+| acceptance mean | 0.20834964273981926 | unmeasured |
+| acceptance std | 0.00825497841969436 | unmeasured |
+| speedup vs AR | 0.6061833262227975 (std 0.05012520176286204) | unmeasured |
+| gpu memory (GB) | 2.3778347969055176 | 2.3778347969055176 |
+
+`speedup_vs_ar_mean` is below 1, so speculative decoding was slower than
+vanilla autoregressive sampling on this pair. The files are
+`benchmarks/results/tinyllama_gpu_flashspec_ucb_cb02ca1.json` and
+`benchmarks/results/tinyllama_gpu_vanilla_ar_cb02ca1.json`. The bar
+chart is `benchmarks/results/tinyllama_throughput.png`.
+
+The optional ASM cell on that Colab runtime printed `Residual bench failed`
+and did not write `residual_colab_cpu.json`. The larger-model cell was
+skipped. This row is float16 with synthetic token ids. The NF4
+single-prompt record is the next section.
 
 ### Measured — TinyLlama-1.1B · NF4 (4-bit) · Tesla T4 · γ=4
 
@@ -216,10 +237,10 @@ Thompson cumulative regret at T=10,000: **18.9**.
 
 ![Bandit Regret](paper/figures/bandit_regret.jpg)
 
-The figure is `paper/figures/bandit_regret.jpg`. The notebook that changelog
-0.1.4 names (`notebooks/02_bandit_analysis.ipynb`) is not in this checkout.
-The regret numbers are a synthetic K=3 arm experiment, not a throughput
-gain on a language model.
+The figure is `paper/figures/bandit_regret.jpg`. The notebook
+`notebooks/02_bandit_analysis.ipynb` is in this checkout. The regret
+numbers are a synthetic K=3 arm experiment, not a throughput gain on a
+language model.
 
 ### Gamma sweep — measured (toy logprobs, synthetic)
 
@@ -240,8 +261,9 @@ Data in [`benchmarks/results/gamma_sweep.csv`](benchmarks/results/gamma_sweep.cs
 
 ### Reference kernel profiling — measured (Tesla T4)
 
-Historical T4 profile. The notebook `notebooks/03_kernel_profiling.ipynb`
-is not in this checkout. The table is the recorded summary of that run.
+Historical T4 profile from `notebooks/03_kernel_profiling.ipynb`.
+The table is the recorded summary of that run. At batch 1 the Triton
+kernel is slower than the PyTorch reference.
 
 | Shape | Reference (ms) | Triton (ms) | Speedup |
 |---|---|---|---|
