@@ -4,9 +4,8 @@
   "timestamp": "2026-10-15T05:48:39.436112+00:00",
   "git_commit": "da8182b",
   "hardware": {
-    "platform": "Windows-11-10.0.26200-SP0",
+    "platform": "Windows",
     "machine": "AMD64",
-    "processor": "Intel64 Family 6 Model 158 Stepping 13, GenuineIntel",
     "python": "3.14.8",
     "torch": "2.14.1+cpu",
     "avx2": true
@@ -30,5 +29,5 @@
     "speedup_vs_ar_std",
     "gpu_memory_gb"
   ],
-  "notes": "Vanilla autoregressive loop on the same target and prompts. In-process randomly initialised transformer. Not a published checkpoint and not comparable to the Llama design targets."
+  "notes": "Vanilla autoregressive loop on the same target and prompts. In-process randomly initialised transformer. Not a published checkpoint and not comparable to the Llama design targets. The host identifier was removed from this published file. Measured values are unchanged."
 }

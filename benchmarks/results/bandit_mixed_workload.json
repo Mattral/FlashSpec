@@ -1,11 +1,11 @@
 {
   "status": "measured",
   "measurement_kind": "controlled_mixed_workload_simulation",
+  "timestamp": "2026-10-15T06:26:21Z",
   "git_commit": "da8182b",
   "hardware": {
-    "platform": "Windows-11-10.0.26200-SP0",
+    "platform": "Windows",
     "machine": "AMD64",
-    "processor": "Intel64 Family 6 Model 158 Stepping 13, GenuineIntel",
     "python": "3.14.8",
     "torch": "2.14.1+cpu",
     "avx2": true
@@ -32,7 +32,17 @@
   "unmeasured": [
     "speedup_vs_vanilla_ar",
     "llama_acceptance",
-    "gpu_throughput"
+    "gpu_throughput",
+    "tokens_per_second_mean",
+    "tokens_per_second_std",
+    "speedup_vs_ar_mean",
+    "speedup_vs_ar_std",
+    "acceptance_rate_mean",
+    "acceptance_rate_std",
+    "p50_latency_ms",
+    "p95_latency_ms",
+    "p99_latency_ms",
+    "gpu_memory_gb"
   ],
   "improved_acceptance_vs_best_fixed": true,
   "improved_throughput_vs_best_fixed": true,
@@ -48,5 +58,5 @@
     "peak_a": 3,
     "peak_b": 9
   },
-  "notes": "Synthetic peaked distributions, not a trained model. The target peak flips once. fixed_a and fixed_b each match only one phase. single_drafter_control is the same run shape as fixed_a and exists to show that one arm cannot adapt. On this controlled switch, UCB improved at least one of acceptance or throughput relative to the better fixed drafter."
+  "notes": "Synthetic peaked distributions, not a trained model. The target peak flips once. fixed_a and fixed_b each match only one phase. single_drafter_control is the same run shape as fixed_a and exists to show that one arm cannot adapt. On this controlled switch, UCB improved at least one of acceptance or throughput relative to the better fixed drafter. The host identifier was removed from this published file. Measured values are unchanged. timestamp is the commit time of cb02ca1, which added this file. The script did not write one."
 }

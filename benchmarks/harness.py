@@ -99,20 +99,21 @@ def git_commit() -> str:
 
 
 def detect_hardware() -> dict[str, object]:
-    """Describe the machine that is about to be measured.
+    """Describe the environment that is about to be measured.
 
-    GPU keys are omitted when CUDA is not available. Nothing in the
-    returned dict is a design target.
+    The OS name is `platform.system()` only. The CPU identifier and the
+    OS build number are not recorded. GPU keys are omitted when CUDA is
+    not available. Nothing in the returned dict is a design target.
 
     Returns
     -------
     dict[str, object]
-        Platform, CPU, Python, PyTorch, AVX2, and CUDA fields when present.
+        OS name, architecture, Python, PyTorch, AVX2, and CUDA fields
+        when present.
     """
     info: dict[str, object] = {
-        "platform": platform.platform(),
+        "platform": platform.system(),
         "machine": platform.machine(),
-        "processor": platform.processor() or platform.machine(),
         "python": platform.python_version(),
         "torch": torch.__version__,
         "avx2": cpu_has_avx2(),

@@ -13,6 +13,7 @@ from benchmarks.harness import (
     _TinyCausalLM,
     _torch_dtype_from_config,
     assemble_result,
+    detect_hardware,
     load_benchmark_config,
     percentile,
     resolve_device,
@@ -20,6 +21,16 @@ from benchmarks.harness import (
     summarise_runs,
 )
 from scripts.update_benchmark_results import _validate_result_file
+
+
+def test_detect_hardware_omits_host_identifier() -> None:
+    """Result files record the OS name, not the CPU model or OS build."""
+    info = detect_hardware()
+    assert info["platform"] in {"Windows", "Linux", "Darwin"}
+    assert "processor" not in info
+    blob = " ".join(str(value) for value in info.values())
+    assert "Family" not in blob
+    assert "GenuineIntel" not in blob
 
 
 def test_percentile_and_summary_omit_unmeasured_acceptance() -> None:

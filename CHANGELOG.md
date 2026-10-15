@@ -71,10 +71,10 @@ deployment or an H100 speedup.
   the original script omitted. Its millisecond values are unchanged.
 
 ### Measured here
-Windows 11 CPU, Python 3.14.8, torch 2.14.1+cpu, git `da8182b`, one
-thread. Host AVX2 is true. The Linux ASM library did not load, so ASM
-and the C baseline are unmeasured. Full figures are in the README
-section "This checkout" and in the JSON files.
+CPU toy run, git `da8182b`, one thread. The host machine is not named
+in this changelog. The Linux ASM library did not load, so ASM and the
+C baseline are unmeasured on that run. Full figures are in the JSON
+files under `benchmarks/results/`.
 
 - Toy random transformer, `n_samples=3`, γ=4, one drafter:
   FlashSpec 807.876431892803 tok/s, acceptance 0.3115079365079365,

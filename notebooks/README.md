@@ -5,8 +5,8 @@ This checkout ships `01_quickstart.py` and
 
 `04_gpu_measurement.ipynb` is the notebook that was run on a free Colab
 T4. The `n_samples=8` JSON and the bar chart are in
-`benchmarks/results/`. An H100 is not required. The Quadro P2000
-(compute capability 6.1, 5 GB) is refused by the probe cell. A rerun
+`benchmarks/results/`. An H100 is not required. A Pascal GPU at
+compute capability 6.1 with 5 GB is refused by the probe cell. A rerun
 still downloads `flashspec_bring_back.zip`. Copy new JSON into
 `benchmarks/results/`. Colab Drive is not this repo.
 
