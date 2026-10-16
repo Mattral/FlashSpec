@@ -1,0 +1,36 @@
+{
+  "status": "measured",
+  "measurement_kind": "end_to_end",
+  "timestamp": "2026-10-16T02:31:46.352139+00:00",
+  "git_commit": "f59b5b4",
+  "hardware": {
+    "platform": "Windows",
+    "machine": "AMD64",
+    "python": "3.14.8",
+    "torch": "2.14.1+cpu",
+    "avx2": true
+  },
+  "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+  "method": "flashspec_ucb",
+  "gamma": 4,
+  "dataset": "humaneval",
+  "n_samples": 1,
+  "metrics": {
+    "tokens_per_second_mean": 1.7507264092133707,
+    "tokens_per_second_std": 0.0,
+    "p50_latency_ms": 9139.063599999645,
+    "p95_latency_ms": 9139.063599999645,
+    "p99_latency_ms": 9139.063599999645,
+    "acceptance_rate_mean": 0.11363636363636363,
+    "acceptance_rate_std": 0.0,
+    "speedup_vs_ar_mean": 0.40735807988124606,
+    "speedup_vs_ar_std": 0.0
+  },
+  "unmeasured": [
+    "gpu_memory_gb"
+  ],
+  "notes": "End-to-end generation on the loaded checkpoint versus a vanilla autoregressive loop on the same target. Weights were loaded as torch.float32. Prompts are the fixed humaneval set (HumanEval/23), tokenized with the target tokenizer. One drafter is loaded, so the bandit cannot adapt; this row measures speculative decoding with a fixed drafter.",
+  "prompt_ids": [
+    "HumanEval/23"
+  ]
+}

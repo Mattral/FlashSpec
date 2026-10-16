@@ -64,9 +64,11 @@ does not name the host machine. `make bench-quick` is a smoke test.
 `notebooks/04_gpu_measurement.ipynb` is the GPU measurement. The Colab
 Tesla T4 run at git `cb02ca1` is in
 `benchmarks/results/tinyllama_gpu_flashspec_ucb_cb02ca1.json` and
-`benchmarks/results/tinyllama_gpu_vanilla_ar_cb02ca1.json`. A later run
-still has to be downloaded from Colab and copied here. Google Drive is
-not this repository.
+`benchmarks/results/tinyllama_gpu_vanilla_ar_cb02ca1.json`. A later GPU
+run still has to be downloaded from Colab and copied here. Google Drive
+is not this repository. A CPU float32 HumanEval/23 pair at git `f59b5b4`
+is in `benchmarks/results/tinyllama_cpu_humaneval_flashspec_ucb_f59b5b4.json`
+and `benchmarks/results/tinyllama_cpu_humaneval_vanilla_ar_f59b5b4.json`.
 
 ---
 
