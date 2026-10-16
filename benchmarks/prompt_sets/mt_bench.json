@@ -1,0 +1,29 @@
+{
+  "dataset": "mt_bench",
+  "license": "Apache-2.0",
+  "source": "https://github.com/lm-sys/FastChat/blob/main/fastchat/llm_judge/data/mt_bench/question.jsonl",
+  "copyright": "LMSYS FastChat, Apache License 2.0",
+  "note": "First turn only. Second turns and reference answers are not included.",
+  "prompts": [
+    {
+      "id": "81",
+      "category": "writing",
+      "text": "Compose an engaging travel blog post about a recent trip to Hawaii, highlighting cultural experiences and must-see attractions."
+    },
+    {
+      "id": "101",
+      "category": "reasoning",
+      "text": "Imagine you are participating in a race with a group of people. If you have just overtaken the second person, what's your current position? Where is the person you just overtook?"
+    },
+    {
+      "id": "111",
+      "category": "math",
+      "text": "The vertices of a triangle are at points (0, 0), (-1, 1), and (3, 3). What is the area of the triangle?"
+    },
+    {
+      "id": "121",
+      "category": "coding",
+      "text": "Develop a Python program that reads all the text files under a directory and returns top-5 words with the most number of occurrences."
+    }
+  ]
+}

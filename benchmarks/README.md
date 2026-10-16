@@ -44,6 +44,22 @@ network. Its JSON is a CPU toy measurement, not Llama and not H100.
 Medusa and EAGLE are not implemented. The harness prints that and writes
 no file for them.
 
+## Fixed prompt sets (no acceptance number yet)
+
+`benchmarks/prompt_sets/` holds four MIT HumanEval prompts and four
+Apache-2.0 MT-Bench first-turn questions. The harness tokenizes them
+with the target tokenizer and writes one JSON per dataset. The document
+includes `prompt_ids` and the existing `acceptance_rate_mean` field.
+Stanford Alpaca is CC BY-NC 4.0 and its text is not in the tree, so a
+config that names it writes nothing for that name. No acceptance number
+has been measured for these sets. Attribution and the license copies are
+in `benchmarks/prompt_sets/README.md`.
+
+`benchmarks/configs/llama3_8b.yaml` already lists `mt_bench`,
+`humaneval`, and `alpaca`. This section does not add a config file.
+`make bench` still globs every YAML, and that Llama config asks for
+CUDA and gated weights.
+
 ```bash
 # Pull model weights via HuggingFace Hub (requires HF_TOKEN env var).
 python scripts/download_models.py
