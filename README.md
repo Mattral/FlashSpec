@@ -302,6 +302,8 @@ sequenceDiagram
     end
 ```
 
+**Batching.** Rows that accept different numbers of tokens finish the step at different context lengths. Each loop forwards only the largest group of rows that still share a length. Other lengths wait for a later loop. The KV cache is rolled only when that group has a single row. A larger group full-forwards. The returned tensor fills a shorter row with `-1` so the tensor is rectangular. That fill is not an attention mask. The engine does not pad unequal prompts into one masked batch.
+
 **Correctness.** The accept/reject criterion is `u_i < min(1, p(xᵢ)/q(xᵢ))`
 computed in log-space to avoid underflow. Rejected positions sample a residual
 token from `max(0, p−q) / ‖max(0, p−q)‖₁` (Algorithm 1, Leviathan et al. 2023).
