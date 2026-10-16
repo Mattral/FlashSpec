@@ -12,6 +12,10 @@ flashspec-asm from source when that wheel does not select the kernel. A rerun
 still downloads `flashspec_bring_back.zip`. Copy new JSON into
 `benchmarks/results/`. Colab Drive is not this repo.
 
+`notebooks/colab_triton_tests.py` runs the Triton GPU parity tests and
+writes `colab_triton_tests.log`. Download that log. CI does not run
+those tests.
+
 The Colab badges below point at `main`. The matching notebooks are in
 this checkout: `01_quickstart.ipynb`, `02_bandit_analysis.ipynb`,
 `03_kernel_profiling.ipynb`, and `Colab_Benchmarks_T4.ipynb`.

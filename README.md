@@ -61,6 +61,10 @@ FlashSpec addresses both, with the limits that have actually been measured:
   They match numerically. SRAM use of the Triton kernel is O(1) in
   vocabulary size. On a Tesla T4 at batch 1 the Triton kernel was slower
   than the reference (0.2× at B=1, γ=4, V=32k). No H100 profile exists.
+  Those Triton paths are not tested in CI. This repository has no GPU
+  runner. `notebooks/colab_triton_tests.py` runs the `@pytest.mark.gpu`
+  parity tests and writes `colab_triton_tests.log`. Download that log.
+  Colab does not write this repository.
 - A **K-armed bandit** (UCB1 or Thompson sampling) selects which draft model
   to use at each step. The O(√(KT log T)) regret bound is a guarantee on
   cumulative regret, not a promise that a short conversation is faster.

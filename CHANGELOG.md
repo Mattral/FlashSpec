@@ -49,6 +49,8 @@ exists.
   comparison exists, and Medusa and EAGLE are not implemented.
 
 ### Added
+- `notebooks/colab_triton_tests.py` runs the Triton GPU parity tests and
+  writes a log to download. Those tests are not run in CI.
 - Fixed HumanEval and MT-Bench prompt sets under `benchmarks/prompt_sets/`.
   The harness tokenizes them with the target tokenizer and records the
   prompt ids beside acceptance. Alpaca text is not included
