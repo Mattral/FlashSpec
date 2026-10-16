@@ -23,6 +23,13 @@ from typing import Any
 import torch
 import torch.nn as nn
 
+from benchmarks.prompt_sets import (
+    ALPACA_REASON,
+    REAL_DATASETS,
+    canonical_dataset,
+    load_prompt_set,
+    tokenize_prompts,
+)
 from flashspec.bandit.ucb import UCB1Selector
 from flashspec.engine.drafter import load_drafters, unregister
 from flashspec.engine.kv_cache import (
@@ -263,6 +270,7 @@ def assemble_result(
     notes: str,
     unmeasured: list[str],
     hardware: dict[str, object] | None = None,
+    prompt_ids: list[str] | None = None,
 ) -> dict[str, object]:
     """Build a result document. Unmeasured metrics are not given fake zeros.
 
@@ -289,13 +297,15 @@ def assemble_result(
         Metric names deliberately omitted.
     hardware : dict or None
         Override for tests. The default calls :func:`detect_hardware`.
+    prompt_ids : list[str] or None
+        Ids from a fixed prompt set. Omitted for synthetic token ids.
 
     Returns
     -------
     dict[str, object]
         JSON-ready document with ``status`` = ``measured``.
     """
-    return {
+    document: dict[str, object] = {
         "status": "measured",
         "measurement_kind": measurement_kind,
         "timestamp": datetime.now(UTC).isoformat(),
@@ -310,6 +320,9 @@ def assemble_result(
         "unmeasured": unmeasured,
         "notes": notes,
     }
+    if prompt_ids is not None:
+        document["prompt_ids"] = list(prompt_ids)
+    return document
 
 
 def write_result(path: Path, result: dict[str, object]) -> None:
@@ -746,8 +759,12 @@ def _build_toy_modules(config: dict[str, Any], device: torch.device) -> tuple[nn
     return drafter, target
 
 
-def _prompts(config: dict[str, Any], device: torch.device) -> list[torch.Tensor]:
-    """Build the prompt batch list for one config.
+def _prompts(
+    config: dict[str, Any],
+    device: torch.device,
+    tokenizer: object | None = None,
+) -> tuple[list[torch.Tensor], list[str] | None, str]:
+    """Build prompts for one config.
 
     Parameters
     ----------
@@ -755,12 +772,23 @@ def _prompts(config: dict[str, Any], device: torch.device) -> list[torch.Tensor]
         Benchmark config.
     device : torch.device
         Destination device.
+    tokenizer : object or None
+        Target tokenizer. Required when ``dataset`` is a fixed prompt set.
 
     Returns
     -------
-    list[torch.Tensor]
-        One tensor per sample, each shaped ``(1, prompt_length)``.
+    tuple
+        Prompt tensors, prompt ids or ``None`` for synthetic ids, and a
+        note fragment. The fragment is empty for synthetic prompts.
+
+    Raises
+    ------
+    RuntimeError
+        If a real prompt set has no tokenizer or an empty encoding.
     """
+    slug = canonical_dataset(str(config.get("dataset", "synthetic_prompts")))
+    if slug in REAL_DATASETS:
+        return _real_prompts(config, device, tokenizer, slug)
     n_samples = int(config.get("n_samples", config.get("n_measurement_steps", 4)))
     vocab = int(config.get("vocab_size", 64))
     prompt_length = int(config.get("prompt_length", 8))
@@ -769,7 +797,72 @@ def _prompts(config: dict[str, Any], device: torch.device) -> list[torch.Tensor]
     for index in range(n_samples):
         generator = torch.Generator().manual_seed(seed + index)
         prompts.append(torch.randint(0, vocab, (1, prompt_length), generator=generator).to(device))
-    return prompts
+    return prompts, None, ""
+
+
+def _real_prompts(
+    config: dict[str, Any],
+    device: torch.device,
+    tokenizer: object | None,
+    slug: str,
+) -> tuple[list[torch.Tensor], list[str], str]:
+    """Tokenize a fixed prompt set and describe which ids were used.
+
+    Parameters
+    ----------
+    config : dict
+        Benchmark config. ``n_samples`` or ``n_measurement_steps`` slices
+        the ordered set. A request larger than the set uses each prompt
+        once.
+    device : torch.device
+        Destination device.
+    tokenizer : object or None
+        Target tokenizer.
+    slug : str
+        Canonical dataset name.
+
+    Returns
+    -------
+    tuple
+        Tensors, ids, and a note fragment that starts with a space.
+
+    Raises
+    ------
+    RuntimeError
+        If ``tokenizer`` is missing.
+    """
+    if tokenizer is None:
+        raise RuntimeError("A real prompt set requires a tokenizer. No result file was written.")
+    records = load_prompt_set(slug)
+    if "n_samples" in config:
+        requested = int(config["n_samples"])
+        source = "n_samples"
+    elif "n_measurement_steps" in config:
+        requested = int(config["n_measurement_steps"])
+        source = "n_measurement_steps"
+    else:
+        requested = 4
+        source = "n_samples"
+    capped = requested > len(records)
+    chosen = records if capped else records[:requested]
+    raw_limit = config.get("prompt_length")
+    limit = int(raw_limit) if raw_limit is not None else None
+    prompts = tokenize_prompts(chosen, tokenizer, device, limit)
+    ids = [item["id"] for item in chosen]
+    note = (
+        f" Prompts are the fixed {slug} set ({', '.join(ids)}), tokenized "
+        "with the target tokenizer."
+    )
+    if capped:
+        note += (
+            f" {source} asked for {requested} prompts; the fixed set has "
+            f"{len(records)}, so each prompt is used once."
+        )
+    if str(config.get("model", "toy")) == "toy":
+        note += (
+            " The network is randomly initialised, so acceptance is not a checkpoint measurement."
+        )
+    return prompts, ids, note
 
 
 def run_paired_generations(
@@ -805,7 +898,8 @@ def run_paired_generations(
     DeviceUnavailableError
         If the requested CUDA device is missing.
     RuntimeError
-        If a non-toy model cannot be loaded. No partial result is implied.
+        If a non-toy model cannot be loaded, Alpaca is requested, or a
+        real prompt set has no tokenizer. No partial result is implied.
     """
     device = resolve_device(str(config.get("device", "auto")))
     model_name = str(config.get("model", "toy"))
@@ -813,13 +907,18 @@ def run_paired_generations(
     max_new_tokens = int(config.get("max_new_tokens", 8))
     temperature = float(config.get("temperature", 1.0))
     n_warmup = int(config.get("n_warmup", config.get("n_warmup_steps", 1)))
-    dataset = str(config.get("dataset", "synthetic_prompts"))
+    dataset = canonical_dataset(str(config.get("dataset", "synthetic_prompts")))
+    tokenizer = config.get("tokenizer")
+    toy = model_name == "toy"
+    if dataset == "alpaca":
+        raise RuntimeError(ALPACA_REASON)
+    if dataset in REAL_DATASETS and tokenizer is None and toy:
+        raise RuntimeError("A real prompt set requires a tokenizer. No result file was written.")
     seed = int(config.get("seed", 0))
     set_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.reset_peak_memory_stats()
 
-    toy = model_name == "toy"
     if drafter_module is None or target_module is None:
         if toy:
             drafter_module, target_module = _build_toy_modules(config, device)
@@ -827,8 +926,10 @@ def run_paired_generations(
             drafter_module, target_module = _load_checkpoint_modules(config, device)
     if drafter_module is None or target_module is None:
         raise RuntimeError("Internal error: drafter and target were not loaded.")
+    if dataset in REAL_DATASETS and tokenizer is None:
+        tokenizer = _load_tokenizer(model_name)
     _assert_shared_vocab(drafter_module, target_module)
-    config = {**config, "vocab_size": _module_vocab(target_module, config)}
+    config = {**config, "vocab_size": _module_vocab(target_module, config), "dataset": dataset}
     weight_dtype = next(target_module.parameters()).dtype
 
     drafter_name = "bench-drafter"
@@ -849,6 +950,7 @@ def run_paired_generations(
             seed=seed,
             toy=toy,
             weight_dtype=weight_dtype,
+            tokenizer=tokenizer,
         )
     finally:
         unregister(drafter_name)
@@ -900,6 +1002,34 @@ def _load_checkpoint_modules(
     return drafter.to(device), target.to(device)
 
 
+def _load_tokenizer(model_name: str) -> object:
+    """Load a tokenizer for ``model_name`` before any result is written.
+
+    Parameters
+    ----------
+    model_name : str
+        Target checkpoint id or local path.
+
+    Returns
+    -------
+    object
+        Tokenizer from ``AutoTokenizer.from_pretrained``.
+
+    Raises
+    ------
+    RuntimeError
+        If the tokenizer cannot be loaded. The caller writes nothing.
+    """
+    try:
+        from transformers import AutoTokenizer
+
+        return AutoTokenizer.from_pretrained(model_name)
+    except Exception as exc:
+        raise RuntimeError(
+            f"Could not load a tokenizer for {model_name!r}: {exc}. No result file was written."
+        ) from exc
+
+
 def _run_loaded_pair(
     *,
     config: dict[str, Any],
@@ -916,6 +1046,7 @@ def _run_loaded_pair(
     seed: int,
     toy: bool,
     weight_dtype: torch.dtype,
+    tokenizer: object | None = None,
 ) -> dict[str, dict[str, object]]:
     """Time one loaded drafter/target pair. See :func:`run_paired_generations`."""
     drafters = load_drafters(
@@ -941,7 +1072,7 @@ def _run_loaded_pair(
         target,
         UCB1Selector(n_arms=1, window_size=0),
     )
-    prompts = _prompts(config, device)
+    prompts, prompt_ids, prompt_note = _prompts(config, device, tokenizer)
     kind = "toy_random_init_transformer" if toy else "end_to_end"
     shared_notes = (
         "In-process randomly initialised transformer. Not a published "
@@ -958,6 +1089,8 @@ def _run_loaded_pair(
             " Prompts are synthetic token ids drawn from the shared vocabulary, "
             "not MT-Bench, HumanEval, or Alpaca."
         )
+    if prompt_note:
+        shared_notes += prompt_note
     spec_notes = shared_notes
     if len(drafters) < 2:
         spec_notes += (
@@ -1050,6 +1183,7 @@ def _run_loaded_pair(
             notes=spec_notes,
             unmeasured=spec_unmeasured,
             hardware=hardware,
+            prompt_ids=prompt_ids,
         ),
         "vanilla_ar": assemble_result(
             model=model_name,
@@ -1062,8 +1196,64 @@ def _run_loaded_pair(
             notes=ar_notes,
             unmeasured=ar_unmeasured,
             hardware=hardware,
+            prompt_ids=prompt_ids,
         ),
     }
+
+
+def _dataset_names(config: dict[str, Any]) -> list[str]:
+    """Return canonical dataset names from ``datasets`` or ``dataset``.
+
+    Parameters
+    ----------
+    config : dict
+        Benchmark config.
+
+    Returns
+    -------
+    list[str]
+        One slug per requested dataset, in file order.
+    """
+    raw = config.get("datasets")
+    if isinstance(raw, list) and raw:
+        return [canonical_dataset(str(item)) for item in raw]
+    return [canonical_dataset(str(config.get("dataset", "synthetic_prompts")))]
+
+
+def _result_filename(
+    stem: str,
+    dataset: str,
+    method: str,
+    commit: str,
+    *,
+    multiple: bool = False,
+) -> str:
+    """Return the JSON file name for one method and dataset.
+
+    Parameters
+    ----------
+    stem : str
+        Config file stem.
+    dataset : str
+        Canonical dataset slug.
+    method : str
+        Method name.
+    commit : str
+        Git commit recorded in the file.
+    multiple : bool
+        True when the config runs more than one dataset.
+
+    Returns
+    -------
+    str
+        ``{stem}_{method}_{commit}.json`` for one synthetic dataset.
+        The dataset slug is included for a real prompt set or when more
+        than one dataset is run, so the files do not overwrite each other.
+    """
+    slug = canonical_dataset(dataset)
+    if multiple or slug in REAL_DATASETS:
+        return f"{stem}_{slug}_{method}_{commit}.json"
+    return f"{stem}_{method}_{commit}.json"
 
 
 def run_config_file(path: Path, output_dir: Path) -> list[Path]:
@@ -1071,7 +1261,10 @@ def run_config_file(path: Path, output_dir: Path) -> list[Path]:
 
     Medusa and EAGLE entries in ``methods`` are skipped with no output
     file. A CUDA config on a machine without CUDA raises
-    :class:`DeviceUnavailableError` before any file is written.
+    :class:`DeviceUnavailableError` before any file is written for that
+    dataset. A ``datasets`` list is run in order. Alpaca is skipped
+    when the loop reaches it. A list that contains only Alpaca raises
+    and writes nothing.
 
     Parameters
     ----------
@@ -1084,6 +1277,12 @@ def run_config_file(path: Path, output_dir: Path) -> list[Path]:
     -------
     list[Path]
         Files written.
+
+    Raises
+    ------
+    RuntimeError
+        If no dataset remains, or a real prompt set cannot be tokenized.
+        Nothing is written for the dataset that failed.
     """
     config = load_benchmark_config(path)
     methods = config.get("methods") or ["flashspec_ucb", "vanilla_ar"]
@@ -1096,19 +1295,32 @@ def run_config_file(path: Path, output_dir: Path) -> list[Path]:
         )
     if "flashspec_ucb" not in methods and "vanilla_ar" not in methods:
         raise RuntimeError(f"{path.name} does not request a method this harness can measure.")
-    paired = run_paired_generations(config)
+    names = _dataset_names(config)
+    planned = [name for name in names if name != "alpaca"]
+    if not planned:
+        for name in names:
+            if name == "alpaca":
+                print(f"Skipping alpaca: {ALPACA_REASON}")
+        raise RuntimeError(ALPACA_REASON)
+    multiple = len(planned) > 1
     written: list[Path] = []
     commit = git_commit()
-    for method, document in paired.items():
-        if method not in methods and methods:
-            # Still write both sides of the pair when either was requested,
-            # because speedup is undefined without the baseline. The file
-            # name makes the method obvious.
-            pass
-        destination = output_dir / f"{path.stem}_{method}_{commit}.json"
-        write_result(destination, document)
-        written.append(destination)
-        metrics = document["metrics"]
-        assert isinstance(metrics, dict)
-        print(f"{method}: {metrics.get('tokens_per_second_mean')} tok/s on {document['hardware']}")
+    for name in names:
+        if name == "alpaca":
+            print(f"Skipping alpaca: {ALPACA_REASON}")
+            continue
+        one = {key: value for key, value in config.items() if key != "datasets"}
+        one["dataset"] = name
+        paired = run_paired_generations(one)
+        for method, document in paired.items():
+            destination = output_dir / _result_filename(
+                path.stem, name, method, commit, multiple=multiple
+            )
+            write_result(destination, document)
+            written.append(destination)
+            metrics = document["metrics"]
+            assert isinstance(metrics, dict)
+            print(
+                f"{method}: {metrics.get('tokens_per_second_mean')} tok/s on {document['hardware']}"
+            )
     return written

@@ -1,0 +1,24 @@
+{
+  "dataset": "humaneval",
+  "license": "MIT",
+  "source": "https://github.com/openai/human-eval",
+  "copyright": "Copyright (c) OpenAI (https://openai.com)",
+  "prompts": [
+    {
+      "id": "HumanEval/23",
+      "text": "\n\ndef strlen(string: str) -> int:\n    \"\"\" Return length of given string\n    >>> strlen('')\n    0\n    >>> strlen('abc')\n    3\n    \"\"\"\n"
+    },
+    {
+      "id": "HumanEval/45",
+      "text": "\n\ndef triangle_area(a, h):\n    \"\"\"Given length of a side and high return area for a triangle.\n    >>> triangle_area(5, 3)\n    7.5\n    \"\"\"\n"
+    },
+    {
+      "id": "HumanEval/53",
+      "text": "\n\ndef add(x: int, y: int):\n    \"\"\"Add two numbers x and y\n    >>> add(2, 3)\n    5\n    >>> add(5, 7)\n    12\n    \"\"\"\n"
+    },
+    {
+      "id": "HumanEval/55",
+      "text": "\n\ndef fib(n: int):\n    \"\"\"Return n-th Fibonacci number.\n    >>> fib(10)\n    55\n    >>> fib(1)\n    1\n    >>> fib(8)\n    21\n    \"\"\"\n"
+    }
+  ]
+}

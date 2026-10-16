@@ -41,6 +41,10 @@ exists.
   comparison exists, and Medusa and EAGLE are not implemented.
 
 ### Added
+- Fixed HumanEval and MT-Bench prompt sets under `benchmarks/prompt_sets/`.
+  The harness tokenizes them with the target tokenizer and records the
+  prompt ids beside acceptance. Alpaca text is not included
+  (CC BY-NC 4.0). No acceptance figure for these sets is published yet.
 - Chi-squared tests that the first emitted token, and the second when
   gamma is 4, follow the target distribution for fixed `p != q`. An
   engine test covers a toy target whose next token depends on context.
