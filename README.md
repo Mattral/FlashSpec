@@ -2,7 +2,7 @@
 
 <p align="center">
   <strong>Adaptive speculative-decoding inference engine for large language models</strong><br>
-  Triton-optimised verification kernel · online bandit draft selection · provably correct output distribution
+  Verification kernel and a pure-PyTorch reference · bandit draft selection · chi-squared output check
 </p>
 
 <p align="center">
@@ -34,10 +34,19 @@
 
 > **Project status: alpha 0.1.5.** Correctness tests, including a
 > chi-squared check that emitted tokens follow the target when the draft
-> and target differ, are in the suite. The only
-> historical end-to-end GPU figure is the Tesla T4 / TinyLlama row below,
-> and the raw JSON for that run is not in this tree. Every H100 number
-> in this README is a design target. This release is a single-device
+> and target differ, are in the suite. The engine is currently slower
+> than plain decoding. A CPU float32 run at git `f59b5b4` loaded
+> TinyLlama-1.1B-Chat and Felladrin/Llama-160M-Chat-v1, tokenized
+> HumanEval/23, and generated 16 new tokens with no warmup and one
+> thread. FlashSpec measured 1.7507264092133707 tok/s and vanilla
+> autoregressive decoding measured 4.2977579080394 tok/s
+> (`speedup_vs_ar_mean` 0.40735807988124606). Acceptance was
+> 0.11363636363636363 with one drafter, so the bandit did not adapt, and
+> the draft-plus-verify step cost more wall time than the tokens it
+> kept. The Colab Tesla T4 float16 pair is in
+> `benchmarks/results/tinyllama_gpu_flashspec_ucb_cb02ca1.json` and
+> `benchmarks/results/tinyllama_gpu_vanilla_ar_cb02ca1.json`. Every H100
+> number in this README is a design target. This release is a single-device
 > library plus a small HTTP server. It is not a production serving stack.
 
 ---
@@ -132,6 +141,37 @@ config = FlashSpecConfig(
 
 All numbers below are clearly labelled by hardware, model, and measurement
 status.
+
+### Measured — TinyLlama-1.1B-Chat float32 · CPU · γ=4 · git `f59b5b4`
+
+CPU, float32, one thread. Target `TinyLlama/TinyLlama-1.1B-Chat-v1.0`,
+drafter `Felladrin/Llama-160M-Chat-v1`, `dataset: humaneval`,
+`n_samples: 1`, `max_new_tokens: 16`, `n_warmup: 0`, `prompt_length: 128`,
+`batch_size: 1`, `gamma: 4`, `temperature: 1.0`, `seed: 0`. The YAML was
+not added under `benchmarks/configs/`. The command was
+`python benchmarks/run_all.py --config <that file> --output-dir <dir>`,
+with `OMP_NUM_THREADS`, `MKL_NUM_THREADS`, `OPENBLAS_NUM_THREADS`, and
+`NUMEXPR_NUM_THREADS` set to 1. `run_all.py` also calls
+`torch.set_num_threads(1)`. The prompt is HumanEval/23. `n_samples` is 1,
+so the standard deviation is 0 and the nearest-rank percentiles match.
+`gpu_memory_gb` is unmeasured. This README does not name the host machine.
+
+| | FlashSpec UCB | Vanilla AR |
+|---|---:|---:|
+| tok/s mean | 1.7507264092133707 | 4.2977579080394 |
+| tok/s std | 0.0 | 0.0 |
+| p50 = p95 = p99 (ms) | 9139.063599999645 | 3722.8714000084437 |
+| acceptance mean | 0.11363636363636363 | unmeasured |
+| acceptance std | 0.0 | unmeasured |
+| speedup vs AR | 0.40735807988124606 (std 0.0) | unmeasured |
+
+`speedup_vs_ar_mean` is below 1. Acceptance is 0.11363636363636363 and
+one drafter is loaded, so the bandit cannot adapt. Most drafted tokens
+were discarded, and the draft-plus-verify step cost more wall time than
+the vanilla autoregressive baseline. The vanilla file records
+HuggingFace `generate()` with the KV cache. The files are
+`benchmarks/results/tinyllama_cpu_humaneval_flashspec_ucb_f59b5b4.json`
+and `benchmarks/results/tinyllama_cpu_humaneval_vanilla_ar_f59b5b4.json`.
 
 ### CPU toy and residual — git `da8182b`
 

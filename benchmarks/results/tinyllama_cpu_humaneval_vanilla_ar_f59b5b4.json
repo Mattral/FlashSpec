@@ -1,0 +1,36 @@
+{
+  "status": "measured",
+  "measurement_kind": "end_to_end",
+  "timestamp": "2026-10-16T02:31:46.379336+00:00",
+  "git_commit": "f59b5b4",
+  "hardware": {
+    "platform": "Windows",
+    "machine": "AMD64",
+    "python": "3.14.8",
+    "torch": "2.14.1+cpu",
+    "avx2": true
+  },
+  "model": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+  "method": "vanilla_ar",
+  "gamma": 4,
+  "dataset": "humaneval",
+  "n_samples": 1,
+  "metrics": {
+    "tokens_per_second_mean": 4.2977579080394,
+    "tokens_per_second_std": 0.0,
+    "p50_latency_ms": 3722.8714000084437,
+    "p95_latency_ms": 3722.8714000084437,
+    "p99_latency_ms": 3722.8714000084437
+  },
+  "unmeasured": [
+    "acceptance_rate_mean",
+    "acceptance_rate_std",
+    "speedup_vs_ar_mean",
+    "speedup_vs_ar_std",
+    "gpu_memory_gb"
+  ],
+  "notes": "Vanilla autoregressive baseline via HuggingFace generate() with the KV cache, on the same target and prompts. End-to-end generation on the loaded checkpoint versus a vanilla autoregressive loop on the same target. Weights were loaded as torch.float32. Prompts are the fixed humaneval set (HumanEval/23), tokenized with the target tokenizer.",
+  "prompt_ids": [
+    "HumanEval/23"
+  ]
+}

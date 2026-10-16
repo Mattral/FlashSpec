@@ -17,6 +17,8 @@ move without them.
 
 ## Generation measurements
 
+- A longer CPU run than the one HumanEval/23 sample at git `f59b5b4`
+  (`n_samples=1`, 16 new tokens, `n_warmup=0`).
 - A longer TinyLlama T4 run than the recorded `n_samples=8` pair.
 - Two real drafters on a real model. The synthetic two-drafter switch
   is already measured. The T4 pair used one drafter.
@@ -30,5 +32,4 @@ benchmark start only from `workflow_dispatch` after a runner exists.
 
 ## Local checks
 
-- mypy on the Windows workstation. Application Control blocks the mypyc
-  extension there, so that check is postponed on that machine.
+- `mypy --strict` has not been shown to pass. That check stays postponed.
