@@ -25,6 +25,7 @@ _ATOL_BFLOAT16: float = 1e-3
 
 # ── Helper ────────────────────────────────────────────────────────────────────
 
+
 def _make_inputs(
     batch_size: int,
     gamma: int,
@@ -36,7 +37,7 @@ def _make_inputs(
     set_seed(seed)
     dlp = torch.randn(batch_size, gamma, vocab_size).to(dtype).log_softmax(-1)
     tlp = torch.randn(batch_size, gamma, vocab_size).to(dtype).log_softmax(-1)
-    u   = torch.rand(batch_size, gamma)
+    u = torch.rand(batch_size, gamma)
     ids = torch.randint(0, vocab_size, (batch_size, gamma))
     return dlp, tlp, u, ids
 
@@ -57,8 +58,8 @@ class TestVerifyTokensReference:
     def test_reference_all_accept_when_u_zero_and_p_equals_q(self) -> None:
         """When u=0 and target==draft (ratio=1), every token is accepted."""
         batch_size, gamma, vocab = 2, 4, 1000
-        lp  = torch.randn(batch_size, gamma, vocab).log_softmax(-1)
-        u   = torch.zeros(batch_size, gamma)
+        lp = torch.randn(batch_size, gamma, vocab).log_softmax(-1)
+        u = torch.zeros(batch_size, gamma)
         ids = torch.randint(0, vocab, (batch_size, gamma))
         _accepted, first_rej = verify_tokens_reference(lp, lp, u, ids)
         assert (first_rej == gamma).all(), (
@@ -70,12 +71,10 @@ class TestVerifyTokensReference:
         batch_size, gamma, vocab = 2, 4, 1000
         dlp = torch.full((batch_size, gamma, vocab), 0.0).log_softmax(-1)
         tlp = torch.full((batch_size, gamma, vocab), -1e6).log_softmax(-1)
-        u   = torch.ones(batch_size, gamma)
+        u = torch.ones(batch_size, gamma)
         ids = torch.zeros(batch_size, gamma, dtype=torch.long)
         _accepted, first_rej = verify_tokens_reference(dlp, tlp, u, ids)
-        assert (first_rej == 0).all(), (
-            f"Expected first_rej==0 (all reject), got {first_rej}"
-        )
+        assert (first_rej == 0).all(), f"Expected first_rej==0 (all reject), got {first_rej}"
 
     def test_reference_batch_size_one_returns_correct_shapes(self) -> None:
         """Reference works correctly with batch_size=1."""
@@ -106,15 +105,13 @@ class TestVerifyTokensReference:
         """first_rejection tensor has dtype int32 as required by the kernel contract."""
         dlp, tlp, u, ids = _make_inputs(batch_size=2, gamma=4, vocab_size=1000)
         _accepted, first_rej = verify_tokens_reference(dlp, tlp, u, ids)
-        assert first_rej.dtype == torch.int32, (
-            f"Expected int32, got {first_rej.dtype}"
-        )
+        assert first_rej.dtype == torch.int32, f"Expected int32, got {first_rej.dtype}"
 
     def test_reference_mismatched_shapes_raises_value_error(self) -> None:
         """Mismatched draft/target vocab sizes raise ValueError with clear message."""
         dlp = torch.randn(2, 4, 1000).log_softmax(-1)
-        tlp = torch.randn(2, 4, 500).log_softmax(-1)   # wrong vocab
-        u   = torch.rand(2, 4)
+        tlp = torch.randn(2, 4, 500).log_softmax(-1)  # wrong vocab
+        u = torch.rand(2, 4)
         ids = torch.randint(0, 500, (2, 4))
         with pytest.raises(ValueError, match="identical shapes"):
             verify_tokens_reference(dlp, tlp, u, ids)
@@ -124,12 +121,10 @@ class TestVerifyTokensReference:
         batch_size, gamma, vocab = 1, 1, 10
         dlp = torch.full((batch_size, gamma, vocab), -1e3).log_softmax(-1)
         tlp = torch.zeros(batch_size, gamma, vocab).log_softmax(-1)
-        u   = torch.tensor([[0.99]])
+        u = torch.tensor([[0.99]])
         ids = torch.zeros(batch_size, gamma, dtype=torch.long)
         accepted, _ = verify_tokens_reference(dlp, tlp, u, ids)
-        assert accepted.all(), (
-            "Token should be accepted when accept_prob is clamped to 1.0"
-        )
+        assert accepted.all(), "Token should be accepted when accept_prob is clamped to 1.0"
 
     def test_reference_nonselected_logprobs_do_not_change_output(self) -> None:
         """Output is identical regardless of logprob values at non-draft-selected positions."""
@@ -137,7 +132,7 @@ class TestVerifyTokensReference:
         set_seed(99)
         dlp = torch.randn(batch_size, gamma, vocab).log_softmax(-1)
         tlp = torch.randn(batch_size, gamma, vocab).log_softmax(-1)
-        u   = torch.rand(batch_size, gamma)
+        u = torch.rand(batch_size, gamma)
         ids = torch.randint(0, vocab, (batch_size, gamma))
 
         accepted_a, frej_a = verify_tokens_reference(dlp, tlp, u, ids)
@@ -178,7 +173,7 @@ class TestVerifyTokensReference:
         """bfloat16 and float32 references return the same output dtypes (§2.2)."""
         batch_size, gamma, vocab = 4, 4, 500
         set_seed(20)
-        u   = torch.rand(batch_size, gamma)
+        u = torch.rand(batch_size, gamma)
         ids = torch.randint(0, vocab, (batch_size, gamma))
         dlp_f32 = torch.randn(batch_size, gamma, vocab).log_softmax(-1)
         tlp_f32 = torch.randn(batch_size, gamma, vocab).log_softmax(-1)
@@ -203,9 +198,7 @@ class TestVerifyTokensReference:
 
     def test_reference_canonical_shape_batch8_gamma8_vocab32000(self) -> None:
         """Reference handles canonical shape (batch=8, gamma=8, vocab=32000) per §2.2."""
-        dlp, tlp, u, ids = _make_inputs(
-            batch_size=8, gamma=8, vocab_size=32_000, seed=77
-        )
+        dlp, tlp, u, ids = _make_inputs(batch_size=8, gamma=8, vocab_size=32_000, seed=77)
         accepted, first_rej = verify_tokens_reference(dlp, tlp, u, ids)
         assert accepted.shape == (8, 8), (
             f"Canonical shape failed: accepted.shape={accepted.shape}, expected (8, 8)"
@@ -213,12 +206,8 @@ class TestVerifyTokensReference:
         assert first_rej.shape == (8,), (
             f"Canonical shape failed: first_rej.shape={first_rej.shape}, expected (8,)"
         )
-        assert (first_rej >= 0).all(), (
-            f"first_rej has negative values: {first_rej}"
-        )
-        assert (first_rej <= 8).all(), (
-            f"first_rej exceeds gamma=8: {first_rej}"
-        )
+        assert (first_rej >= 0).all(), f"first_rej has negative values: {first_rej}"
+        assert (first_rej <= 8).all(), f"first_rej exceeds gamma=8: {first_rej}"
 
 
 # ── Hypothesis property-based tests ──────────────────────────────────────────
@@ -229,19 +218,13 @@ class TestVerifyTokensReference:
     gamma=st.integers(min_value=1, max_value=8),
 )
 @settings(max_examples=30, deadline=None)
-def test_reference_first_rejection_always_in_valid_range(
-    batch_size: int, gamma: int
-) -> None:
+def test_reference_first_rejection_always_in_valid_range(batch_size: int, gamma: int) -> None:
     """first_rejection is always in [0, gamma] for any valid (batch, gamma) input."""
     vocab = 500
     dlp, tlp, u, ids = _make_inputs(batch_size, gamma, vocab)
     _accepted, first_rej = verify_tokens_reference(dlp, tlp, u, ids)
-    assert (first_rej >= 0).all(), (
-        f"first_rej has negative values: {first_rej}"
-    )
-    assert (first_rej <= gamma).all(), (
-        f"first_rej exceeds gamma={gamma}: {first_rej}"
-    )
+    assert (first_rej >= 0).all(), f"first_rej has negative values: {first_rej}"
+    assert (first_rej <= gamma).all(), f"first_rej exceeds gamma={gamma}: {first_rej}"
 
 
 # ── GPU parity tests: Triton kernel vs reference (§2.2) ──────────────────────
@@ -251,8 +234,9 @@ def test_reference_first_rejection_always_in_valid_range(
 class TestVerifyTokensTritonParity:
     """Numerical parity between ``verify_tokens`` (Triton) and the reference.
 
-    All tests require a CUDA GPU; they are skipped in the CPU CI fast-lane
-    and run nightly via the ``@pytest.mark.gpu`` selector.
+    All tests require a CUDA GPU. They are skipped when CUDA is absent.
+    CI does not run them: the GPU workflow is dispatch-only and no runner
+    is registered.
     """
 
     def test_triton_parity_float32_canonical_shape_matches_reference(self) -> None:
@@ -345,8 +329,8 @@ class TestVerifyTokensTritonParity:
 
         device = torch.device("cuda")
         batch_size, gamma, vocab = 4, 4, 1000
-        lp  = torch.randn(batch_size, gamma, vocab).log_softmax(-1).to(device)
-        u   = torch.zeros(batch_size, gamma, device=device)
+        lp = torch.randn(batch_size, gamma, vocab).log_softmax(-1).to(device)
+        u = torch.zeros(batch_size, gamma, device=device)
         ids = torch.randint(0, vocab, (batch_size, gamma), device=device)
 
         _accepted, first_rej = verify_tokens(lp, lp, u, ids)
@@ -362,7 +346,7 @@ class TestVerifyTokensTritonParity:
         batch_size, gamma, vocab = 4, 4, 1000
         dlp = torch.full((batch_size, gamma, vocab), 0.0).log_softmax(-1).to(device)
         tlp = torch.full((batch_size, gamma, vocab), -1e6).log_softmax(-1).to(device)
-        u   = torch.ones(batch_size, gamma, device=device)
+        u = torch.ones(batch_size, gamma, device=device)
         ids = torch.zeros(batch_size, gamma, dtype=torch.long, device=device)
 
         _accepted, first_rej = verify_tokens(dlp, tlp, u, ids)
