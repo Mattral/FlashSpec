@@ -16,6 +16,11 @@ datacenter-GPU Llama run. Do not tag 0.2.0 before that measurement
 exists.
 
 ### Changed
+- The bandit `update` accepts an optional `reward`. The engine passes
+  accepted draft tokens divided by that step's wall time. The raw accept
+  count is still recorded. Thompson's Beta posterior stays on that count,
+  because tokens per second are not a Bernoulli trial. Omitting `reward`
+  keeps the previous UCB mean. The bonus token is not part of the count.
 - The `asm` extra requires `flashspec-asm-kernel` >= 0.1.2 and < 2 on
   Linux x86-64 (`sys_platform == "linux"`). The kernel runs only when
   each probability row and the residual output row are CPU float32,

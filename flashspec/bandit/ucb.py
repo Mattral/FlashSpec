@@ -22,15 +22,16 @@ _DEFAULT_EXPLORATION_CONSTANT: float = 1.0
 
 
 class UCB1Selector(DraftSelector):
-    """UCB1 bandit selector for adaptive draft-model selection.
+    r"""UCB1 bandit selector for adaptive draft-model selection.
 
     Selects the arm with the highest upper confidence bound:
 
     .. math::
 
-        \\text{score}_k = \\hat{\\mu}_k + c \\sqrt{\\frac{2 \\log t}{n_k}}
+        \text{score}_k = \hat{\mu}_k + c \sqrt{\frac{2 \log t}{n_k}}
 
-    where :math:`\\hat{\\mu}_k` is the arm's empirical mean acceptance rate,
+    where :math:`\hat{\mu}_k` is the arm's mean reward (the accept count
+    when ``reward`` is omitted),
     :math:`t` is the total number of rounds, :math:`n_k` is the number of
     pulls for arm :math:`k`, and :math:`c` is the exploration constant.
 
@@ -77,9 +78,7 @@ class UCB1Selector(DraftSelector):
         exploration_constant: float = _DEFAULT_EXPLORATION_CONSTANT,
     ) -> None:
         if exploration_constant <= 0.0:
-            raise ValueError(
-                f"exploration_constant must be > 0; got {exploration_constant}."
-            )
+            raise ValueError(f"exploration_constant must be > 0; got {exploration_constant}.")
         super().__init__(n_arms=n_arms, window_size=window_size)
         self._c = exploration_constant
 
@@ -112,13 +111,13 @@ class UCB1Selector(DraftSelector):
             # All arms pulled at least once: use UCB1 scores.
             t = max(self._t, 1)
             scores = [
-                arm.mean_accept_rate + self._c * math.sqrt(2.0 * math.log(t) / arm.n_pulls)
+                arm.mean_reward + self._c * math.sqrt(2.0 * math.log(t) / arm.n_pulls)
                 for arm in self._arms
             ]
             best = int(max(range(self._n_arms), key=lambda k: scores[k]))
             return best
 
-    def update(self, arm: int, accepted: int) -> None:
+    def update(self, arm: int, accepted: int, reward: float | None = None) -> None:
         """Record the outcome of pulling ``arm``.
 
         Parameters
@@ -126,7 +125,9 @@ class UCB1Selector(DraftSelector):
         arm : int
             Arm index that was pulled.
         accepted : int
-            Number of tokens accepted (0 or 1 per round).
+            Number of tokens accepted. Stored even when ``reward`` is set.
+        reward : float or None
+            Selection payoff. ``None`` uses ``accepted``.
 
         Raises
         ------
@@ -136,8 +137,8 @@ class UCB1Selector(DraftSelector):
         Notes
         -----
         Increments the global round counter ``t`` and delegates to
-        ``self._arms[arm].record(accepted)``.  The lock is held for the
-        duration of the mutation.
+        ``self._arms[arm].record``.  The lock is held for the duration
+        of the mutation.
 
         Examples
         --------
@@ -146,11 +147,11 @@ class UCB1Selector(DraftSelector):
         if not (0 <= arm < self._n_arms):
             raise ValueError(f"arm must be in [0, {self._n_arms}); got {arm}.")
         with self._lock:
-            self._arms[arm].record(accepted)
+            self._arms[arm].record(accepted, reward=reward)
             self._t += 1
         logger.debug(
             "UCB1 update",
-            extra={"arm": arm, "accepted": accepted, "t": self._t},
+            extra={"arm": arm, "accepted": accepted, "reward": reward, "t": self._t},
         )
 
     def _state_dict(self) -> dict[str, Any]:
@@ -164,7 +165,7 @@ class UCB1Selector(DraftSelector):
         }
 
     @classmethod
-    def _from_state_dict(cls, state: dict[str, Any]) -> "UCB1Selector":
+    def _from_state_dict(cls, state: dict[str, Any]) -> UCB1Selector:
         obj = cls(
             n_arms=state["n_arms"],
             window_size=state["window_size"],

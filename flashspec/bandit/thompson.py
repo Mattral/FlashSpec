@@ -6,11 +6,12 @@ The posterior is updated via conjugate Beta-Binomial updates.
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 
 from flashspec.bandit.base import ArmStats, DraftSelector
 from flashspec.utils.logging import get_logger
-from typing import Any
 
 __all__ = ["ThompsonSelector"]
 
@@ -18,7 +19,7 @@ logger = get_logger(__name__)
 
 
 class ThompsonSelector(DraftSelector):
-    """Thompson sampling bandit selector for draft-model selection.
+    r"""Thompson sampling bandit selector for draft-model selection.
 
     Maintains a Beta(alpha_k, beta_k) posterior for each arm's acceptance
     rate.  At each round, one sample is drawn from each posterior and the
@@ -46,7 +47,7 @@ class ThompsonSelector(DraftSelector):
 
     .. math::
 
-        \\alpha_k = \\alpha_0 + s_k, \\quad \\beta_k = \\beta_0 + (n_k - s_k)
+        \alpha_k = \alpha_0 + s_k, \quad \beta_k = \beta_0 + (n_k - s_k)
 
     References
     ----------
@@ -103,12 +104,11 @@ class ThompsonSelector(DraftSelector):
         """
         with self._lock:
             samples = [
-                np.random.beta(self._post_alpha[k], self._post_beta[k])
-                for k in range(self._n_arms)
+                np.random.beta(self._post_alpha[k], self._post_beta[k]) for k in range(self._n_arms)
             ]
             return int(np.argmax(samples))
 
-    def update(self, arm: int, accepted: int) -> None:
+    def update(self, arm: int, accepted: int, reward: float | None = None) -> None:
         """Update the Beta posterior for ``arm`` and record the outcome.
 
         Parameters
@@ -116,7 +116,9 @@ class ThompsonSelector(DraftSelector):
         arm : int
             Arm index that was pulled.
         accepted : int
-            1 if the token was accepted, 0 otherwise.
+            Accept count forwarded to the Beta update and stored raw.
+        reward : float or None
+            Selection payoff stored on the arm. It does not change α or β.
 
         Raises
         ------
@@ -126,8 +128,9 @@ class ThompsonSelector(DraftSelector):
         Notes
         -----
         Conjugate Beta-Binomial update: α_k += accepted, β_k += (1 - accepted).
-        The global round counter ``t`` is incremented and the arm's raw
-        statistics are forwarded to :meth:`ArmStats.record`.
+        ``reward`` is stored on the arm and is not added to α or β. Tokens
+        per second are not a Bernoulli trial. The global round counter
+        ``t`` is incremented.
 
         Examples
         --------
@@ -136,7 +139,7 @@ class ThompsonSelector(DraftSelector):
         if not (0 <= arm < self._n_arms):
             raise ValueError(f"arm must be in [0, {self._n_arms}); got {arm}.")
         with self._lock:
-            self._arms[arm].record(accepted)
+            self._arms[arm].record(accepted, reward=reward)
             self._post_alpha[arm] += float(accepted)
             self._post_beta[arm] += float(1 - accepted)
             self._t += 1
@@ -164,7 +167,7 @@ class ThompsonSelector(DraftSelector):
         }
 
     @classmethod
-    def _from_state_dict(cls, state: dict[str, Any]) -> "ThompsonSelector":
+    def _from_state_dict(cls, state: dict[str, Any]) -> ThompsonSelector:
         obj = cls(
             n_arms=state["n_arms"],
             window_size=state["window_size"],

@@ -21,7 +21,11 @@ Score for arm k at round t:
 score_k = μ̂_k + c · √(2 log t / n_k)
 ```
 
-- `μ̂_k`: empirical mean acceptance rate (optionally windowed).
+- `μ̂_k`: empirical mean reward (optionally windowed). The engine passes
+  accepted draft tokens divided by that step's wall time. A call that
+  omits `reward` uses the accept count, which is what the regret tests
+  record. The raw accept count stays on the arm either way. The bonus
+  token is not part of the count.
 - `c`: exploration constant (default 1.0).
 - `n_k`: number of times arm k has been pulled.
 - `t`: total rounds elapsed.
@@ -34,6 +38,10 @@ sample per arm and selects the argmax.  Posterior update:
 ```
 α_k += accepted      β_k += (1 - accepted)
 ```
+
+`reward`, when passed, is stored on the arm and is not added to α or β.
+Tokens per second are not a Bernoulli trial, so Thompson's posterior
+stays on the accept count.
 
 ### Oracle (`bandit/oracle.py`)
 
