@@ -12,6 +12,9 @@ concurrency:
 
 jobs:
   # ── Job 1: lint ──────────────────────────────────────────────────────────────
+  # Stays off until `ruff check`, `ruff format --check`, and `mypy --strict`
+  # would pass. tests/integration/test_e2e_sampling.py is not reformatted
+  # just to clear the format check. mypy --strict has not been shown to pass.
   lint:
     name: lint
     if: false
@@ -50,12 +53,6 @@ jobs:
         run: pip install -e ".[dev,gpu]" --extra-index-url https://download.pytorch.org/whl/cpu
       - name: make test
         run: make test
-      - name: Upload coverage XML
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-cpu
-          path: coverage.xml
-          retention-days: 7
 
   # ── Job 3: test-chaos ────────────────────────────────────────────────────────
   test-chaos:
@@ -75,36 +72,7 @@ jobs:
       - name: make test-chaos
         run: make test-chaos
 
-  # ── Job 4: coverage ──────────────────────────────────────────────────────────
-  coverage:
-    if: false
-    name: coverage
-    runs-on: ubuntu-22.04
-    needs: test-cpu
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: pip
-      - name: Install
-        run: pip install -e ".[dev,gpu]" --extra-index-url https://download.pytorch.org/whl/cpu
-      - name: Download coverage artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: coverage-cpu
-      - name: Fail if coverage < 95%
-        run: |
-          pip install coverage --break-system-packages 2>/dev/null || pip install coverage
-          python -m coverage report --fail-under=95 --rcfile=pyproject.toml
-      - name: Upload to Codecov
-        uses: codecov/codecov-action@v4
-        with:
-          files: coverage.xml
-          flags: cpu
-          fail_ci_if_error: false
-
-  # ── Job 5: onnx-parity ───────────────────────────────────────────────────────
+  # ── Job 4: onnx-parity ───────────────────────────────────────────────────────
   onnx-parity:
     name: onnx-parity
     runs-on: ubuntu-22.04
@@ -124,7 +92,7 @@ jobs:
       - name: Run ONNX parity tests
         run: pytest tests/integration/test_onnx_parity.py -v
 
-  # ── Job 6: docs-build ────────────────────────────────────────────────────────
+  # ── Job 5: docs-build ────────────────────────────────────────────────────────
   docs-build:
     name: docs-build
     runs-on: ubuntu-22.04
