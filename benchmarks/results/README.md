@@ -140,9 +140,11 @@ The optional ASM cell printed `Residual bench failed` and did not write
 ### Historical NF4
 
 `flashspec_ucb_tiny_llama.json` is one prompt (`n_samples=1`): 44.2
-tok/s, acceptance 0.75, p50 22.1 ms. Speedup, p95, p99, and GPU memory
-are `0.0` because they were not measured. There is no vanilla
-autoregressive baseline.
+tok/s, acceptance 0.75, p50 22.1 ms. The same three figures are the saved
+output of `notebooks/Colab_Benchmarks_T4.ipynb` cell 25 (0-based index,
+execution count 63). That cell loads the checkpoint and then assigns
+those fields. Speedup, p95, p99, and GPU memory are `0.0` because they
+were not recorded. There is no vanilla autoregressive baseline.
 
 ### Other recorded rows
 

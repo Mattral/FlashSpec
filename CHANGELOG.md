@@ -16,6 +16,14 @@ datacenter-GPU Llama run. Do not tag 0.2.0 before that measurement
 exists.
 
 ### Changed
+- The paper's expected-token formula is
+  `(1 - α^(γ+1)) / (1 - α)`, about 3.05 at α=0.75 and γ=4.
+  The sentence that called that figure a measured throughput improvement
+  is removed, because the NF4 JSON has no autoregressive baseline.
+- The H100 comparison table is removed from `paper/flashspec.tex`.
+  Those tok/s figures are unmeasured design targets. Medusa and EAGLE
+  are not implemented. The figures stay listed in
+  `benchmarks/results/PROVENANCE.md`.
 - README result tables use three significant figures. Full precision and
   the run notes stay in `benchmarks/results/` and
   `benchmarks/results/README.md`.

@@ -142,7 +142,9 @@ config = FlashSpecConfig(
 ## Results
 
 Tables below use three significant figures. The JSON and CSV files keep
-full precision. Commands, sample counts, and file names are in
+full precision. Each figure is classified in
+[`benchmarks/results/PROVENANCE.md`](benchmarks/results/PROVENANCE.md).
+Commands and file names are in
 [`benchmarks/results/README.md`](benchmarks/results/README.md).
 
 ### Measured — TinyLlama-1.1B-Chat float32 · CPU · γ=4 · git `f59b5b4`
@@ -155,6 +157,23 @@ One HumanEval prompt, 16 new tokens, one drafter. Speedup is below 1.
 | latency (s) | 9.14 | 3.72 |
 | acceptance | 0.114 | unmeasured |
 | speedup vs AR | 0.407 | unmeasured |
+
+### Measured — TinyLlama-1.1B-Chat float16 · Tesla T4 · γ=4 · git `cb02ca1`
+
+Eight synthetic prompts, one drafter. Speedup is below 1.
+
+| | FlashSpec UCB | Vanilla AR |
+|---|---:|---:|
+| tok/s | 17.6 ± 1.43 | 29.0 ± 0.757 |
+| p50 latency (ms) | 1860 | 1090 |
+| p95 latency (ms) | 2140 | 1170 |
+| acceptance | 0.208 ± 0.00825 | unmeasured |
+| speedup vs AR | 0.606 ± 0.0501 | unmeasured |
+| gpu memory (GB) | 2.38 | 2.38 |
+
+## Microbenchmarks and historical
+
+These rows are a random network, a sampling kernel, a synthetic bandit, or the historical NF4 prompt. They sit below the paired end-to-end runs.
 
 ### CPU toy and residual — git `da8182b`
 
@@ -196,22 +215,14 @@ Milliseconds, backend `asm`. Compare backends inside one run. The two runs do no
 | 4096 | 0.00685 ± 0.000109 | 0.00785 ± 0.000559 | 0.00872 ± 0.000941 | 0.231 ± 0.0339 | 0.250 ± 0.0390 |
 | 32000 | 0.0124 ± 0.00209 | 0.0235 ± 0.00266 | 0.0151 ± 0.0187 | 0.747 ± 0.393 | 0.730 ± 0.376 |
 
-### Measured — TinyLlama-1.1B-Chat float16 · Tesla T4 · γ=4 · git `cb02ca1`
+### Historical — TinyLlama-1.1B · NF4 · Tesla T4 · γ=4
 
-Eight synthetic prompts, one drafter. Speedup is below 1.
-
-| | FlashSpec UCB | Vanilla AR |
-|---|---:|---:|
-| tok/s | 17.6 ± 1.43 | 29.0 ± 0.757 |
-| p50 latency (ms) | 1860 | 1090 |
-| p95 latency (ms) | 2140 | 1170 |
-| acceptance | 0.208 ± 0.00825 | unmeasured |
-| speedup vs AR | 0.606 ± 0.0501 | unmeasured |
-| gpu memory (GB) | 2.38 | 2.38 |
-
-### Measured — TinyLlama-1.1B · NF4 · Tesla T4 · γ=4
-
-One historical prompt. Speedup, p95, p99, and a vanilla baseline were not measured.
+One prompt. The saved output is `notebooks/Colab_Benchmarks_T4.ipynb`
+cell 25 (0-based index, execution count 63) and
+`benchmarks/results/flashspec_ucb_tiny_llama.json`. That cell loads the
+checkpoint and then assigns 44.2 tok/s, acceptance 0.75, and p50 22.1 ms.
+Speedup, p95, p99, GPU memory, and a vanilla baseline are 0.0 in the JSON
+because they were not recorded.
 
 | | FlashSpec UCB |
 |---|---:|
@@ -228,10 +239,10 @@ Thompson cumulative regret at T=10,000: **18.9**.
 
 ![Bandit Regret](paper/figures/bandit_regret.jpg)
 
-The figure is `paper/figures/bandit_regret.jpg`. The notebook
-`notebooks/02_bandit_analysis.ipynb` is in this checkout. The regret
-numbers are a synthetic K=3 arm experiment, not a throughput gain on a
-language model.
+The figure is `paper/figures/bandit_regret.jpg`. The saved output is
+`notebooks/02_bandit_analysis.ipynb` cell 3 (0-based index, execution
+count 4): UCB1 100.2, Thompson 18.9, Oracle 0.0. This is a synthetic
+K=3 arm experiment, not a throughput gain on a language model.
 
 ### Gamma sweep — measured (toy logprobs, synthetic)
 
@@ -252,9 +263,9 @@ Data in [`benchmarks/results/gamma_sweep.csv`](benchmarks/results/gamma_sweep.cs
 
 ### Reference kernel profiling — measured (Tesla T4)
 
-Historical T4 profile from `notebooks/03_kernel_profiling.ipynb`.
-The table is the recorded summary of that run. At batch 1 the Triton
-kernel is slower than the PyTorch reference.
+Saved output of `notebooks/03_kernel_profiling.ipynb` cell 3 (0-based
+index, execution count 4), printed there as a Tesla T4 run. At batch 1
+the Triton kernel is slower than the PyTorch reference.
 
 | Shape | Reference (ms) | Triton (ms) | Speedup |
 |---|---|---|---|
