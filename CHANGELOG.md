@@ -41,6 +41,9 @@ exists.
   A rejection does not emit that token.
 
 ### Removed
+- The disabled CI coverage job. Pytest still fails under 95% coverage
+  via `addopts`. The lint job stays off until ruff, ruff format, and
+  mypy --strict would pass.
 - The README table of invented Llama-3-8B H100 tok/s for vanilla
   autoregressive decoding, Medusa, EAGLE, and FlashSpec. No H100
   comparison exists, and Medusa and EAGLE are not implemented.
