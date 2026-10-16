@@ -38,10 +38,10 @@
 > than plain decoding. A CPU float32 run at git `f59b5b4` loaded
 > TinyLlama-1.1B-Chat and Felladrin/Llama-160M-Chat-v1, tokenized
 > HumanEval/23, and generated 16 new tokens with no warmup and one
-> thread. FlashSpec measured 1.7507264092133707 tok/s and vanilla
-> autoregressive decoding measured 4.2977579080394 tok/s
-> (`speedup_vs_ar_mean` 0.40735807988124606). Acceptance was
-> 0.11363636363636363 with one drafter, so the bandit did not adapt, and
+> thread. FlashSpec measured 1.75 tok/s and vanilla
+> autoregressive decoding measured 4.30 tok/s
+> (`speedup_vs_ar_mean` 0.407). Acceptance was
+> 0.114 with one drafter, so the bandit did not adapt, and
 > the draft-plus-verify step cost more wall time than the tokens it
 > kept. The Colab Tesla T4 float16 pair is in
 > `benchmarks/results/tinyllama_gpu_flashspec_ucb_cb02ca1.json` and
@@ -141,187 +141,83 @@ config = FlashSpecConfig(
 
 ## Results
 
-All numbers below are clearly labelled by hardware, model, and measurement
-status.
+Tables below use three significant figures. The JSON and CSV files keep
+full precision. Commands, sample counts, and file names are in
+[`benchmarks/results/README.md`](benchmarks/results/README.md).
 
 ### Measured — TinyLlama-1.1B-Chat float32 · CPU · γ=4 · git `f59b5b4`
 
-CPU, float32, one thread. Target `TinyLlama/TinyLlama-1.1B-Chat-v1.0`,
-drafter `Felladrin/Llama-160M-Chat-v1`, `dataset: humaneval`,
-`n_samples: 1`, `max_new_tokens: 16`, `n_warmup: 0`, `prompt_length: 128`,
-`batch_size: 1`, `gamma: 4`, `temperature: 1.0`, `seed: 0`. The YAML was
-not added under `benchmarks/configs/`. The command was
-`python benchmarks/run_all.py --config <that file> --output-dir <dir>`,
-with `OMP_NUM_THREADS`, `MKL_NUM_THREADS`, `OPENBLAS_NUM_THREADS`, and
-`NUMEXPR_NUM_THREADS` set to 1. `run_all.py` also calls
-`torch.set_num_threads(1)`. The prompt is HumanEval/23. `n_samples` is 1,
-so the standard deviation is 0 and the nearest-rank percentiles match.
-`gpu_memory_gb` is unmeasured. This README does not name the host machine.
+One HumanEval prompt, 16 new tokens, one drafter. Speedup is below 1.
 
 | | FlashSpec UCB | Vanilla AR |
 |---|---:|---:|
-| tok/s mean | 1.7507264092133707 | 4.2977579080394 |
-| tok/s std | 0.0 | 0.0 |
-| p50 = p95 = p99 (ms) | 9139.063599999645 | 3722.8714000084437 |
-| acceptance mean | 0.11363636363636363 | unmeasured |
-| acceptance std | 0.0 | unmeasured |
-| speedup vs AR | 0.40735807988124606 (std 0.0) | unmeasured |
-
-`speedup_vs_ar_mean` is below 1. Acceptance is 0.11363636363636363 and
-one drafter is loaded, so the bandit cannot adapt. Most drafted tokens
-were discarded, and the draft-plus-verify step cost more wall time than
-the vanilla autoregressive baseline. The vanilla file records
-HuggingFace `generate()` with the KV cache. The files are
-`benchmarks/results/tinyllama_cpu_humaneval_flashspec_ucb_f59b5b4.json`
-and `benchmarks/results/tinyllama_cpu_humaneval_vanilla_ar_f59b5b4.json`.
+| tok/s | 1.75 | 4.30 |
+| latency (s) | 9.14 | 3.72 |
+| acceptance | 0.114 | unmeasured |
+| speedup vs AR | 0.407 | unmeasured |
 
 ### CPU toy and residual — git `da8182b`
 
-These rows are a toy network or a synthetic switch. Threads were pinned
-to 1. `flashspec_asm_kernel` did not load, so the residual backend is
-pure PyTorch. ASM and the C baseline are listed under `unmeasured` in
-`benchmarks/results/residual_cpu.json`. This README does not name the
-host machine.
-
-`benchmarks/results/tiny_cpu_flashspec_ucb_da8182b.json` and
-`benchmarks/results/tiny_cpu_vanilla_ar_da8182b.json` are
-`measurement_kind=toy_random_init_transformer`, `n_samples=3`, γ=4,
-synthetic prompts, one drafter. The bandit cannot adapt on that row.
-Latency percentiles are nearest-rank, so p95 and p99 match.
+Random in-process network, and a PyTorch residual microbench. The toy
+speedup is below 1. The bandit row is a synthetic sampler, not that network.
 
 | | FlashSpec UCB | Vanilla AR |
 |---|---:|---:|
-| tok/s mean | 807.876431892803 | 2322.725711556072 |
-| tok/s std | 86.40504013928569 | 2.5062180069952222 |
-| p50 latency (ms) | 10.62849999999571 | 3.442500000005566 |
-| p95 = p99 (ms) | 10.795500000000402 | 3.4493999999938296 |
-| acceptance mean | 0.3115079365079365 | unmeasured |
-| acceptance std | 0.0599849859437737 | unmeasured |
-| speedup vs AR | 0.3478541784757594 (std 0.03759929552875943) | unmeasured |
+| tok/s | 808 ± 86.4 | 2320 ± 2.51 |
+| p50 latency (ms) | 10.6 | 3.44 |
+| acceptance | 0.312 ± 0.0600 | unmeasured |
+| speedup vs AR | 0.348 ± 0.0376 | unmeasured |
 
-Speculative decoding was slower than vanilla autoregressive sampling on
-this toy model (`speedup_vs_ar_mean` is below 1). `gpu_memory_gb` is
-unmeasured.
-
-`benchmarks/results/residual_cpu.json` is
-`cpu_residual_and_verification_microbench`, 30 iterations, γ=4, random
-log-probs.
-
-| Vocab | PyTorch residual mean ± std (ms) | PyTorch verification mean ± std (ms) |
+| Vocab | PyTorch residual (ms) | PyTorch verification (ms) |
 |---:|---:|---:|
-| 1024 | 0.018213333290380735 ± 0.0009351410855221827 | 0.4179066666741467 ± 0.02211216764067972 |
-| 4096 | 0.01968333341816712 ± 0.0002050745141191995 | 0.522750000012214 ± 0.04348086747832546 |
+| 1024 | 0.0182 ± 0.000935 | 0.418 ± 0.0221 |
+| 4096 | 0.0197 ± 0.000205 | 0.523 ± 0.0435 |
 
-`benchmarks/results/bandit_mixed_workload.json` is one
-`controlled_mixed_workload_simulation` (`n_samples=1`, vocab 32,
-`max_new_tokens=24`, seed 0, `window_size=4`). The target peak flips
-from token 3 to token 9 after context length 16. On that switch, UCB
-acceptance was 0.5555555555555556 and throughput was 5794.162381923592
-tok/s. Fixed drafters were 0.2 / 2574.002574098843 tok/s and 0.2 /
-3215.4340838834096 tok/s. The single-drafter control matched fixed A
-(0.2 / 2876.111497299474 tok/s). `improved_acceptance_vs_best_fixed`
-and `improved_throughput_vs_best_fixed` are both true for this run.
-`speedup_vs_vanilla_ar`, `llama_acceptance`, and `gpu_throughput` are
-unmeasured. These tok/s figures are the synthetic sampler, so they do
-not compare with the toy end-to-end row above.
+| Arm | Acceptance | tok/s |
+|---|---:|---:|
+| UCB on the switch | 0.556 | 5790 |
+| Fixed A | 0.200 | 2570 |
+| Fixed B | 0.200 | 3220 |
+| Single-drafter control | 0.200 | 2880 |
 
-`benchmarks/results/residual_linux_gha.json` is a separate run on a
-GitHub-hosted Linux machine, Python 3.11.17, torch 2.14.1+cpu, git
-`4e48c55`, AVX2 true, 30 iterations, one thread. The backend is `asm`
-/ `selected`. The clock is
-`perf_counter` around the Python call, so these are not the upstream
-`phase5_benchmark.txt` nanosecond figures.
+### Linux residual — git `4e48c55`, then git `1b0cda3`
 
-| Vocab | PyTorch residual | C baseline | ASM residual | PyTorch verification | ASM verification |
+Milliseconds, backend `asm`. Compare backends inside one run. The two runs do not repeat the same ordering.
+
+| Vocab | PyTorch residual | C baseline | ASM residual | PyTorch verify | ASM verify |
 |---:|---:|---:|---:|---:|---:|
-| 1024 | 0.011835766664110755 ± 0.005985123513943725 | 0.010876566682327393 ± 0.0017740324976545188 | 0.01513639999378332 ± 0.009708145936674488 | 0.3658087333368106 ± 0.02092323145453729 | 0.42211776665984263 ± 0.043837769718660935 |
-| 4096 | 0.011573599992213227 ± 0.00028533731359918995 | 0.014012900006340109 ± 0.002142136347826409 | 0.014001300003959235 ± 0.0043043813772100205 | 0.4946278333401703 ± 0.02177673867901501 | 0.5366803666637073 ± 0.015900036405438047 |
-| 32000 | 0.030213800005185476 ± 0.008182700570775277 | 0.04299199999877601 ± 0.002682577742604115 | 0.024774433317512983 ± 0.022975169566975737 | 1.281870599988603 ± 0.6383727894328813 | 1.315531733333349 ± 0.6583396828175976 |
+| 1024 | 0.0118 ± 0.00599 | 0.0109 ± 0.00177 | 0.0151 ± 0.00971 | 0.366 ± 0.0209 | 0.422 ± 0.0438 |
+| 4096 | 0.0116 ± 0.000285 | 0.0140 ± 0.00214 | 0.0140 ± 0.00430 | 0.495 ± 0.0218 | 0.537 ± 0.0159 |
+| 32000 | 0.0302 ± 0.00818 | 0.0430 ± 0.00268 | 0.0248 ± 0.0230 | 1.28 ± 0.638 | 1.32 ± 0.658 |
 
-Means are milliseconds. At vocab 1024 and 4096 the ASM residual mean is
-higher than pure PyTorch. At vocab 32000 the ASM residual mean is lower
-than both PyTorch and the C baseline, and its standard deviation is
-almost as large as the mean. Verification with the ASM backend selected
-is slower than pure-PyTorch verification at all three sizes. This does
-not change the Tesla T4 generation numbers below. The GPU path does not
-call this kernel.
-
-`benchmarks/results/residual_linux_gha_1b0cda3.json` is a second run on
-the same class of GitHub-hosted Azure machine, git `1b0cda3`, timestamp
-`2026-10-15T07:18:40.745328+00:00`, Python 3.11.17, torch 2.14.1+cpu,
-backend `asm` / `selected`, 30 iterations, one thread. Absolute
-milliseconds differ from the first file. Compare backends inside one
-file.
-
-| Vocab | PyTorch residual | C baseline | ASM residual | PyTorch verification | ASM verification |
+| Vocab | PyTorch residual | C baseline | ASM residual | PyTorch verify | ASM verify |
 |---:|---:|---:|---:|---:|---:|
-| 1024 | 0.0068616666718905135 ± 0.0031223192347116756 | 0.006093900015002873 ± 0.0005883164816359798 | 0.008056400001047829 ± 0.0010817141388478313 | 0.15760570000414495 ± 0.04206324120479877 | 0.16410256667237869 ± 0.03050922026468709 |
-| 4096 | 0.006851300016326907 ± 0.00010858764349671019 | 0.007845133351717474 ± 0.0005593922111835134 | 0.008722400002625363 ± 0.0009413872012590269 | 0.23134823333445334 ± 0.033861868369237456 | 0.25041630000638787 ± 0.03895801704112005 |
-| 32000 | 0.012439799998749853 ± 0.002087336818844551 | 0.02345496665914955 ± 0.0026569898685055776 | 0.015084966666260394 ± 0.018729289148999424 | 0.7467555333278142 ± 0.3927247765259523 | 0.7304225666644015 ± 0.3762892778547306 |
-
-In this second run the ASM residual mean is higher than pure PyTorch at
-all three sizes. The vocab-32000 ordering from the first file did not
-repeat, and that row's standard deviation is larger than the gap. At
-vocab 32000 the ASM verification mean is lower than pure PyTorch, and
-the two standard deviations overlap.
+| 1024 | 0.00686 ± 0.00312 | 0.00609 ± 0.000588 | 0.00806 ± 0.00108 | 0.158 ± 0.0421 | 0.164 ± 0.0305 |
+| 4096 | 0.00685 ± 0.000109 | 0.00785 ± 0.000559 | 0.00872 ± 0.000941 | 0.231 ± 0.0339 | 0.250 ± 0.0390 |
+| 32000 | 0.0124 ± 0.00209 | 0.0235 ± 0.00266 | 0.0151 ± 0.0187 | 0.747 ± 0.393 | 0.730 ± 0.376 |
 
 ### Measured — TinyLlama-1.1B-Chat float16 · Tesla T4 · γ=4 · git `cb02ca1`
 
-Colab Tesla T4, Linux, Python 3.13.15, torch 2.11.0+cu130, CUDA 13.0,
-2026-10-15. Target `TinyLlama/TinyLlama-1.1B-Chat-v1.0`, drafter
-`Felladrin/Llama-160M-Chat-v1` from `benchmarks/configs/tinyllama_gpu.yaml`
-at that commit. Weights are float16. `n_samples=8`, 32 new tokens,
-prompt length 16, dataset `synthetic_token_ids`. One drafter is loaded,
-so the bandit does not adapt. Percentiles are nearest-rank, so p95 and
-p99 are the same sample. `gpu_memory_gb` is the process peak after both
-models were resident, and both files store that same peak.
+Eight synthetic prompts, one drafter. Speedup is below 1.
 
 | | FlashSpec UCB | Vanilla AR |
 |---|---:|---:|
-| tok/s mean | 17.576979879136424 | 29.006488905704696 |
-| tok/s std | 1.4290891437599451 | 0.7566173596579463 |
-| p50 latency (ms) | 1860.4352799999901 | 1089.8987889999603 |
-| p95 = p99 (ms) | 2139.223847999972 | 1167.0006600000136 |
-| acceptance mean | 0.20834964273981926 | unmeasured |
-| acceptance std | 0.00825497841969436 | unmeasured |
-| speedup vs AR | 0.6061833262227975 (std 0.05012520176286204) | unmeasured |
-| gpu memory (GB) | 2.3778347969055176 | 2.3778347969055176 |
+| tok/s | 17.6 ± 1.43 | 29.0 ± 0.757 |
+| p50 latency (ms) | 1860 | 1090 |
+| p95 latency (ms) | 2140 | 1170 |
+| acceptance | 0.208 ± 0.00825 | unmeasured |
+| speedup vs AR | 0.606 ± 0.0501 | unmeasured |
+| gpu memory (GB) | 2.38 | 2.38 |
 
-`speedup_vs_ar_mean` is below 1, so speculative decoding was slower than
-vanilla autoregressive sampling on this pair. The files are
-`benchmarks/results/tinyllama_gpu_flashspec_ucb_cb02ca1.json` and
-`benchmarks/results/tinyllama_gpu_vanilla_ar_cb02ca1.json`. The bar
-chart is `benchmarks/results/tinyllama_throughput.png`.
+### Measured — TinyLlama-1.1B · NF4 · Tesla T4 · γ=4
 
-The optional ASM cell on that Colab runtime printed `Residual bench failed`
-and did not write `residual_colab_cpu.json`. That cell had installed PyPI
-`flashspec-asm-kernel` 0.1.0, which shipped no shared library. The supported
-package is now >= 0.1.2. A residual evaluation is microseconds, and a model
-forward is milliseconds, so the kernel does not change end-to-end throughput.
-The larger-model cell was skipped. This row is float16 with synthetic token
-ids. The NF4 single-prompt record is the next section.
+One historical prompt. Speedup, p95, p99, and a vanilla baseline were not measured.
 
-### Measured — TinyLlama-1.1B · NF4 (4-bit) · Tesla T4 · γ=4
-
-Historical Colab T4 run, recorded in
-`benchmarks/results/flashspec_ucb_tiny_llama.json`. It is one prompt
-(`n_samples=1`). Throughput 44.2 tok/s, acceptance 0.75, and p50 22.1 ms
-are the recorded values. Speedup, p95, p99, and GPU memory are `0.0` in
-that file because they were not measured. There is no vanilla
-autoregressive baseline in that run. The paired re-measurement is
-`notebooks/04_gpu_measurement.ipynb`.
-
-| Metric | Value |
-|---|---|
-| Throughput | **44.2 tok/s** |
-| Token acceptance rate (α) | **0.75** |
-| p50 step latency | **22.1 ms** |
-| GPU | Tesla T4 (15.6 GiB) |
-| Quantization | NF4 (4-bit) via bitsandbytes |
-| FlashSpec version | 0.1.3 |
-
-> Note: vanilla AR baseline not measured in this run — speedup ratio pending.
-> The T4 is a compute-constrained consumer GPU; target hardware is H100 SXM5.
+| | FlashSpec UCB |
+|---|---:|
+| tok/s | 44.2 |
+| acceptance | 0.750 |
+| p50 latency (ms) | 22.1 |
 
 ### Bandit regret — measured (T=10,000, K=3 arms)
 
