@@ -95,6 +95,7 @@ class TargetModel:
         draft_token_ids: torch.Tensor,
         gamma: int,
         temperature: float = 1.0,
+        include_bonus: bool = False,
     ) -> torch.Tensor:
         """Score all gamma draft positions in a single forward pass.
 
@@ -113,12 +114,19 @@ class TargetModel:
         temperature : float
             Sampling temperature.  Applied as ``logits / temperature`` **before**
             ``log_softmax``.  Must be > 0.  Default 1.0 (no scaling).
+        include_bonus : bool
+            When true, also return the distribution of the token after the
+            last draft token. The shape's middle dimension is then
+            ``gamma + 1``. The engine samples that row only on a full accept
+            when ``max_new_tokens`` still has room.
 
         Returns
         -------
         torch.Tensor
             Log-probabilities.  Shape: ``(batch_size, gamma, vocab_size)``,
-            dtype float32.  Temperature scaling has already been applied.
+            or ``(batch_size, gamma + 1, vocab_size)`` when ``include_bonus``
+            is true.  Dtype float32.  Temperature scaling has already been
+            applied.
 
         Raises
         ------
@@ -160,9 +168,11 @@ class TargetModel:
 
         # Causal offset: logits at position i predict token i+1.
         context_len = input_ids.shape[1]
-        draft_logits = logits[
-            :, context_len - 1 : context_len + gamma - 1, :
-        ].float()  # (B, gamma, V)
+        # Position context_len-1 predicts the first draft token. The slice of
+        # length gamma stops one short of the logit at the last draft token,
+        # which predicts the bonus token. include_bonus keeps that row.
+        end = context_len + gamma if include_bonus else context_len + gamma - 1
+        draft_logits = logits[:, context_len - 1 : end, :].float()
 
         # §7: Apply temperature BEFORE log_softmax — never after.
         if temperature != 1.0:

@@ -219,12 +219,20 @@ class SpeculativeEngine:
             draft_token_ids, draft_logprobs = drafter.generate_draft(context, gamma)
 
             # 3. Target model scores draft positions (temperature applied inside).
+            # include_bonus asks for the extra row that predicts the token
+            # after a fully accepted draft. Rejection sampling still sees
+            # only the gamma draft positions.
             target_logprobs = self._target.score_draft(
                 context,
                 draft_token_ids,
                 gamma,
                 temperature=config_sampling.temperature,
+                include_bonus=True,
             )
+            bonus_logprobs = None
+            if target_logprobs.shape[1] == gamma + 1:
+                bonus_logprobs = target_logprobs[:, gamma, :]
+                target_logprobs = target_logprobs[:, :gamma, :]
 
             # 4. Accept/reject sampling.
             if config_sampling.variant == "rejection":
@@ -260,7 +268,22 @@ class SpeculativeEngine:
                 room = max_tokens - _row_count(index)
                 if room <= 0 or valid.numel() == 0:
                     continue
-                piece = valid[:room].view(1, -1)
+                take = valid[:room]
+                # Bonus only when every draft token was accepted and one
+                # more token still fits under max_new_tokens. A rejection
+                # already wrote its residual into ``valid``.
+                full_accept = int(first_rejection[local].item()) == gamma
+                if (
+                    bonus_logprobs is not None
+                    and full_accept
+                    and take.numel() == gamma
+                    and room > gamma
+                ):
+                    probs = bonus_logprobs[local].exp()
+                    probs = probs / probs.sum().clamp(min=1e-9)
+                    bonus_id = torch.multinomial(probs, num_samples=1).to(take.dtype)
+                    take = torch.cat([take, bonus_id.view(-1)])
+                piece = take.view(1, -1)
                 generated_rows[index].append(piece)
                 contexts[index] = torch.cat([contexts[index], piece], dim=1)
                 progressed = True

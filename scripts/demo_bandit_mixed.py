@@ -106,6 +106,7 @@ class _SwitchingTarget:
         draft_token_ids: torch.Tensor,
         gamma: int,
         temperature: float = 1.0,
+        include_bonus: bool = False,
     ) -> torch.Tensor:
         """Return a peaked distribution that flips at ``switch_after``.
 
@@ -129,7 +130,8 @@ class _SwitchingTarget:
             raise ValueError(f"temperature must be > 0; got {temperature}.")
         peak = self.peak_a if int(input_ids.shape[1]) < self.switch_after else self.peak_b
         batch = int(input_ids.shape[0])
-        logits = torch.full((batch, gamma, self.vocab), -8.0)
+        steps = gamma + 1 if include_bonus else gamma
+        logits = torch.full((batch, steps, self.vocab), -8.0)
         logits[:, :, peak] = 8.0
         if temperature != 1.0:
             logits = logits / temperature

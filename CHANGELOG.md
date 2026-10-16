@@ -23,6 +23,13 @@ exists.
   0.1.0 `OSError` or `ImportError`, keeps the pure-PyTorch residual.
   Release 0.1.2 ships `libflashspec_asm.so` in a manylinux wheel.
 
+### Fixed
+- A fully accepted speculative step now emits the bonus token. The
+  verifier returns ``gamma + 1`` positions when ``include_bonus`` is
+  set, and the engine appends one sample from the last row only when
+  every draft token was accepted and ``max_new_tokens`` still has room.
+  A rejection does not emit that token.
+
 ### Removed
 - The README table of invented Llama-3-8B H100 tok/s for vanilla
   autoregressive decoding, Medusa, EAGLE, and FlashSpec. No H100

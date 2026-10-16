@@ -44,9 +44,11 @@ class _Peaked:
         draft_token_ids: torch.Tensor,
         gamma: int,
         temperature: float = 1.0,
+        include_bonus: bool = False,
     ) -> torch.Tensor:
         """Return verifier log-probs. Temperature is applied before log-softmax."""
-        logits = torch.full((input_ids.shape[0], gamma, self.vocab), -6.0)
+        steps = gamma + 1 if include_bonus else gamma
+        logits = torch.full((input_ids.shape[0], steps, self.vocab), -6.0)
         logits[:, :, self.peak] = 6.0
         if temperature != 1.0:
             logits = logits / temperature
