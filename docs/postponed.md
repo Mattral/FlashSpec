@@ -4,6 +4,11 @@ These items are waiting on a package upload or a GPU. They are not
 blockers. CPU work, the test suite, and the single-device server can
 move without them.
 
+## Publishing
+
+- A new Zenodo version after the paper corrections is for the maintainer
+  to publish. This repository change does not publish one.
+
 ## Packaging
 
 - `flashspec-asm-kernel` 0.1.2 on PyPI is a manylinux x86-64 wheel and
