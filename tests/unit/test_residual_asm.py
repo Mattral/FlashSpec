@@ -16,6 +16,7 @@ import torch
 import flashspec.sampling.rejection as rejection
 from flashspec.sampling.rejection import (
     ASM_NAN_CLAMP_TO_ZERO,
+    _asm_row_ready,
     _resolve_asm_backend,
     active_residual_backend,
     residual_distribution,
@@ -191,19 +192,30 @@ class TestBackendResolution:
         assert "ImportError" in reason
         assert "libflashspec_asm.so" in reason
 
-    def test_cpuid_oserror_falls_back(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """A broken shared library does not crash import-time resolution."""
+    def test_simulated_0_1_0_oserror_disables_asm(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Release 0.1.0 could import, then ``abi_version()`` raised OSError.
+
+        Resolution catches that error, so the FlashSpec import stays usable
+        and the residual stays on PyTorch.
+        """
         module = types.ModuleType("flashspec_asm_kernel")
 
         def _abi() -> int:
-            raise OSError("library failed")
+            raise OSError("shared library failed to load")
 
         module.abi_version = _abi  # type: ignore[attr-defined]
         monkeypatch.setitem(sys.modules, "flashspec_asm_kernel", module)
         available, fn, reason = _resolve_asm_backend()
         assert available is False
         assert fn is None
-        assert "failed" in reason
+        assert "OSError" in reason
+        monkeypatch.setattr(rejection, "_ASM_AVAILABLE", False)
+        monkeypatch.setattr(rejection, "_asm_residual_dist", None)
+        p, q = _finite_pair(batch=1, vocab=7)
+        got = residual_distribution(p, q)
+        ref = torch.clamp(p - q, min=0.0)
+        ref = ref / ref.sum(dim=-1, keepdim=True).clamp(min=1e-9)
+        assert torch.allclose(got, ref, rtol=1e-5, atol=1e-8)
 
     def test_active_backend_matches_flag(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """active_residual_backend follows the module flag."""
@@ -232,3 +244,156 @@ class TestBackendResolution:
         got = residual_distribution(p, q)
         assert got[0].item() == 0.0
         assert torch.isfinite(got[1:]).all()
+
+
+def _formula_matching_kernel(p: object, q: object, out: object) -> None:
+    """Write ``max(0, p - q) / max(sum, 1e-9)`` into a float32 buffer."""
+    import numpy as np
+
+    pt = np.ascontiguousarray(p, dtype=np.float32)
+    qt = np.ascontiguousarray(q, dtype=np.float32)
+    residual = np.maximum(pt - qt, np.float32(0.0))
+    denom = np.maximum(residual.sum(), np.float32(1e-9))
+    written = residual / denom
+    out[...] = written  # type: ignore[index]
+
+
+def _torch_residual(p: torch.Tensor, q: torch.Tensor) -> torch.Tensor:
+    """Compute the PyTorch residual without consulting the kernel flag."""
+    residual = torch.clamp(p - q, min=0.0)
+    return residual / residual.sum(dim=-1, keepdim=True).clamp(min=1e-9)
+
+
+class TestKernelContract:
+    """Routing, parity, and the NaN choice FlashSpec keeps."""
+
+    def test_row_ready_requires_cpu_float32_contiguous_no_grad(self) -> None:
+        """The kernel gate rejects grad, other dtypes, and non-contiguous rows."""
+        ready = torch.zeros(4)
+        assert _asm_row_ready(ready)
+        assert not _asm_row_ready(ready.requires_grad_(True))
+        assert not _asm_row_ready(torch.zeros(4, dtype=torch.float64))
+        assert not _asm_row_ready(torch.zeros(4, dtype=torch.float16))
+        assert not _asm_row_ready(torch.zeros(4, 2).t())
+
+    def test_unready_output_row_uses_pytorch(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A residual row that fails the kernel gate never calls the kernel."""
+        calls = {"n": 0}
+
+        def _count(p: object, q: object, out: object) -> None:
+            calls["n"] += 1
+
+        monkeypatch.setattr(rejection, "_ASM_AVAILABLE", True)
+        monkeypatch.setattr(rejection, "_asm_residual_dist", _count)
+        monkeypatch.setattr(rejection, "_asm_row_ready", lambda _row: False)
+        p, q = _finite_pair(batch=2, vocab=8)
+        got = residual_distribution(p, q)
+        assert calls["n"] == 0
+        assert torch.allclose(got, _torch_residual(p, q), rtol=1e-5, atol=1e-8)
+
+    def test_requires_grad_float32_still_reaches_kernel(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Grad is detached before the kernel. ``.numpy()`` must not raise."""
+        calls = {"n": 0}
+
+        def _count(p: object, q: object, out: object) -> None:
+            calls["n"] += 1
+            _formula_matching_kernel(p, q, out)
+
+        monkeypatch.setattr(rejection, "_ASM_AVAILABLE", True)
+        monkeypatch.setattr(rejection, "_asm_residual_dist", _count)
+        p, q = _finite_pair(batch=1, vocab=8)
+        p = p.requires_grad_(True)
+        q = q.requires_grad_(True)
+        got = residual_distribution(p, q)
+        assert calls["n"] == 1
+        assert torch.allclose(got, _torch_residual(p, q), rtol=1e-5, atol=1e-8)
+
+    @pytest.mark.parametrize("dtype", [torch.float64, torch.bfloat16, torch.float16])
+    def test_other_dtypes_never_reach_kernel(
+        self, monkeypatch: pytest.MonkeyPatch, dtype: torch.dtype
+    ) -> None:
+        """float64, bfloat16, and float16 stay on the PyTorch residual."""
+        calls = {"n": 0}
+
+        def _count(p: object, q: object, out: object) -> None:
+            calls["n"] += 1
+
+        monkeypatch.setattr(rejection, "_ASM_AVAILABLE", True)
+        monkeypatch.setattr(rejection, "_asm_residual_dist", _count)
+        p, q = _finite_pair(batch=2, vocab=8)
+        got = residual_distribution(p.to(dtype), q.to(dtype))
+        assert calls["n"] == 0
+        assert got.dtype == dtype
+
+    def test_float32_reaches_kernel(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """The same shapes in float32 do call the kernel."""
+        calls = {"n": 0}
+
+        def _count(p: object, q: object, out: object) -> None:
+            calls["n"] += 1
+            _formula_matching_kernel(p, q, out)
+
+        monkeypatch.setattr(rejection, "_ASM_AVAILABLE", True)
+        monkeypatch.setattr(rejection, "_asm_residual_dist", _count)
+        p, q = _finite_pair(batch=4, vocab=8)
+        residual_distribution(p, q)
+        assert calls["n"] == 4
+
+    @pytest.mark.parametrize("batch", [1, 4])
+    @pytest.mark.parametrize("vocab", [1, 7, 17, 32000, 128256])
+    def test_parity_against_torch(
+        self, monkeypatch: pytest.MonkeyPatch, vocab: int, batch: int
+    ) -> None:
+        """A formula-matching kernel matches PyTorch at rtol 1e-5, atol 1e-8.
+
+        atol 1e-5 is too loose at vocab 128256: most residual entries are
+        smaller than that. Vocab 1 is a probability vector ``[1]`` against
+        ``[1]``, so the residual is identically 0 and the 1e-9 floor keeps
+        the row sum at 0. For every larger vocab the row sums are 1 within
+        1e-5. The real Linux wheel is not loaded in this process; this stub
+        implements the same formula.
+        """
+        monkeypatch.setattr(rejection, "_ASM_AVAILABLE", True)
+        monkeypatch.setattr(rejection, "_asm_residual_dist", _formula_matching_kernel)
+        generator = torch.Generator().manual_seed(0)
+        p = torch.softmax(torch.randn(batch, vocab, generator=generator), dim=-1)
+        q = torch.softmax(torch.randn(batch, vocab, generator=generator), dim=-1)
+        got = residual_distribution(p, q)
+        ref = _torch_residual(p, q)
+        assert torch.allclose(got, ref, rtol=1e-5, atol=1e-8)
+        row_sum = got.sum(dim=-1)
+        if vocab == 1:
+            assert torch.allclose(row_sum, torch.zeros(batch), atol=1e-5)
+        else:
+            assert torch.allclose(row_sum, torch.ones(batch), atol=1e-5)
+
+    def test_selected_kernel_nan_is_passed_through(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """FlashSpec keeps the kernel's NaN result. The documented kernel writes 0.
+
+        PyTorch preserves NaN when the kernel is not selected. That case is
+        ``TestPytorchResidual.test_nan_is_preserved_by_pytorch``. With the
+        kernel selected, this function does not put the NaN back.
+        ``ASM_NAN_CLAMP_TO_ZERO`` records that choice.
+        """
+
+        def _zero_nan(p: object, q: object, out: object) -> None:
+            import numpy as np
+
+            pt = np.array(p, dtype=np.float32, copy=True)
+            qt = np.array(q, dtype=np.float32, copy=True)
+            pt = np.where(np.isnan(pt), np.float32(0.0), pt)
+            qt = np.where(np.isnan(qt), np.float32(0.0), qt)
+            residual = np.maximum(pt - qt, np.float32(0.0))
+            denom = np.maximum(residual.sum(), np.float32(1e-9))
+            out[...] = residual / denom  # type: ignore[index]
+
+        monkeypatch.setattr(rejection, "_ASM_AVAILABLE", True)
+        monkeypatch.setattr(rejection, "_asm_residual_dist", _zero_nan)
+        p = torch.tensor([float("nan"), 0.5, 0.5])
+        q = torch.zeros(3)
+        got = residual_distribution(p, q)
+        assert ASM_NAN_CLAMP_TO_ZERO is True
+        assert got[0].item() == 0.0
+        assert torch.allclose(got[1:], torch.tensor([0.5, 0.5]))

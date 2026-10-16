@@ -7,8 +7,8 @@ This checkout ships `01_quickstart.py` and
 T4. The `n_samples=8` JSON and the bar chart are in
 `benchmarks/results/`. An H100 is not required. A Pascal GPU at
 compute capability 6.1 with 5 GB is refused by the probe cell. The
-optional ASM cell builds flashspec-asm from source when the PyPI
-package does not select the kernel. A rerun
+optional ASM cell installs `flashspec-asm-kernel` >= 0.1.2 and builds
+flashspec-asm from source when that wheel does not select the kernel. A rerun
 still downloads `flashspec_bring_back.zip`. Copy new JSON into
 `benchmarks/results/`. Colab Drive is not this repo.
 
