@@ -75,13 +75,13 @@ For each element at flat offset `k`:
 
 ---
 
-## Roofline analysis
+## Roofline analysis, not a profile
 
 The figures below are arithmetic from the NVIDIA H100 whitepaper
-(989 TFLOP/s bfloat16, 3.35 TB/s HBM). They are not a profile of this
-repository. No H100 run has been committed. The measured T4 comparison
-is in the README: at batch 1 the Triton kernel was slower than the
-pure-PyTorch reference.
+(989 TFLOP/s bfloat16, 3.35 TB/s HBM). They were not produced by a
+profiler. No H100 run has been committed, and this section does not
+add one. The measured T4 comparison is in the README: at batch 1 the
+Triton kernel was slower than the pure-PyTorch reference.
 
 - The verification kernel is memory-bandwidth bound on paper (it reads 2 scalars per token).
 - At 3.35 TB/s, a gather-limited estimate for B=32, γ=4 is about 6 μs.
