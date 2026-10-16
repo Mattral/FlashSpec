@@ -16,6 +16,18 @@ datacenter-GPU Llama run. Do not tag 0.2.0 before that measurement
 exists.
 
 ### Changed
+- `SpeculativeEngine.generate` is documented as serial over context
+  length. Each loop forwards only the largest equal-length group. The KV
+  cache rolls only when that group has one row. A larger group
+  full-forwards. Shorter output rows are filled with `-1`. That fill is
+  not an attention mask, and the engine does not pad prompts into one
+  masked batch.
+- `docs/architecture.md` states the expected tokens per target forward as
+  `(1 - α^(γ+1)) / (1 - α)`, about 3.05 at α=0.75 and γ=4. The γ·α+1
+  line is removed. That figure is not a measured speedup. The overview
+  no longer says the residual is KS-verified on every CI run. The check
+  is the chi-squared test, and the lint job is off, so the CI jobs that
+  need it do not run.
 - The paper's expected-token formula is
   `(1 - α^(γ+1)) / (1 - α)`, about 3.05 at α=0.75 and γ=4.
   The sentence that called that figure a measured throughput improvement
@@ -66,7 +78,9 @@ exists.
   for vanilla autoregressive decoding, Medusa, EAGLE, and FlashSpec.
   No H100 comparison exists, and Medusa and EAGLE are not implemented.
   Those figures were design targets. They were not removed from a
-  result file. The same labelled targets remain in `paper/flashspec.tex`.
+  result file. The same table was later removed from `paper/flashspec.tex`.
+  The figures stay listed as unmeasured design targets in
+  `benchmarks/results/PROVENANCE.md`.
 
 ### Added
 - CPU float32 TinyLlama-1.1B-Chat with Felladrin/Llama-160M-Chat-v1,
