@@ -16,6 +16,9 @@ datacenter-GPU Llama run. Do not tag 0.2.0 before that measurement
 exists.
 
 ### Changed
+- README result tables use three significant figures. Full precision and
+  the run notes stay in `benchmarks/results/` and
+  `benchmarks/results/README.md`.
 - The README and the papers no longer say that most implementations move
   accept/reject to the CPU. They describe the Triton kernel and the
   pure-PyTorch reference, and the measured Tesla T4 batch-1 result in
