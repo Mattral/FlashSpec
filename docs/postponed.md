@@ -6,15 +6,14 @@ move without them.
 
 ## Packaging
 
-- Publish a wheel of `flashspec-asm-kernel` that contains
-  `libflashspec_asm.so`. PyPI 0.1.0 is a source distribution and does
-  not contain that library, so `pip install flashspec[asm]` stays on
-  pure PyTorch. The kernel is already measured by building the
-  flashspec-asm repo with `make` on a GitHub-hosted Linux runner.
-  Those files are `benchmarks/results/residual_linux_gha.json` and
-  `benchmarks/results/residual_linux_gha_1b0cda3.json`.
-- `notebooks/04_gpu_measurement.ipynb` can clone that repo and run
-  `make` on a later Colab session. That does not require the wheel.
+- `flashspec-asm-kernel` 0.1.2 on PyPI is a manylinux x86-64 wheel and
+  contains `libflashspec_asm.so`. The `asm` extra requires >= 0.1.2.
+  Release 0.1.0 was an sdist with no shared library. This checkout has
+  not loaded the 0.1.2 wheel. The recorded files
+  `benchmarks/results/residual_linux_gha.json` and
+  `benchmarks/results/residual_linux_gha_1b0cda3.json` are source builds.
+- `notebooks/04_gpu_measurement.ipynb` still clones flashspec-asm and
+  runs `make` when the wheel does not select the kernel.
 
 ## Generation measurements
 

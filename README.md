@@ -85,7 +85,8 @@ pip install -e ".[dev,gpu]"
 # Windows / macOS (pure-PyTorch reference kernels, numerically identical):
 pip install -e ".[dev]"
 
-# Optional CPU residual kernel (Linux x86-64 only; other platforms install nothing):
+# Optional CPU residual kernel (Linux x86-64, flashspec-asm-kernel>=0.1.2;
+# other platforms install nothing):
 pip install -e ".[asm]"
 
 # Optional single-device HTTP server:
@@ -235,9 +236,12 @@ vanilla autoregressive sampling on this pair. The files are
 chart is `benchmarks/results/tinyllama_throughput.png`.
 
 The optional ASM cell on that Colab runtime printed `Residual bench failed`
-and did not write `residual_colab_cpu.json`. The larger-model cell was
-skipped. This row is float16 with synthetic token ids. The NF4
-single-prompt record is the next section.
+and did not write `residual_colab_cpu.json`. That cell had installed PyPI
+`flashspec-asm-kernel` 0.1.0, which shipped no shared library. The supported
+package is now >= 0.1.2. A residual evaluation is microseconds, and a model
+forward is milliseconds, so the kernel does not change end-to-end throughput.
+The larger-model cell was skipped. This row is float16 with synthetic token
+ids. The NF4 single-prompt record is the next section.
 
 ### Measured — TinyLlama-1.1B · NF4 (4-bit) · Tesla T4 · γ=4
 
@@ -406,16 +410,20 @@ docker run --gpus all ghcr.io/mattral/flashspec:latest make test
 | Python | ≥ 3.11 | |
 | PyTorch | ≥ 2.2 | CPU or CUDA |
 | Triton | ≥ 3.0 | Optional · Linux + CUDA · `pip install flashspec[gpu]` |
-| flashspec-asm-kernel | ≥ 0.1, < 2 | Optional · Linux x86-64 · `pip install flashspec[asm]`. PyPI 0.1.0 is an sdist and does not ship `libflashspec_asm.so`. |
+| flashspec-asm-kernel | ≥ 0.1.2, < 2 | Optional · Linux x86-64 · `pip install flashspec[asm]`. 0.1.2 ships a manylinux wheel with `libflashspec_asm.so`. |
 | FastAPI, uvicorn, httpx | see `serve` extra | Optional · `pip install flashspec[serve]` |
 | CUDA | ≥ 12.0 | GPU path only |
 | transformers | ≥ 4.40 | For HuggingFace model loading |
 
-PyPI `flashspec-asm-kernel` 0.1.0 installs on Linux x86-64. The tarball
-has the ctypes wrapper and no `libflashspec_asm.so`. The first call
-raises `ImportError`, and FlashSpec keeps the pure-PyTorch residual.
-The Linux file `benchmarks/results/residual_linux_gha.json` was measured
-by building the shared library with `make` in the flashspec-asm repo.
+The `asm` extra installs `flashspec-asm-kernel` >= 0.1.2 and < 2 on Linux
+x86-64. Release 0.1.2 is a manylinux wheel that contains
+`libflashspec_asm.so`. Release 0.1.0 was an sdist with no shared library.
+An import error, or an `OSError` from `abi_version()`, keeps the
+pure-PyTorch residual. A residual evaluation is microseconds, and a model
+forward is milliseconds, so this kernel does not change end-to-end
+throughput. `benchmarks/results/residual_linux_gha.json` and
+`benchmarks/results/residual_linux_gha_1b0cda3.json` are source builds
+from the flashspec-asm repo, not a timing of the 0.1.2 wheel.
 
 ---
 
