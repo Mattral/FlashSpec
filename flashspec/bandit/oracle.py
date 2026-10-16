@@ -58,15 +58,10 @@ class OracleSelector(DraftSelector):
         window_size: int = 500,
     ) -> None:
         if len(true_rates) != n_arms:
-            raise ValueError(
-                f"len(true_rates) must equal n_arms={n_arms}; "
-                f"got {len(true_rates)}."
-            )
+            raise ValueError(f"len(true_rates) must equal n_arms={n_arms}; got {len(true_rates)}.")
         for i, r in enumerate(true_rates):
             if not (0.0 <= r <= 1.0):
-                raise ValueError(
-                    f"true_rates[{i}]={r} is outside [0, 1]."
-                )
+                raise ValueError(f"true_rates[{i}]={r} is outside [0, 1].")
         super().__init__(n_arms=n_arms, window_size=window_size)
         self._true_rates: list[float] = list(true_rates)
 
@@ -92,7 +87,7 @@ class OracleSelector(DraftSelector):
         with self._lock:
             return int(max(range(self._n_arms), key=lambda k: self._true_rates[k]))
 
-    def update(self, arm: int, accepted: int) -> None:
+    def update(self, arm: int, accepted: int, reward: float | None = None) -> None:
         """Record outcome (used for regret tracking only; does not affect selection).
 
         Parameters
@@ -101,6 +96,8 @@ class OracleSelector(DraftSelector):
             Arm index that was pulled.
         accepted : int
             Number of accepted tokens.
+        reward : float or None
+            Selection payoff stored on the arm. Selection ignores it.
 
         Raises
         ------
@@ -121,7 +118,7 @@ class OracleSelector(DraftSelector):
         if not (0 <= arm < self._n_arms):
             raise ValueError(f"arm must be in [0, {self._n_arms}); got {arm}.")
         with self._lock:
-            self._arms[arm].record(accepted)
+            self._arms[arm].record(accepted, reward=reward)
             self._t += 1
 
     def set_true_rates(self, true_rates: list[float]) -> None:
@@ -150,8 +147,7 @@ class OracleSelector(DraftSelector):
         """
         if len(true_rates) != self._n_arms:
             raise ValueError(
-                f"len(true_rates) must equal n_arms={self._n_arms}; "
-                f"got {len(true_rates)}."
+                f"len(true_rates) must equal n_arms={self._n_arms}; got {len(true_rates)}."
             )
         for i, r in enumerate(true_rates):
             if not (0.0 <= r <= 1.0):
@@ -170,7 +166,7 @@ class OracleSelector(DraftSelector):
         }
 
     @classmethod
-    def _from_state_dict(cls, state: dict[str, Any]) -> "OracleSelector":
+    def _from_state_dict(cls, state: dict[str, Any]) -> OracleSelector:
         obj = cls(
             n_arms=state["n_arms"],
             true_rates=state["true_rates"],

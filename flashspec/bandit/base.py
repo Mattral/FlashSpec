@@ -36,16 +36,23 @@ class ArmStats:
 
     n_pulls: int = 0
     n_accepted: int = 0
+    reward_total: float = 0.0
     window_accepts: deque[int] = field(default_factory=deque)
+    window_rewards: deque[float] = field(default_factory=deque)
     window_size: int = 500
 
-    def record(self, accepted: int) -> None:
+    def record(self, accepted: int, reward: float | None = None) -> None:
         """Record the outcome of one round for this arm.
 
         Parameters
         ----------
         accepted : int
             Number of tokens accepted in this round (typically 0 or 1).
+            This count is kept even when ``reward`` is set.
+        reward : float or None
+            Selection payoff. ``None`` uses ``accepted``, which preserves
+            the previous UCB mean. The engine passes accepted tokens per
+            second of step time.
 
         Returns
         -------
@@ -66,10 +73,15 @@ class ArmStats:
         """
         self.n_pulls += 1
         self.n_accepted += accepted
+        observed = float(accepted) if reward is None else float(reward)
+        self.reward_total += observed
         if self.window_size > 0:
             self.window_accepts.append(accepted)
+            self.window_rewards.append(observed)
             if len(self.window_accepts) > self.window_size:
                 self.window_accepts.popleft()
+            if len(self.window_rewards) > self.window_size:
+                self.window_rewards.popleft()
 
     @property
     def mean_accept_rate(self) -> float:
@@ -100,6 +112,23 @@ class ArmStats:
             return self.n_accepted / self.n_pulls
         return 0.0
 
+    @property
+    def mean_reward(self) -> float:
+        """Return the mean selection payoff, optionally windowed.
+
+        Returns
+        -------
+        float
+            Windowed mean of recorded rewards when windowing is on.
+            Otherwise ``reward_total / n_pulls``, or 0.0 before any pull.
+            A missing reward is recorded as the accept count.
+        """
+        if self.window_size > 0 and self.window_rewards:
+            return sum(self.window_rewards) / len(self.window_rewards)
+        if self.n_pulls > 0:
+            return self.reward_total / self.n_pulls
+        return 0.0
+
     def to_dict(self) -> dict[str, Any]:
         """Serialise to a JSON-compatible dict.
 
@@ -124,12 +153,14 @@ class ArmStats:
         return {
             "n_pulls": self.n_pulls,
             "n_accepted": self.n_accepted,
+            "reward_total": self.reward_total,
             "window_accepts": list(self.window_accepts),
+            "window_rewards": list(self.window_rewards),
             "window_size": self.window_size,
         }
 
     @classmethod
-    def from_dict(cls, d: dict[str, Any]) -> "ArmStats":
+    def from_dict(cls, d: dict[str, Any]) -> ArmStats:
         """Deserialise from a dict produced by :meth:`to_dict`.
 
         Parameters
@@ -160,8 +191,11 @@ class ArmStats:
             n_accepted=d["n_accepted"],
             window_size=d["window_size"],
         )
-        obj.window_accepts = deque(
-            d["window_accepts"], maxlen=d["window_size"] or None
+        obj.reward_total = float(d.get("reward_total", d["n_accepted"]))
+        obj.window_accepts = deque(d["window_accepts"], maxlen=d["window_size"] or None)
+        obj.window_rewards = deque(
+            d.get("window_rewards", d.get("window_accepts", [])),
+            maxlen=d["window_size"] or None,
         )
         return obj
 
@@ -208,9 +242,7 @@ class DraftSelector(ABC):
             raise ValueError(f"window_size must be >= 0; got {window_size}.")
         self._n_arms = n_arms
         self._window_size = window_size
-        self._arms: list[ArmStats] = [
-            ArmStats(window_size=window_size) for _ in range(n_arms)
-        ]
+        self._arms: list[ArmStats] = [ArmStats(window_size=window_size) for _ in range(n_arms)]
         self._t: int = 0
         self._lock = threading.Lock()
 
@@ -280,7 +312,7 @@ class DraftSelector(ABC):
         """
 
     @abstractmethod
-    def update(self, arm: int, accepted: int) -> None:
+    def update(self, arm: int, accepted: int, reward: float | None = None) -> None:
         """Record the outcome of pulling an arm.
 
         Parameters
@@ -288,7 +320,9 @@ class DraftSelector(ABC):
         arm : int
             Index of the arm that was pulled.
         accepted : int
-            Number of tokens accepted in this round.
+            Number of tokens accepted in this round. Kept as a metric.
+        reward : float or None
+            Selection payoff. ``None`` means the accept count.
 
         Raises
         ------
@@ -325,10 +359,7 @@ class DraftSelector(ABC):
         0
         """
         with self._lock:
-            self._arms = [
-                ArmStats(window_size=self._window_size)
-                for _ in range(self._n_arms)
-            ]
+            self._arms = [ArmStats(window_size=self._window_size) for _ in range(self._n_arms)]
             self._t = 0
 
     def to_json(self) -> str:
@@ -354,7 +385,7 @@ class DraftSelector(ABC):
             return json.dumps(self._state_dict(), separators=(",", ":"))
 
     @classmethod
-    def from_json(cls, json_str: str) -> "DraftSelector":
+    def from_json(cls, json_str: str) -> DraftSelector:
         """Restore bandit state from a JSON string produced by :meth:`to_json`.
 
         Parameters
@@ -398,5 +429,5 @@ class DraftSelector(ABC):
 
     @classmethod
     @abstractmethod
-    def _from_state_dict(cls, state: dict[str, Any]) -> "DraftSelector":
+    def _from_state_dict(cls, state: dict[str, Any]) -> DraftSelector:
         """Restore an instance from a state dict."""
