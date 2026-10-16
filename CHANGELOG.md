@@ -71,6 +71,7 @@ exists.
   A rejection does not emit that token.
 
 ### Removed
+- The README visits badge (`hits.sh`) and the pepy.tech total-download badge. The PyPI version, Python versions, monthly downloads, docs, DOI, citation, license, and Colab badges stay.
 - The disabled CI coverage job. Pytest still fails under 95% coverage
   via `addopts`. The lint job stays off until ruff, ruff format, and
   mypy --strict would pass.
