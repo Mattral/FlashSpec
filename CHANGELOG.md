@@ -23,6 +23,11 @@ exists.
   0.1.0 `OSError` or `ImportError`, keeps the pure-PyTorch residual.
   Release 0.1.2 ships `libflashspec_asm.so` in a manylinux wheel.
 
+### Removed
+- The README table of invented Llama-3-8B H100 tok/s for vanilla
+  autoregressive decoding, Medusa, EAGLE, and FlashSpec. No H100
+  comparison exists, and Medusa and EAGLE are not implemented.
+
 ### Added
 - Chi-squared tests that the first emitted token, and the second when
   gamma is 4, follow the target distribution for fixed `p != q`. An
