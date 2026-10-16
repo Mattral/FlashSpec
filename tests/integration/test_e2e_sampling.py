@@ -1,11 +1,9 @@
-"""Integration tests: output distribution equivalence (§2.1 CI hard gate).
+"""Gamma=1 checks where the draft distribution equals the target.
 
-The spec states (§2.1): "Verified by a KS test at significance level α=0.01
-over 10,000 samples. CI fails if this test is red. No exceptions."
-
-All tests here use N=10,000 samples.  The ``@pytest.mark.slow`` variant runs
-the same test with a larger vocab for extra power; it is run in the nightly GPU
-lane in addition to the standard CI run.
+Every draft token is accepted on this path, so the emitted token is the
+draft draw. That does not exercise the residual. The chi-squared tests
+for ``p != q``, including gamma 4 and a context-dependent toy target,
+live in ``test_output_distribution.py``.
 """
 
 from __future__ import annotations
@@ -137,14 +135,13 @@ def _empirical_ks_statistic(
 
 
 class TestDistributionEquivalence:
-    """§2.1 CI hard gate: output distribution must match target model."""
+    """Draft equals target: every gamma=1 token is accepted."""
 
     def test_ks_gate_n10000_gamma1_p_equals_q(self) -> None:
-        """KS test α=0.01, N=10,000: output matches target when draft==target (§2.1).
+        """When draft equals target, the emitted token is the draft draw.
 
-        This is the mandatory CI hard gate.  The test fails if the KS statistic
-        exceeds the critical value D_{10000, 0.01} ≈ 0.0163.
-        CI fails if this test is red. No exceptions. (AGENTS.md §2.1)
+        The CDF distance below is only that draw against ``p``. It is not
+        a test of the residual. See ``test_output_distribution.py``.
         """
         vocab = 80  # large enough for power, small enough for chi² expected counts ≥ 5
         samples, target_probs = _run_gamma1_samples(
@@ -244,7 +241,7 @@ class TestDistributionEquivalence:
 
     @pytest.mark.slow
     def test_ks_gate_larger_vocab_n10000(self) -> None:
-        """§2.1 nightly gate: KS test with vocab=200 for greater statistical power."""
+        """Same draft-equals-target draw, with vocab 200. Not a residual test."""
         vocab = 200
         samples, target_probs = _run_gamma1_samples(
             n_samples=_N_SAMPLES, vocab=vocab, seed=77

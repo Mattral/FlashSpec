@@ -51,8 +51,9 @@ metrics, and the orchestration engine. It ships with a full automated test
 suite — unit tests, integration tests, property-based tests via
 Hypothesis, and adversarial "chaos" tests for the bandit components — along
 with continuous integration workflows that run linting, type checking,
-security scanning (`pip-audit`, Trivy), and a statistical distribution-
-equivalence test based on the Kolmogorov–Smirnov statistic.
+security scanning (`pip-audit`, Trivy), and a chi-squared test that
+emitted tokens follow the target distribution when the draft and target
+probabilities differ.
 
 # Statement of need
 
@@ -88,11 +89,13 @@ scope.
 A central design goal of `FlashSpec` is that adaptive draft selection and
 GPU-resident verification must not alter the statistical distribution of
 generated tokens relative to standard autoregressive sampling from the
-target model. This is verified continuously: the test suite includes a
-Kolmogorov–Smirnov goodness-of-fit test (significance level α = 0.01,
-N = 10,000 samples) comparing the output distribution of the speculative
-sampler against the target model's distribution, run as a required check
-in continuous integration. Numerical parity between the Triton kernel and
+target model. This is checked by a chi-squared test on discrete token
+ids (α = 0.01, df = 5, N = 30,000, vocabulary 6) for fixed draft and
+target distributions that differ, at gamma 1 and gamma 4, including the
+second emitted token. A separate test uses a toy target whose next token
+depends on the previous token. The gamma 1 case with identical draft and
+target only checks that every draft token is accepted. Numerical parity
+between the Triton kernel and
 a pure-PyTorch reference implementation is verified separately for both
 float32 (tolerance 1e-5) and bfloat16 (tolerance 1e-3) inputs.
 

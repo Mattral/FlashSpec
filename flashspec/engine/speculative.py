@@ -82,8 +82,12 @@ class SpeculativeEngine:
     Notes
     -----
     Output distribution correctness (Algorithm 1, Leviathan et al. 2023) is
-    verified by ``tests/integration/test_e2e_sampling.py`` (KS test, α=0.01,
-    N=10,000).  This is a CI hard gate.
+    checked by a chi-squared test in
+    ``tests/integration/test_output_distribution.py``. That test uses
+    ``p != q``, gamma 1 and 4, N=30,000, vocabulary 6, and the chi-square
+    1% point for df=5. The gamma=1, ``p == q`` test in
+    ``tests/integration/test_e2e_sampling.py`` only checks that every
+    draft token is accepted.
 
     Examples
     --------
@@ -150,10 +154,11 @@ class SpeculativeEngine:
 
         Notes
         -----
-        The output distribution of this method is provably identical to
-        autoregressive sampling from the target model (Leviathan et al., 2023
-        Theorem 1).  This invariant is enforced by the KS-test gate in
-        ``tests/integration/test_e2e_sampling.py`` at α=0.01, N=10,000.
+        On finite probabilities the output distribution follows autoregressive
+        sampling from the target model (Leviathan et al., 2023, Theorem 1).
+        The check is the chi-squared test in
+        ``tests/integration/test_output_distribution.py`` (``p != q``,
+        gamma 1 and 4, plus one context-dependent toy target).
 
         The generation loop follows these steps on each iteration:
 
