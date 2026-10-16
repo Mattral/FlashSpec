@@ -10,10 +10,14 @@ Versioning follows [Semantic Versioning 2.0.0](https://semver.org/).
 
 ## [Unreleased]
 
-Nothing is cut after 0.1.5. Postponed work is listed in
-[`docs/postponed.md`](docs/postponed.md). v0.2.0 stays reserved for a
-measured datacenter-GPU Llama run. Do not tag 0.2.0 before that
-measurement exists.
+Postponed work is listed in [`docs/postponed.md`](docs/postponed.md).
+v0.2.0 stays reserved for a measured datacenter-GPU Llama run. Do not
+tag 0.2.0 before that measurement exists.
+
+### Added
+- 0.1.5 is on PyPI as `flashspec-0.1.5-py3-none-any.whl` and
+  `flashspec-0.1.5.tar.gz`. The git tag `v0.1.5` already points at the
+  changelog cut. No GitHub Release was opened.
 
 ## [0.1.5] — 2026-10-16 — Honest CPU path, optional ASM, small server
 
