@@ -207,19 +207,22 @@ class _ContextTable:
         draft_token_ids: torch.Tensor,
         gamma: int,
         temperature: float = 1.0,
+        include_bonus: bool = False,
     ) -> torch.Tensor:
         """Score each draft position from the token that precedes it."""
         if temperature <= 0.0:
             raise ValueError(f"temperature must be > 0; got {temperature}.")
         prev = input_ids[:, -1]
         rows: list[torch.Tensor] = []
-        for step in range(gamma):
+        steps = gamma + 1 if include_bonus else gamma
+        for step in range(steps):
             probs = self.table[prev]
             logits = probs.log()
             if temperature != 1.0:
                 logits = logits / temperature
             rows.append(torch.log_softmax(logits, dim=-1))
-            prev = draft_token_ids[:, step]
+            if step < gamma:
+                prev = draft_token_ids[:, step]
         return torch.stack(rows, dim=1)
 
 

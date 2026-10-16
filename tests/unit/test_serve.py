@@ -48,9 +48,11 @@ class _Peaked:
         draft_token_ids: torch.Tensor,
         gamma: int,
         temperature: float = 1.0,
+        include_bonus: bool = False,
     ) -> torch.Tensor:
         """Target log-probs."""
-        return self._logprobs(int(input_ids.shape[0]), gamma)
+        steps = gamma + 1 if include_bonus else gamma
+        return self._logprobs(int(input_ids.shape[0]), steps)
 
 
 def _engine() -> SpeculativeEngine:
