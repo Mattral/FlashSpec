@@ -16,6 +16,13 @@ datacenter-GPU Llama run. Do not tag 0.2.0 before that measurement
 exists.
 
 ### Changed
+- The README quickstart loads `TinyLlama/TinyLlama-1.1B-Chat-v1.0` with
+  `Felladrin/Llama-160M-Chat-v1` and injects those modules into
+  `load_drafters` and `TargetModel`. Calling `TargetModel` with only a
+  hub id passes `device_map` and needs `accelerate`, which is not a
+  dependency. Both checkpoints report vocabulary 32000. A Llama-3 model
+  reports vocabulary 128256 and must not be paired with that drafter.
+  `notebooks/01_quickstart.py` stays the toy demo.
 - `docs/kernels.md` titles the H100 section "Roofline analysis, not a
   profile". The figures stay arithmetic from the NVIDIA H100 whitepaper.
   No H100 profile was added.
