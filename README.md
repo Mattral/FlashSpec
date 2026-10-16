@@ -11,8 +11,7 @@
     <img alt="PyPI" src="https://img.shields.io/pypi/v/flashspec?style=for-the-badge&logo=pypi&logoColor=white&color=7C3AED"></a>
   <a href="https://pypi.org/project/flashspec/">
     <img alt="Python" src="https://img.shields.io/pypi/pyversions/flashspec?style=for-the-badge&logo=python&logoColor=white"></a>
-  <a href="https://pepy.tech/project/flashspec">  <img alt="Total Downloads" src="https://img.shields.io/pepy/dt/flashspec?style=for-the-badge&color=F87171"></a>
-  <a href="https://pepy.tech/project/flashspec">
+  <a href="https://pypi.org/project/flashspec/">
     <img alt="Downloads" src="https://img.shields.io/pypi/dm/flashspec?style=for-the-badge&color=A78BFA"></a>
   <a href="https://flashspec.readthedocs.io">
     <img alt="Docs" src="https://img.shields.io/badge/docs-readthedocs-22C55E?style=for-the-badge&logo=readthedocs&logoColor=white"></a>
@@ -22,8 +21,6 @@
     <img alt="Cite" src="https://img.shields.io/badge/cite-CITATION.cff-brightgreen?style=for-the-badge"></a>
   <a href="./LICENSE">
     <img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-A78BFA?style=for-the-badge"></a>
-  <a href="https://hits.sh/github.com/Mattral/FlashSpec/">
-  <img alt="Hits" src="https://hits.sh/github.com/Mattral/FlashSpec.svg?style=for-the-badge&color=10B981&label=visits"></a>
   <a href="https://github.com/Mattral/FlashSpec/tree/main/notebooks">
     <img alt="Open Notebooks in Colab" src="https://colab.research.google.com/assets/colab-badge.svg" style="height:28px;">
   </a>
