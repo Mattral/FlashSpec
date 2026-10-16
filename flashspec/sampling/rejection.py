@@ -38,16 +38,24 @@ _MIN_PROB: float = 1e-9  # Denominator guard for residual normalisation.
 
 # NaN contract (flashspec-asm ADR 0001):
 # ``torch.clamp(NaN, min=0)`` preserves NaN. AVX2 ``vmaxps(NaN, 0)`` returns
-# the second operand, so the assembly kernel writes 0. Finite inputs are
-# required to match within 1e-5. This flag documents the divergence; it does
+# the second operand, so the assembly kernel writes 0. The kernel package
+# documents finite-input agreement within 1e-5. This repository's parity
+# test uses rtol 1e-5 and atol 1e-8 against a kernel that implements the
+# same formula. ``ASM_NAN_CLAMP_TO_ZERO`` records the divergence; it does
 # not change PyTorch behaviour.
 ASM_NAN_CLAMP_TO_ZERO: bool = True
 
 # ---------------------------------------------------------------------------
 # Optional ASM accelerator backend
 #
-# flashspec-asm-kernel ships as a separate package:
-#   pip install flashspec[asm]     # Linux x86-64; installs flashspec-asm-kernel
+# flashspec-asm-kernel is a separate package. The extra installs
+# flashspec-asm-kernel>=0.1.2,<2 on Linux x86-64. Release 0.1.0 shipped no
+# shared library: the import could succeed and the first ABI or CPUID call
+# then raised ImportError or OSError. Release 0.1.2 ships libflashspec_asm.so
+# in a manylinux wheel and raises ImportError at import when that library
+# cannot load. Both failures stay on pure PyTorch.
+#
+#   pip install flashspec[asm]     # Linux x86-64; flashspec-asm-kernel>=0.1.2
 #   pip install flashspec          # pure-PyTorch residual, unchanged
 #
 # The kernel accelerates residual_dist on the CPU path only.
@@ -158,6 +166,21 @@ def residual_backend_status() -> dict[str, object]:
     }
 
 
+def _asm_row_ready(row: torch.Tensor) -> bool:
+    """Return whether one vector may be passed to the AVX2 residual kernel.
+
+    ``Tensor.numpy`` raises when ``requires_grad`` is true. The kernel
+    also requires a C-contiguous CPU ``float32`` buffer. The output row
+    must be writeable, which those same checks provide.
+    """
+    return (
+        row.device.type == "cpu"
+        and row.dtype == torch.float32
+        and row.is_contiguous()
+        and not row.requires_grad
+    )
+
+
 def _pytorch_residual(p: torch.Tensor, q: torch.Tensor) -> torch.Tensor:
     """Compute ``max(0, p - q) / sum`` with the PyTorch reference.
 
@@ -183,10 +206,12 @@ def residual_distribution(p: torch.Tensor, q: torch.Tensor) -> torch.Tensor:
 
     The formula is ``max(0, p - q) / sum(max(0, p - q))`` along the last
     dimension, with a ``1e-9`` denominator floor. Rows are sent to the
-    assembly kernel only when all of the following hold: the kernel was
-    selected, both tensors are contiguous CPU ``float32``, and the shape
-    is ``(V,)`` or ``(batch, V)``. Otherwise the pure-PyTorch reference
-    runs, including for CUDA tensors.
+    assembly kernel only when the kernel was selected, ``p`` and ``q`` are
+    contiguous CPU ``float32`` of shape ``(V,)`` or ``(batch, V)``, and
+    each probability row and the residual output row are CPU ``float32``,
+    contiguous, and does not require grad. Otherwise the pure-PyTorch
+    reference runs, including for CUDA tensors and for float64, bfloat16,
+    and float16.
 
     Parameters
     ----------
@@ -207,9 +232,12 @@ def residual_distribution(p: torch.Tensor, q: torch.Tensor) -> torch.Tensor:
 
     Notes
     -----
-    On finite inputs the assembly kernel matches this function within
-    absolute tolerance ``1e-5``. On NaN inputs the backends differ: PyTorch
-    preserves NaN, and AVX2 ``vmaxps`` writes 0. See ``ASM_NAN_CLAMP_TO_ZERO``.
+    On finite inputs a kernel that implements this formula is compared
+    with rtol ``1e-5`` and atol ``1e-8``. The published kernel documents
+    absolute tolerance ``1e-5``. On NaN inputs the backends differ:
+    PyTorch preserves NaN, and AVX2 ``vmaxps`` writes 0. See
+    ``ASM_NAN_CLAMP_TO_ZERO``. This function returns the selected
+    backend's values and does not rewrite a kernel NaN into a PyTorch NaN.
     """
     if p.shape != q.shape:
         raise ValueError(
@@ -229,18 +257,22 @@ def residual_distribution(p: torch.Tensor, q: torch.Tensor) -> torch.Tensor:
         return _pytorch_residual(p, q)
 
     squeeze = p.ndim == 1
-    p_rows = p.unsqueeze(0) if squeeze else p
-    q_rows = q.unsqueeze(0) if squeeze else q
-    out = torch.empty_like(p_rows)
+    # Detach before .numpy(). A tensor that requires grad cannot export a
+    # writable array, and the kernel must not be given a grad-enabled view.
+    p_rows = p.detach().unsqueeze(0) if squeeze else p.detach()
+    q_rows = q.detach().unsqueeze(0) if squeeze else q.detach()
+    out = torch.empty(p_rows.shape, dtype=torch.float32, device="cpu")
     residual_fn = _asm_residual_dist
     assert residual_fn is not None
     try:
         for row in range(p_rows.shape[0]):
-            residual_fn(
-                p_rows[row].detach().numpy(),
-                q_rows[row].detach().numpy(),
-                out[row].numpy(),
-            )
+            p_row = p_rows[row]
+            q_row = q_rows[row]
+            out_row = out[row]
+            ready = _asm_row_ready(p_row) and _asm_row_ready(q_row) and _asm_row_ready(out_row)
+            if not ready:
+                return _pytorch_residual(p, q)
+            residual_fn(p_row.numpy(), q_row.numpy(), out_row.numpy())
     except (RuntimeError, ValueError, OSError, TypeError) as exc:
         logger.warning(
             "ASM residual kernel failed; using PyTorch for this call",

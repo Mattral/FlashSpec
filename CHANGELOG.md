@@ -15,9 +15,17 @@ Those items are not blockers. v0.2.0 stays reserved for a measured
 datacenter-GPU Llama run. Do not tag 0.2.0 before that measurement
 exists.
 
+### Changed
+- The `asm` extra requires `flashspec-asm-kernel` >= 0.1.2 and < 2 on
+  Linux x86-64 (`sys_platform == "linux"`). The kernel runs only when
+  each probability row and the residual output row are CPU float32,
+  contiguous, and do not require grad. A missing library, including the
+  0.1.0 `OSError` or `ImportError`, keeps the pure-PyTorch residual.
+  Release 0.1.2 ships `libflashspec_asm.so` in a manylinux wheel.
+
 ### Added
 - `notebooks/04_gpu_measurement.ipynb` builds flashspec-asm from source
-  when the PyPI package does not select the ASM backend.
+  when the installed package does not select the ASM backend.
 - CPU tests for typical acceptance, the Linux AVX2 flag reader, ONNX
   export guards, and the serve command wiring.
 

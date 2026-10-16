@@ -35,7 +35,7 @@ gpu = ["triton>=3.0.0; platform_system == 'Linux'"]
 # Linux x86-64 ELF only. On other platforms the extra installs nothing
 # and the pure-PyTorch residual path stays selected.
 asm = [
-    "flashspec-asm-kernel>=0.1.0,<2.0.0; platform_system == 'Linux' and platform_machine == 'x86_64'",
+    "flashspec-asm-kernel>=0.1.2,<2.0.0; sys_platform == 'linux' and platform_machine == 'x86_64'",
 ]
 serve = [
     "fastapi>=0.110",
