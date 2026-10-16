@@ -24,6 +24,11 @@ exists.
   Release 0.1.2 ships `libflashspec_asm.so` in a manylinux wheel.
 
 ### Fixed
+- The drafter, the verifier, and the autoregressive baseline reuse
+  `past_key_values` for a batch of one. After each step both caches are
+  cropped back to the accepted prefix, including the bonus token when
+  one was emitted. A model that does not return a cache, and any batch
+  larger than one, still forwards the full sequence.
 - A fully accepted speculative step now emits the bonus token. The
   verifier returns ``gamma + 1`` positions when ``include_bonus`` is
   set, and the engine appends one sample from the last row only when
