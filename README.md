@@ -54,17 +54,19 @@
 ## What is FlashSpec?
 
 Standard speculative decoding uses a small "draft" model to propose tokens
-that a large "target" model verifies in one forward pass. Two problems with
-every existing implementation:
+that a large "target" model verifies in one forward pass. This repository
+is built around two choices, and the measurements below are the limit of
+what it currently shows:
 
-1. **Verification stalls the GPU.** Most implementations move the
-   accept/reject decision to the CPU, synchronising device and host memory
-   at every step — a pipeline bubble that grows with vocabulary size.
+1. **Where the accept/reject test runs.** The test has a Triton kernel and
+   a pure-PyTorch reference. They match numerically. The measured Tesla T4
+   comparison at batch 1 found the Triton kernel slower than the reference.
 
-2. **The draft model is chosen offline.** A drafter tuned for chat performs
-   worse on code or long context. Nobody adapts it mid-conversation.
+2. **Which drafter is used.** A drafter tuned for chat can be a poor fit
+   for code or long context. The bandit chooses among drafters that have
+   been registered. With one drafter it cannot adapt.
 
-FlashSpec addresses both, with the limits that have actually been measured:
+What the measurements show:
 
 - The accept/reject test has a Triton kernel and a pure-PyTorch reference.
   They match numerically. SRAM use of the Triton kernel is O(1) in

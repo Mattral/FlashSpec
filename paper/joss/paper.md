@@ -30,14 +30,13 @@ verifies in a single forward pass, accepting or rejecting each candidate
 according to a probabilistic criterion that preserves the target model's
 output distribution exactly [@leviathan2023fast].
 
-`FlashSpec` provides two components not commonly found together in existing
-open-source implementations. First, the token-level verification step —
+`FlashSpec` provides two components. First, the token-level verification step —
 the comparison of draft and target log-probabilities that decides
-acceptance — is implemented as a Triton GPU kernel that operates on-device,
-avoiding the CPU round-trip and associated pipeline stalls present in many
-reference implementations. The kernel reads only the two scalar
-log-probabilities relevant to each candidate token, giving it a memory
-footprint that is independent of vocabulary size. Second, `FlashSpec` frames
+acceptance — is implemented as a Triton GPU kernel and as a pure-PyTorch
+reference. The kernel reads only the two scalar log-probabilities relevant
+to each candidate token, giving it a memory footprint that is independent of
+vocabulary size. A Tesla T4 measurement at batch 1 found the Triton kernel
+slower than the reference. Second, `FlashSpec` frames
 the choice of *which* draft model to use at each decoding step as a
 K-armed bandit problem, solved online with either UCB1 [@auer2002finite] or
 Thompson sampling [@thompson1933; @chapelle2011thompson]. This allows the
@@ -47,34 +46,33 @@ conversational text versus source code) without manual retuning.
 The library is implemented as a typed Python package (`flashspec`) with
 Pydantic-based configuration, a structured logging layer, and a modular
 architecture separating kernels, sampling algorithms, bandit selectors,
-metrics, and the orchestration engine. It ships with a full automated test
-suite — unit tests, integration tests, property-based tests via
-Hypothesis, and adversarial "chaos" tests for the bandit components — along
-with continuous integration workflows that run linting, type checking,
-security scanning (`pip-audit`, Trivy), and a chi-squared test that
-emitted tokens follow the target distribution when the draft and target
-probabilities differ.
+metrics, and the orchestration engine. It ships with a test suite: unit tests, integration tests, property-based
+tests via Hypothesis, adversarial "chaos" tests for the bandit components,
+and a chi-squared check that emitted tokens follow the target distribution
+when the draft and target probabilities differ. The GitHub Actions lint job
+is off, and the jobs that depend on it do not run, so lint, type checking,
+`pip-audit`, and that chi-squared test are not CI gates in this revision.
 
 # Statement of need
 
 Speculative decoding has become a standard technique for reducing LLM
 inference latency, with production systems and research frameworks such as
 Medusa [@cai2024medusa] and EAGLE [@li2024eagle] building on the original
-formulation [@leviathan2023fast]. However, two practical gaps remain in
-widely-used implementations.
+formulation [@leviathan2023fast]. This repository studies two design choices.
 
-First, the acceptance/rejection test is frequently implemented in a way
-that requires synchronizing device and host memory at every decoding step,
-introducing latency proportional to vocabulary size that scales poorly for
-modern LLMs with vocabularies of 32,000 tokens or more. Second, the choice
+First, the acceptance/rejection test is implemented here as a Triton kernel
+and as a pure-PyTorch reference. The measured Tesla T4 batch-1 comparison
+found the Triton kernel slower than the reference. That timing is a kernel
+comparison, separate from end-to-end generation. Second, the choice
 of draft model is treated as a static, offline hyperparameter, despite
 empirical evidence that token acceptance rates vary substantially with
 prompt domain and context length — meaning a drafter tuned for one workload
 may be suboptimal for another within the same deployment.
 
-`FlashSpec` addresses both gaps within a single, testable codebase. The
-GPU-resident verification kernel removes the host-device synchronization
-bottleneck, while the bandit-based selector removes the need for manual
+`FlashSpec` puts both choices in one testable codebase. The GPU-resident
+verification kernel keeps the accept/reject test on device. The measured
+batch-1 comparison did not show it to be faster than the PyTorch reference.
+The bandit-based selector removes the need for manual
 drafter selection and provides a formal regret guarantee
 (O(√(KT log T)) for UCB1) governing how quickly the system converges to the
 best-performing drafter for a given workload. Researchers studying
