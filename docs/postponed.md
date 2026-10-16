@@ -6,11 +6,10 @@ move without them.
 
 ## Publishing
 
-- A new Zenodo version after the paper corrections is for the maintainer
-  to publish. Creating a GitHub Release would mint one. This repository
-  change does not publish one.
-- 0.1.5 is on PyPI as a wheel and an sdist. A new Zenodo version is still
-  for the maintainer.
+- 0.1.5 is on PyPI as a wheel and an sdist, and it has a GitHub Release.
+  The Zenodo record 10.5281/zenodo.20766119 was still the 2026-06-19
+  version when last checked. Publishing a new Zenodo version stays with
+  the maintainer.
 
 ## Packaging
 

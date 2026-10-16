@@ -16,8 +16,11 @@ tag 0.2.0 before that measurement exists.
 
 ### Added
 - 0.1.5 is on PyPI as `flashspec-0.1.5-py3-none-any.whl` and
-  `flashspec-0.1.5.tar.gz`. The git tag `v0.1.5` already points at the
-  changelog cut. No GitHub Release was opened.
+  `flashspec-0.1.5.tar.gz`. The git tag `v0.1.5` points at the changelog
+  cut, and the GitHub Release is
+  https://github.com/Mattral/FlashSpec/releases/tag/v0.1.5.
+  Release titles for v0.1.0, v0.1.1, v0.1.3, v0.1.4, and v0.1.5 use the
+  form `FlashSpec vX.Y.Z — short title`. The tag commits did not move.
 
 ## [0.1.5] — 2026-10-16 — Honest CPU path, optional ASM, small server
 
