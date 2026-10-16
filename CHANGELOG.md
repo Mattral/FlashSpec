@@ -16,6 +16,10 @@ datacenter-GPU Llama run. Do not tag 0.2.0 before that measurement
 exists.
 
 ### Added
+- Chi-squared tests that the first emitted token, and the second when
+  gamma is 4, follow the target distribution for fixed `p != q`. An
+  engine test covers a toy target whose next token depends on context.
+  The older gamma=1, draft-equals-target test only checks acceptance.
 - `notebooks/04_gpu_measurement.ipynb` builds flashspec-asm from source
   when the PyPI package does not select the ASM backend.
 - CPU tests for typical acceptance, the Linux AVX2 flag reader, ONNX

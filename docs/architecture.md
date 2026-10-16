@@ -116,8 +116,12 @@ The resulting marginal distribution over accepted tokens is exactly `p`.
 - The Triton kernel and pure-PyTorch reference produce identical boolean masks
   to within `atol=1e-5` (float32) / `atol=1e-3` (bfloat16), verified by
   `tests/unit/test_verify_kernel.py`.
-- The KS-test gate in `tests/integration/test_e2e_sampling.py` verifies the
-  output distribution at α=0.01 over N=10,000 samples on every nightly GPU run.
+- `tests/integration/test_output_distribution.py` is the chi-squared check
+  that emitted tokens follow `p` when `q` differs, at gamma 1 and 4
+  (N=30,000, vocabulary 6, df=5, 1% point 15.086), plus one toy target
+  whose next token depends on the previous token.
+  `tests/integration/test_e2e_sampling.py` only covers draft equal to
+  target, where every gamma-1 draft token is accepted.
 
 ---
 

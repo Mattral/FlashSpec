@@ -32,8 +32,9 @@
 
 ---
 
-> **Project status: alpha 0.1.5.** Correctness tests, including the
-> Kolmogorov–Smirnov distribution check, are in the suite. The only
+> **Project status: alpha 0.1.5.** Correctness tests, including a
+> chi-squared check that emitted tokens follow the target when the draft
+> and target differ, are in the suite. The only
 > historical end-to-end GPU figure is the Tesla T4 / TinyLlama row below,
 > and the raw JSON for that run is not in this tree. Every H100 number
 > in this README is a design target. This release is a single-device
@@ -67,10 +68,21 @@ FlashSpec addresses both, with the limits that have actually been measured:
   drafters before expecting a gain. `scripts/demo_bandit_mixed.py` is a
   controlled two-drafter simulation, not a language-model benchmark.
 
-The output distribution is **provably identical** to plain autoregressive
-sampling from the target model (Leviathan et al., 2023 — Theorem 1). This is
-verified in CI by a Kolmogorov–Smirnov test at α = 0.01 over N = 10,000
-samples. A failing KS test blocks the build. No exceptions.
+On finite probabilities the output distribution follows Leviathan et al.,
+2023, Theorem 1. The CI check is a chi-squared test on discrete token ids.
+`tests/integration/test_output_distribution.py` uses fixed pairs with
+draft distribution `q` different from target distribution `p`, at gamma
+1 and gamma 4. It compares the first emitted token to `p`, and, when
+gamma is 4, the second emitted token as well. N is 30,000 and the
+vocabulary is 6, so each expected count stays above 5. The critical
+value is the chi-square 1% point for 5 degrees of freedom, 15.086. The
+same check runs on the PyTorch residual and on a kernel that implements
+the same formula. An engine test uses a toy target whose next token
+depends on the previous token and compares the first two generated
+tokens with sampling from that target. `tests/integration/test_e2e_sampling.py`
+is the gamma 1 case where the draft equals the target, so every draft
+token is accepted. It does not exercise the residual. A failing
+chi-squared test fails the suite.
 
 ---
 
