@@ -11,6 +11,7 @@ from typing import Any
 
 import torch
 
+from flashspec.engine.kv_cache import CacheUnavailableError, KvSession
 from flashspec.utils.logging import get_logger
 
 __all__ = ["HuggingFaceDrafter", "scaled_log_softmax"]
@@ -92,8 +93,9 @@ class HuggingFaceDrafter:
         if model is not None:
             self._model = model.to(self._device)
             self._model.eval()
-            return
-        self._model = self._load_pretrained(model_name_or_path)
+        else:
+            self._model = self._load_pretrained(model_name_or_path)
+        self._kv = KvSession(self._model)
 
     def _load_pretrained(self, model_name_or_path: str) -> Any:  # noqa: ANN401
         """Load a causal LM from the HuggingFace hub or a local path.
@@ -198,6 +200,57 @@ class HuggingFaceDrafter:
                 f"input_ids must be 2-D (batch, seq); got shape {tuple(input_ids.shape)}."
             )
         context = input_ids.to(self._device)
+        if self._kv.supports(context):
+            try:
+                next_logits = self._kv.sync(context)
+            except CacheUnavailableError:
+                self._kv.disable()
+            else:
+                return self._sample_cached(next_logits, gamma)
+        return self._sample_uncached(context, gamma)
+
+    def roll_cache_to(self, token_ids: torch.Tensor) -> None:
+        """Crop or extend the cache until it matches ``token_ids``.
+
+        The engine calls this with the accepted prefix after each step,
+        including a bonus token when one was appended. Rejected draft
+        tokens are dropped. A batch other than one is ignored.
+
+        Parameters
+        ----------
+        token_ids : torch.Tensor
+            Accepted token ids. Shape ``(1, seq)`` or ``(batch, seq)``.
+        """
+        token_ids = token_ids.to(self._device)
+        if not self._kv.supports(token_ids):
+            return
+        try:
+            self._kv.sync(token_ids)
+        except CacheUnavailableError:
+            self._kv.disable()
+
+    def _sample_cached(
+        self,
+        next_logits: torch.Tensor,
+        gamma: int,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Sample ``gamma`` tokens, forwarding one new token at a time."""
+        token_steps: list[torch.Tensor] = []
+        logprob_steps: list[torch.Tensor] = []
+        for _ in range(gamma):
+            step_logprobs = scaled_log_softmax(next_logits, self._temperature)
+            next_id = torch.multinomial(step_logprobs.exp(), num_samples=1)
+            token_steps.append(next_id)
+            logprob_steps.append(step_logprobs.unsqueeze(1))
+            next_logits = self._kv.append(next_id)[:, -1, :]
+        return torch.cat(token_steps, dim=1), torch.cat(logprob_steps, dim=1)
+
+    def _sample_uncached(
+        self,
+        context: torch.Tensor,
+        gamma: int,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Sample ``gamma`` tokens, forwarding the growing context each step."""
         token_steps: list[torch.Tensor] = []
         logprob_steps: list[torch.Tensor] = []
         for _ in range(gamma):
@@ -230,6 +283,18 @@ class HuggingFaceDrafter:
         """
         input_ids = input_ids.to(self._device)
         draft_token_ids = draft_token_ids.to(self._device)
+        if self._kv.supports(input_ids):
+            try:
+                first = self._kv.sync(input_ids)
+                step = self._kv.append(draft_token_ids)
+            except CacheUnavailableError:
+                self._kv.disable()
+            else:
+                # ``first`` predicts the first draft token. ``step`` starts
+                # one position later, so its last row is not part of the
+                # gamma draft scores.
+                rows = torch.cat([first.unsqueeze(1), step[:, :-1, :]], dim=1)
+                return scaled_log_softmax(rows, self._temperature)
         gamma = int(draft_token_ids.shape[1])
         full_ids = torch.cat([input_ids, draft_token_ids], dim=1)
         with torch.no_grad():

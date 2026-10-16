@@ -25,6 +25,11 @@ import torch.nn as nn
 
 from flashspec.bandit.ucb import UCB1Selector
 from flashspec.engine.drafter import load_drafters, unregister
+from flashspec.engine.kv_cache import (
+    CacheUnavailableError,
+    KvSession,
+    model_accepts_past_key_values,
+)
 from flashspec.engine.speculative import SpeculativeEngine
 from flashspec.engine.verifier import TargetModel
 from flashspec.utils.config import BanditConfig, FlashSpecConfig, SamplingConfig
@@ -472,13 +477,111 @@ def _coerce(value: str) -> bool | int | float | str | None:
         return token
 
 
+def _uses_hf_generate(model: nn.Module) -> bool:
+    """Return whether ``model`` is a HuggingFace generator with a KV cache."""
+    generate = getattr(model, "generate", None)
+    prepare = getattr(model, "prepare_inputs_for_generation", None)
+    return callable(generate) and callable(prepare)
+
+
+def _hf_generate(
+    model: nn.Module,
+    input_ids: torch.Tensor,
+    max_new_tokens: int,
+    temperature: float,
+) -> torch.Tensor:
+    """Sample with ``model.generate`` and the model's own KV cache.
+
+    Parameters
+    ----------
+    model : nn.Module
+        HuggingFace causal LM.
+    input_ids : torch.Tensor
+        Prompt. Shape ``(batch, seq)``.
+    max_new_tokens : int
+        Number of new tokens. The call does not stop early on EOS.
+    temperature : float
+        Sampling temperature passed through to ``generate``.
+
+    Returns
+    -------
+    torch.Tensor
+        New token ids. Shape ``(batch, max_new_tokens)``.
+
+    Raises
+    ------
+    RuntimeError
+        If ``generate`` does not return ``max_new_tokens`` new tokens.
+    """
+    prompt_len = int(input_ids.shape[1])
+    pad = getattr(getattr(model, "config", None), "pad_token_id", None)
+    kwargs: dict[str, Any] = {
+        "do_sample": True,
+        "temperature": temperature,
+        "max_new_tokens": max_new_tokens,
+        "min_new_tokens": max_new_tokens,
+        "use_cache": True,
+        "eos_token_id": None,
+    }
+    if pad is not None:
+        kwargs["pad_token_id"] = pad
+    with torch.no_grad():
+        output = model.generate(input_ids, **kwargs)
+    new_tokens = output[:, prompt_len:]
+    if int(new_tokens.shape[1]) != max_new_tokens:
+        raise RuntimeError(
+            f"generate returned {int(new_tokens.shape[1])} new tokens, expected {max_new_tokens}."
+        )
+    return new_tokens
+
+
+def _cached_generate(
+    model: nn.Module,
+    input_ids: torch.Tensor,
+    max_new_tokens: int,
+    temperature: float,
+) -> torch.Tensor:
+    """Sample one token at a time from ``past_key_values``.
+
+    Parameters
+    ----------
+    model : nn.Module
+        Module whose forward accepts ``past_key_values``.
+    input_ids : torch.Tensor
+        One prompt. Shape ``(1, seq)``.
+    max_new_tokens : int
+        Number of new tokens.
+    temperature : float
+        Applied to logits before softmax.
+
+    Returns
+    -------
+    torch.Tensor
+        New token ids. Shape ``(1, max_new_tokens)``.
+    """
+    session = KvSession(model)
+    logits = session.sync(input_ids)
+    pieces: list[torch.Tensor] = []
+    for _ in range(max_new_tokens):
+        scaled = logits if temperature == 1.0 else logits / temperature
+        next_id = torch.multinomial(torch.softmax(scaled, dim=-1), num_samples=1)
+        pieces.append(next_id)
+        logits = session.append(next_id)[:, -1, :]
+    return torch.cat(pieces, dim=1)
+
+
 def autoregressive_generate(
     model: nn.Module,
     input_ids: torch.Tensor,
     max_new_tokens: int,
     temperature: float = 1.0,
 ) -> torch.Tensor:
-    """Greedy-free autoregressive loop, one token per forward.
+    """Autoregressive sample used as the plain-decoding baseline.
+
+    A HuggingFace causal LM goes through ``generate(..., use_cache=True)``,
+    which is the cached baseline. Any other batch-1 module that accepts
+    ``past_key_values`` uses that cache directly. Everything else forwards
+    the growing context on every token.
 
     Parameters
     ----------
@@ -498,6 +601,13 @@ def autoregressive_generate(
     """
     if temperature <= 0.0:
         raise ValueError(f"temperature must be > 0; got {temperature}.")
+    if _uses_hf_generate(model):
+        return _hf_generate(model, input_ids, max_new_tokens, temperature)
+    if input_ids.shape[0] == 1 and model_accepts_past_key_values(model):
+        try:
+            return _cached_generate(model, input_ids, max_new_tokens, temperature)
+        except CacheUnavailableError:
+            pass
     context = input_ids
     pieces: list[torch.Tensor] = []
     for _ in range(max_new_tokens):
@@ -854,9 +964,13 @@ def _run_loaded_pair(
             " One drafter is loaded, so the bandit cannot adapt; this row "
             "measures speculative decoding with a fixed drafter."
         )
-    ar_notes = (
-        "Vanilla autoregressive loop on the same target and prompts. " + shared_notes
-    )
+    if _uses_hf_generate(target_module):
+        ar_notes = (
+            "Vanilla autoregressive baseline via HuggingFace generate() "
+            "with the KV cache, on the same target and prompts. " + shared_notes
+        )
+    else:
+        ar_notes = "Vanilla autoregressive loop on the same target and prompts. " + shared_notes
 
     def _time_speculative(prompt: torch.Tensor) -> tuple[float, int, float]:
         if device.type == "cuda":

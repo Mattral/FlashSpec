@@ -169,7 +169,8 @@ class SpeculativeEngine:
         4. Rejection sampling accepts/rejects tokens (Algorithm 1).
         5. Bandit is updated with the acceptance outcome.
         6. Metrics are updated.
-        7. Accepted tokens are appended to the context.
+        7. Accepted tokens are appended to the context. For a batch of one,
+           the drafter and verifier crop their KV caches to that prefix.
 
         Examples
         --------
@@ -287,6 +288,16 @@ class SpeculativeEngine:
                 generated_rows[index].append(piece)
                 contexts[index] = torch.cat([contexts[index], piece], dim=1)
                 progressed = True
+
+            # One sequence can keep a KV cache. Crop both models back to
+            # the tokens actually appended, including a bonus token.
+            # Rejected draft positions are not part of that prefix.
+            if len(idxs) == 1:
+                accepted_prefix = contexts[idxs[0]]
+                for owner in (drafter, self._target):
+                    roll = getattr(owner, "roll_cache_to", None)
+                    if callable(roll):
+                        roll(accepted_prefix)
 
             self._latency_tracker.stop()
             if not progressed:

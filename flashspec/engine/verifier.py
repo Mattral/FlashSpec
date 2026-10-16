@@ -12,6 +12,7 @@ from typing import Any
 import torch
 from transformers import AutoModelForCausalLM  # type: ignore[import-untyped]
 
+from flashspec.engine.kv_cache import CacheUnavailableError, KvSession
 from flashspec.utils.logging import get_logger
 
 __all__ = ["TargetModel"]
@@ -71,23 +72,24 @@ class TargetModel:
                 "Using injected target module",
                 extra={"model": model_name_or_path, "device": str(device)},
             )
-            return
-        logger.debug(
-            "Loading target model",
-            extra={"model": model_name_or_path, "device": str(device), "dtype": str(dtype)},
-        )
-        try:
-            self._model = AutoModelForCausalLM.from_pretrained(
-                model_name_or_path,
-                torch_dtype=dtype,
-                device_map=str(device),
+        else:
+            logger.debug(
+                "Loading target model",
+                extra={"model": model_name_or_path, "device": str(device), "dtype": str(dtype)},
             )
-            self._model.eval()
-        except Exception as exc:
-            raise RuntimeError(
-                f"Failed to load target model '{model_name_or_path}': {exc}"
-            ) from exc
-        logger.debug("Target model loaded", extra={"model": model_name_or_path})
+            try:
+                self._model = AutoModelForCausalLM.from_pretrained(
+                    model_name_or_path,
+                    torch_dtype=dtype,
+                    device_map=str(device),
+                )
+                self._model.eval()
+            except Exception as exc:
+                raise RuntimeError(
+                    f"Failed to load target model '{model_name_or_path}': {exc}"
+                ) from exc
+            logger.debug("Target model loaded", extra={"model": model_name_or_path})
+        self._kv = KvSession(self._model)
 
     def score_draft(
         self,
@@ -99,8 +101,10 @@ class TargetModel:
     ) -> torch.Tensor:
         """Score all gamma draft positions in a single forward pass.
 
-        Concatenates ``draft_token_ids`` to ``input_ids`` and runs one
-        forward pass.  Temperature is applied to the raw logits **before**
+        For a batch of one, the prefix is reused from ``past_key_values``
+        and only the draft tokens are forwarded. Any other batch
+        concatenates ``draft_token_ids`` to ``input_ids`` and runs one
+        full forward. Temperature is applied to the raw logits **before**
         ``log_softmax`` as required by §7 of AGENTS.md.
 
         Parameters
@@ -157,6 +161,18 @@ class TargetModel:
             raise ValueError(f"temperature must be > 0; got {temperature}.")
         input_ids = input_ids.to(self._device)
         draft_token_ids = draft_token_ids.to(self._device)
+        if self._kv.supports(input_ids):
+            try:
+                scored = self._score_cached(
+                    input_ids,
+                    draft_token_ids,
+                    temperature=temperature,
+                    include_bonus=include_bonus,
+                )
+            except CacheUnavailableError:
+                self._kv.disable()
+            else:
+                return scored
 
         # Concatenate context + draft tokens for a single forward pass.
         full_ids = torch.cat([input_ids, draft_token_ids], dim=1)
@@ -179,6 +195,49 @@ class TargetModel:
             draft_logits = draft_logits / temperature
 
         return torch.log_softmax(draft_logits, dim=-1)
+
+    def roll_cache_to(self, token_ids: torch.Tensor) -> None:
+        """Crop or extend the cache until it matches ``token_ids``.
+
+        The engine calls this with the accepted prefix after each step.
+        A bonus token that was emitted is included. Rejected draft tokens
+        are dropped. A batch other than one is ignored.
+
+        Parameters
+        ----------
+        token_ids : torch.Tensor
+            Accepted token ids. Shape ``(1, seq)`` or ``(batch, seq)``.
+        """
+        token_ids = token_ids.to(self._device)
+        if not self._kv.supports(token_ids):
+            return
+        try:
+            self._kv.sync(token_ids)
+        except CacheUnavailableError:
+            self._kv.disable()
+
+    def _score_cached(
+        self,
+        input_ids: torch.Tensor,
+        draft_token_ids: torch.Tensor,
+        temperature: float,
+        include_bonus: bool,
+    ) -> torch.Tensor:
+        """Score a draft from the cached prefix.
+
+        ``sync`` returns the logits that predict the first draft token.
+        Forwarding the draft then returns one row per draft token, and
+        the last of those rows predicts the bonus token.
+        """
+        first = self._kv.sync(input_ids)
+        step = self._kv.append(draft_token_ids)
+        if include_bonus:
+            rows = torch.cat([first.unsqueeze(1), step], dim=1)
+        else:
+            rows = torch.cat([first.unsqueeze(1), step[:, :-1, :]], dim=1)
+        if temperature != 1.0:
+            rows = rows / temperature
+        return torch.log_softmax(rows, dim=-1)
 
     @property
     def device(self) -> torch.device:
