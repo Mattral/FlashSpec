@@ -16,6 +16,13 @@ datacenter-GPU Llama run. Do not tag 0.2.0 before that measurement
 exists.
 
 ### Changed
+- The README and the papers no longer say that most implementations move
+  accept/reject to the CPU. They describe the Triton kernel and the
+  pure-PyTorch reference, and the measured Tesla T4 batch-1 result in
+  which the Triton kernel was slower. The papers also stop saying that CI
+  runs lint, type checking, a coverage gate, or a Kolmogorov-Smirnov test.
+  The lint job is off, so the jobs that depend on it do not run. The suite's
+  distribution check is a chi-squared test.
 - The bandit `update` accepts an optional `reward`. The engine passes
   accepted draft tokens divided by that step's wall time. The raw accept
   count is still recorded. Thompson's Beta posterior stays on that count,

@@ -86,10 +86,9 @@ Speculative decoding accelerates large language model (LLM) inference by
 having a small \emph{draft} model propose $\gamma$ candidate tokens that a
 larger \emph{target} model verifies in a single forward pass, preserving the
 target model's output distribution exactly.
-Existing systems have two practical gaps: the per-token accept/reject
-decision is typically performed on the CPU---introducing a pipeline stall
-proportional to vocabulary size---and the draft model is chosen offline,
-ignoring shifts in prompt distribution across a deployment lifetime.
+This paper studies two design choices: where the per-token accept/reject
+decision runs, and whether the draft model stays fixed for the life of a
+deployment.
 
 We present \flashspec, an open-source adaptive speculative-decoding engine
 that addresses both.
@@ -105,9 +104,10 @@ acceptance rates without human retuning.
 
 We prove that the output distribution of \flashspec{} is identical to
 standard autoregressive sampling from the target model
-(Theorem~\ref{thm:correctness}), and we enforce this guarantee continuously
-in CI via a Kolmogorov--Smirnov test at significance $\alpha{=}0.01$
-over 10{,}000 samples.
+(Theorem~\ref{thm:correctness}).
+The suite checks that claim with a chi-squared test on discrete token ids.
+The GitHub Actions lint job is off, and the jobs that depend on it do not
+run, so that test is not a CI gate in this revision.
 
 Initial measurements on a Tesla~T4 GPU with TinyLlama-1.1B-Chat
 (4-bit NF4 quantization, $\gamma{=}4$) achieve
@@ -151,12 +151,12 @@ Despite widespread adoption~\citep{cai2024medusa,li2024eagle}, two practical
 gaps remain in open-source implementations:
 
 \begin{enumerate}
-  \item \textbf{CPU-side verification.}
-  The per-token acceptance test (Equation~\ref{eq:accept}) is typically
-  implemented in Python/PyTorch on the CPU, requiring a device-to-host
-  synchronization at every decoding step.
-  This creates a pipeline stall proportional to the vocabulary size $V$,
-  which for modern LLMs ranges from 32k to 128k tokens.
+  \item \textbf{Where verification runs.}
+  The per-token acceptance test (Equation~\ref{eq:accept}) is implemented
+  here as a Triton kernel and as a pure-PyTorch reference.
+  A Tesla T4 measurement at batch 1 found the Triton kernel slower than
+  the reference.
+  That timing is a kernel comparison, separate from end-to-end generation.
 
   \item \textbf{Static draft selection.}
   The draft model is chosen once, offline, and held fixed throughout a
@@ -172,8 +172,9 @@ extensively tested open-source library.
 \paragraph{Contributions.}
 \begin{itemize}
   \item A Triton GPU verification kernel with $O(1)$ SRAM usage in
-        vocabulary size, eliminating the CPU synchronization bottleneck
-        (Section~\ref{sec:kernel}).
+        vocabulary size (Section~\ref{sec:kernel}).
+        On the measured Tesla T4 batch-1 case it was slower than the
+        pure-PyTorch reference.
   \item An online UCB1/Thompson bandit for adaptive draft-model selection
         with provable $O(\sqrt{KT\log T})$ regret, requiring no manual
         retuning (Section~\ref{sec:bandit}).
@@ -307,9 +308,11 @@ position $(b, i)$ requires only the two scalars
 $p(x_i^{(b)}\mid \cdot)$ and $q(x_i^{(b)}\mid \cdot)$---that is, the
 log-probabilities at the \emph{selected draft token index}, not the full
 vocabulary distribution.
-Existing implementations nonetheless gather these values on the CPU,
-paying a $\Theta(B\gamma)$ host-device transfer and one global synchronization
-per step.
+A host implementation of that test would transfer $\Theta(B\gamma)$ values
+and synchronize once per step.
+The Triton kernel in this repository keeps the test on device.
+The measured Tesla T4 batch-1 comparison found that kernel slower than
+the pure-PyTorch reference.
 
 \paragraph{Kernel design.}
 \texttt{verify\_tokens} is a Triton~\citep{triton2019} kernel that tiles over
@@ -408,8 +411,9 @@ By the tower property of conditional expectation, the joint distribution over
 all accepted tokens is preserved regardless of the bandit's policy.
 \end{proof}
 
-The guarantee is continuously enforced in the test suite via a
-Kolmogorov--Smirnov test (Section~\ref{sec:testing}).
+The test suite checks the emitted tokens with a chi-squared test on
+discrete ids (Section~\ref{sec:testing}).
+That check is not a CI gate while the lint job is off.
 
 % ── 4. Implementation ────────────────────────────────────────────────────────
 \section{Implementation}
@@ -453,10 +457,9 @@ The test suite comprises four categories:
         assertion. Hypothesis property-based tests cover all functions with
         integer shape parameters (shape invariant, range invariant,
         padding invariant).
-  \item \textbf{Integration tests}: include the \emph{KS hard gate} — a
-        Kolmogorov--Smirnov test at $\alpha=0.01$ over $N=10{,}000$ samples
-        comparing the speculative sampler's output to the target distribution.
-        A failing KS test blocks the CI build with no exceptions.
+  \item \textbf{Integration tests}: a chi-squared test that the emitted
+        tokens follow the target when the draft and target distributions
+        differ.
         ONNX export parity at \texttt{atol}=$10^{-5}$ for batch sizes 1--32.
   \item \textbf{Chaos tests}: adversarial bandit scenarios (0\% acceptance,
         100\% acceptance, sudden arm swap, $K=20$ arms).
@@ -466,10 +469,14 @@ The test suite comprises four categories:
         at canonical shapes.
 \end{itemize}
 
-CI runs on every commit via GitHub Actions
-(lint $\to$ test-cpu $\to$ coverage $\geq 95\%$ $\to$
-onnx-parity $\to$ docs-build), with security scanning via
-\texttt{pip-audit} and Trivy.
+The GitHub Actions workflow lists lint, test-cpu, test-chaos, onnx-parity,
+and docs-build.
+The lint job is disabled, and the other jobs need it, so they do not run.
+The separate coverage job has been removed.
+Pytest still carries a 95 percent coverage gate in its configuration, and
+that gate has not been met.
+\texttt{pip-audit} sits inside the disabled lint job, so it does not run
+either.
 
 \subsection{Installation}
 
@@ -763,9 +770,10 @@ operating on the minimum necessary data---to the verification step.
 \section{Conclusion}
 \label{sec:conclusion}
 
-We presented \flashspec{}, an adaptive speculative-decoding engine that
-addresses the CPU-side verification bottleneck and static draft-selection
-limitation simultaneously.
+We presented \flashspec{}, an adaptive speculative-decoding engine with an
+on-device verification kernel and an online draft selector.
+The measured batch-1 kernel comparison did not show the Triton path to be
+faster, and a single registered drafter does not let the bandit adapt.
 The Triton verification kernel achieves $O(1)$ SRAM usage in vocabulary size
 by reading only the two log-probability scalars relevant to each candidate
 token.
