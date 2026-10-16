@@ -10,7 +10,9 @@ orthogonal innovations over prior work:
 2. **Online bandit draft selection** — UCB1 or Thompson sampling continuously
    adapts which draft model is used, maximising acceptance rate without human tuning.
 3. **Exact output distribution** — Algorithm 1 (Leviathan et al., 2023) with the
-   correct residual distribution, KS-verified on every CI run.
+   correct residual distribution. The check is the chi-squared test in
+   `tests/integration/test_output_distribution.py`. The lint job is off, so
+   the CI jobs that depend on it do not run that test.
 
 ---
 
@@ -38,6 +40,26 @@ sequenceDiagram
     end
     E-->>C: GenerationResult(output_ids, α, tokens_per_second)
 ```
+
+---
+
+## Batching
+
+`SpeculativeEngine.generate` keeps one context tensor per row. When those
+lengths differ, the loop groups the active rows by context length and
+forwards only the largest group. Other lengths run on a later iteration.
+There is one bandit choice per loop.
+
+The drafter and the target roll their KV caches only when the group that
+runs has one row (`len(idxs) == 1` in `flashspec/engine/speculative.py`).
+A larger group full-forwards. A model that cannot continue from
+`past_key_values` disables the cache and stays on the full forward.
+The cache is not a padded multi-row batch.
+
+The returned `output_ids` tensor is rectangular. A row that produced fewer
+than `max_new_tokens` ids is filled with `-1`. Callers drop those
+positions. The fill is not an attention mask. This engine does not pad
+unequal prompts into one batch and does not build a padding mask.
 
 ---
 
@@ -125,15 +147,19 @@ The resulting marginal distribution over accepted tokens is exactly `p`.
 
 ---
 
-## Expected throughput
+## Expected tokens per target forward
 
-With acceptance rate α and speculation length γ:
+With a constant acceptance rate α and speculation length γ, the expected
+number of tokens per target forward is
 
 ```
-E[tokens per target forward pass] = γ · α + 1
+(1 - α^(γ+1)) / (1 - α)
 ```
 
-At α ≈ 0.70, γ = 4: ~3.8 tokens per target forward vs 1 for vanilla AR.
+At α = 0.75 and γ = 4 this is about 3.05. The product γ·α+1 is a different
+approximation and is not this expectation. The figure is the expectation
+under that constant rate. It is not a measured speedup. The committed CPU
+and Tesla T4 pairs are slower than autoregressive decoding.
 
 ---
 
