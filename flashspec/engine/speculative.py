@@ -6,6 +6,7 @@ and metrics trackers into a single generation loop.
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 
 import torch
@@ -60,7 +61,9 @@ class SpeculativeEngine:
     2. Draft model proposes ``gamma`` tokens autoregressively.
     3. Target model scores all ``gamma`` positions in one forward pass.
     4. Sampling algorithm accepts/rejects draft tokens and samples residual.
-    5. Bandit is updated with the acceptance outcome.
+    5. Bandit is updated with accepted tokens per second of step time.
+       The raw accept count is still recorded. The bonus token is not
+       part of that count.
     6. Metrics are updated.
 
     Parameters
@@ -167,10 +170,12 @@ class SpeculativeEngine:
         3. Target model scores all ``gamma`` positions in one forward pass
            with temperature applied before log-softmax (§7).
         4. Rejection sampling accepts/rejects tokens (Algorithm 1).
-        5. Bandit is updated with the acceptance outcome.
-        6. Metrics are updated.
-        7. Accepted tokens are appended to the context. For a batch of one,
+        5. Accepted tokens are appended to the context. For a batch of one,
            the drafter and verifier crop their KV caches to that prefix.
+        6. The bandit records accepted draft tokens per second of the step.
+           The raw accept count is still recorded. The bonus token is not
+           part of that count.
+        7. Metrics are updated.
 
         Examples
         --------
@@ -203,6 +208,7 @@ class SpeculativeEngine:
 
         while any(_row_count(i) < max_tokens for i in range(batch_size)):
             self._latency_tracker.start()
+            step_started = time.perf_counter()
             active = [i for i in range(batch_size) if _row_count(i) < max_tokens]
             groups: dict[int, list[int]] = {}
             for index in active:
@@ -253,14 +259,11 @@ class SpeculativeEngine:
                     typical_p=config_sampling.top_p,
                 )
 
-            # 5. Update bandit with the mean accepted-draft count.
-            # first_rejection is in [0, gamma]; the tracker requires that range.
+            # The raw count stays the acceptance metric. The bonus token
+            # is appended below and is not included. first_rejection is in
+            # [0, gamma]; the tracker requires that range.
             n_accepted = int(first_rejection.float().mean().item())
             n_accepted = min(gamma, max(0, n_accepted))
-            self._bandit.update(arm, accepted=n_accepted)
-
-            # 6. Update metrics.
-            self._acceptance_tracker.record(n_accepted)
 
             progressed = False
             for local, index in enumerate(idxs):
@@ -299,6 +302,10 @@ class SpeculativeEngine:
                     if callable(roll):
                         roll(accepted_prefix)
 
+            elapsed = time.perf_counter() - step_started
+            reward = (n_accepted / elapsed) if elapsed > 0.0 else 0.0
+            self._bandit.update(arm, accepted=n_accepted, reward=reward)
+            self._acceptance_tracker.record(n_accepted)
             self._latency_tracker.stop()
             if not progressed:
                 logger.warning(
