@@ -44,11 +44,20 @@ exists.
 - The disabled CI coverage job. Pytest still fails under 95% coverage
   via `addopts`. The lint job stays off until ruff, ruff format, and
   mypy --strict would pass.
-- The README table of invented Llama-3-8B H100 tok/s for vanilla
-  autoregressive decoding, Medusa, EAGLE, and FlashSpec. No H100
-  comparison exists, and Medusa and EAGLE are not implemented.
+- The README table of unmeasured Llama-3-8B H100 design-target tok/s
+  for vanilla autoregressive decoding, Medusa, EAGLE, and FlashSpec.
+  No H100 comparison exists, and Medusa and EAGLE are not implemented.
+  Those figures were design targets. They were not removed from a
+  result file. The same labelled targets remain in `paper/flashspec.tex`.
 
 ### Added
+- CPU float32 TinyLlama-1.1B-Chat with Felladrin/Llama-160M-Chat-v1,
+  HumanEval/23, 16 new tokens, no warmup, one thread, git `f59b5b4`.
+  FlashSpec 1.7507264092133707 tok/s, vanilla autoregressive decoding
+  4.2977579080394 tok/s, speedup 0.40735807988124606, acceptance
+  0.11363636363636363. The files are
+  `benchmarks/results/tinyllama_cpu_humaneval_flashspec_ucb_f59b5b4.json`
+  and `benchmarks/results/tinyllama_cpu_humaneval_vanilla_ar_f59b5b4.json`.
 - `notebooks/colab_triton_tests.py` runs the Triton GPU parity tests and
   writes a log to download. Those tests are not run in CI.
 - Fixed HumanEval and MT-Bench prompt sets under `benchmarks/prompt_sets/`.
