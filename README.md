@@ -325,23 +325,7 @@ kernel is slower than the PyTorch reference.
 > on this T4 measurement. A faster H100 result has not been measured.
 > Do not treat the H100 roofline in `docs/kernels.md` as a profile.
 
-### Targets — Llama-3-8B-Instruct · H100 SXM5 · γ=4 ⊛
-
-These are **design targets, not measured results**. They will be updated
-with real values from `benchmarks/results/` after H100 runs.
-
-| Method | MT-Bench (tok/s) | HumanEval (tok/s) | Alpaca (tok/s) | α | Speedup |
-|---|---:|---:|---:|---:|---:|
-| Vanilla AR | 61.4 ⊛ | 61.1 ⊛ | 61.2 ⊛ | — | 1.00× |
-| Medusa | 98.7 ⊛ | 95.2 ⊛ | 96.1 ⊛ | 0.61 ⊛ | 1.61× ⊛ |
-| EAGLE | 112.3 ⊛ | 109.8 ⊛ | 110.4 ⊛ | 0.68 ⊛ | 1.83× ⊛ |
-| **FlashSpec UCB1** | **142.3 ⊛** | **138.9 ⊛** | **140.1 ⊛** | **0.73 ⊛** | **2.31× ⊛** |
-
-⊛ = design target, not a measurement. No H100 result has been committed.
-`python benchmarks/compare_baselines.py --config benchmarks/configs/llama3_8b.yaml`
-loads that checkpoint on the machine you have and writes only what that
-machine measured. It does not fill this table. Medusa and EAGLE are not
-implemented, so that command does not produce their rows.
+No H100 comparison exists, and Medusa and EAGLE are not implemented here, so no comparison with them exists.
 
 ---
 
