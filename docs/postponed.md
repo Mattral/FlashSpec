@@ -7,7 +7,10 @@ move without them.
 ## Publishing
 
 - A new Zenodo version after the paper corrections is for the maintainer
-  to publish. This repository change does not publish one.
+  to publish. Creating a GitHub Release would mint one. This repository
+  change does not publish one.
+- PyPI's latest upload is 0.1.4. Uploading 0.1.5 needs the maintainer's
+  PyPI token. This repository change does not upload it.
 
 ## Packaging
 

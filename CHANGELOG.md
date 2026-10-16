@@ -10,10 +10,16 @@ Versioning follows [Semantic Versioning 2.0.0](https://semver.org/).
 
 ## [Unreleased]
 
-Postponed work is listed in [`docs/postponed.md`](docs/postponed.md).
-Those items are not blockers. v0.2.0 stays reserved for a measured
-datacenter-GPU Llama run. Do not tag 0.2.0 before that measurement
-exists.
+Nothing is cut after 0.1.5. Postponed work is listed in
+[`docs/postponed.md`](docs/postponed.md). v0.2.0 stays reserved for a
+measured datacenter-GPU Llama run. Do not tag 0.2.0 before that
+measurement exists.
+
+## [0.1.5] — 2026-10-16 — Honest CPU path, optional ASM, small server
+
+Development status stays Alpha. This version does not claim a production
+deployment or an H100 speedup. It collects the 0.1.5 tree, including the
+notes that were waiting under Unreleased. PyPI's previous upload is 0.1.4.
 
 ### Changed
 - The README quickstart loads `TinyLlama/TinyLlama-1.1B-Chat-v1.0` with
@@ -115,13 +121,6 @@ exists.
   when the installed package does not select the ASM backend.
 - CPU tests for typical acceptance, the Linux AVX2 flag reader, ONNX
   export guards, and the serve command wiring.
-
----
-
-## [0.1.5] — 2026-10-15 — Honest CPU path, optional ASM, small server
-
-Development status stays Alpha. This version does not claim a production
-deployment or an H100 speedup.
 
 ### Added
 - Optional extra `asm`: `flashspec-asm-kernel` on Linux x86-64 only.
