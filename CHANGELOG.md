@@ -16,6 +16,9 @@ datacenter-GPU Llama run. Do not tag 0.2.0 before that measurement
 exists.
 
 ### Changed
+- `docs/kernels.md` titles the H100 section "Roofline analysis, not a
+  profile". The figures stay arithmetic from the NVIDIA H100 whitepaper.
+  No H100 profile was added.
 - `SpeculativeEngine.generate` is documented as serial over context
   length. Each loop forwards only the largest equal-length group. The KV
   cache rolls only when that group has one row. A larger group
