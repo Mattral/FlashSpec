@@ -122,7 +122,7 @@ Cumulative regret at T=10,000 was UCB1 100.2 and Thompson 18.9.
 The numbers in the example below are the shape of a measured file. They
 are not a result from this repository. A measured file sets
 `"status": "measured"`, omits metric keys it did not record, and lists
-those keys under `unmeasured`. Copying the design-target 142.3 tok/s
+those keys under `unmeasured`. Copying the unmeasured design target 142.3 tok/s
 figure into a JSON file is a failure of the validator when the hardware
 string contains H100 and the file is not a real measured run.
 
