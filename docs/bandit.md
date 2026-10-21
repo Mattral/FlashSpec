@@ -82,11 +82,11 @@ runs T=10,000 rounds with K=3 arms and asserts `empirical_regret / theoretical_u
 
 `paper/figures/bandit_regret.jpg` shows cumulative regret for UCB1,
 Thompson, and Oracle over T=10,000 rounds with K=3 arms and true rates
-[0.3, 0.7, 0.5]. Changelog 0.1.4 names
-`notebooks/02_bandit_analysis.ipynb` as the source. That notebook is not
-in this checkout, so the sketch below is illustrative. The recorded
-cumulative regret at T=10,000 is UCB1 100.2 and Thompson 18.9, against a
-theory bound of about 526.
+[0.3, 0.7, 0.5]. The source is `notebooks/02_bandit_analysis.ipynb` cell 3
+(0-based index, execution count 4), which is in this checkout. The sketch
+below is illustrative. The recorded cumulative regret at T=10,000 is
+UCB1 100.2 and Thompson 18.9, against a theory bound of about 526. This
+is a synthetic arm experiment, not language-model throughput.
 
 ```
 Cumulative Regret vs Round (K=3, Δ_best=0.4)

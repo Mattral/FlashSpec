@@ -2,8 +2,10 @@
 
 ## Methodology
 
-All benchmarks follow the **immutable result schema** defined in AGENTS.md §14.
-Once a result JSON is committed, the config that produced it is frozen.
+Committed result JSON follows the schema described in
+`benchmarks/README.md`. `benchmarks/results/baseline.json` is a template,
+not a measurement. Once a result JSON is committed, the config that
+produced it stays as it was committed. `AGENTS.md` is not in this checkout.
 
 ### Hardware the paper configs were written for
 
@@ -22,13 +24,19 @@ no JSON.
 
 ### Warmup
 
-50 warmup steps are discarded before measurement begins.
+The Llama configs under `benchmarks/configs/` set 50 warmup steps. The
+committed CPU HumanEval/23 pair at git `f59b5b4` is recorded in
+`benchmarks/results/README.md` with `n_warmup` 0. That field is not in
+the result JSON itself. Cite the notes for the run you quote.
 
 ### Datasets
 
-- **MT-Bench**: conversational multi-turn benchmark.
-- **HumanEval**: Python code generation.
-- **Alpaca**: instruction-following (subset 500).
+- **MT-Bench**: conversational multi-turn benchmark. No MT-Bench generation
+  result is committed.
+- **HumanEval**: Python code generation. The committed CPU pair uses
+  HumanEval/23.
+- **Alpaca**: named as an instruction-following set. The Alpaca text is
+  not in this tree, and no Alpaca generation result is committed.
 
 ---
 

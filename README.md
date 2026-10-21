@@ -264,8 +264,10 @@ One prompt. The saved output is `notebooks/Colab_Benchmarks_T4.ipynb`
 cell 25 (0-based index, execution count 63) and
 `benchmarks/results/flashspec_ucb_tiny_llama.json`. That cell loads the
 checkpoint and then assigns 44.2 tok/s, acceptance 0.75, and p50 22.1 ms.
-Speedup, p95, p99, GPU memory, and a vanilla baseline are 0.0 in the JSON
-because they were not recorded.
+The maintainer recalls a timing log from an earlier machine. That log is
+not in this repository. The row stays logged. Speedup, p95, p99, GPU
+memory, and a vanilla baseline are 0.0 in the JSON because they were not
+recorded.
 
 | | FlashSpec UCB |
 |---|---:|
@@ -418,6 +420,9 @@ forward is milliseconds, so this kernel does not change end-to-end
 throughput. `benchmarks/results/residual_linux_gha.json` and
 `benchmarks/results/residual_linux_gha_1b0cda3.json` are source builds
 from the flashspec-asm repo, not a timing of the 0.1.2 wheel.
+The PyPI project `flashspec` at version 0.1.2 was yanked by the maintainer.
+Do not install `flashspec==0.1.2`. That yank does not apply to
+`flashspec-asm-kernel`.
 
 ---
 
@@ -426,14 +431,19 @@ from the flashspec-asm repo, not a timing of the 0.1.2 wheel.
 ```bash
 make test           # unit + integration on CPU (no GPU required, ~2 min)
 make test-chaos     # adversarial bandit tests
-make test-gpu       # GPU kernel parity + KS distribution test (requires CUDA)
+make test-gpu       # pytest -m gpu; needs CUDA. This repository has no GPU runner.
 make bench-quick    # sampling-kernel smoke test, no model weights, writes no result file
 make bench-cpu      # residual microbench, synthetic bandit demo, tiny_cpu.yaml
 make bench          # runs every config in benchmarks/configs; skips any checkpoint this machine cannot load
 ```
 
-CI enforces ≥ 95% line coverage. The KS distribution-equivalence test runs
-at N = 10,000 samples, α = 0.01 on every GPU CI run.
+The distribution check in the suite is a chi-squared test
+(`tests/integration/test_output_distribution.py`, N = 30,000, vocabulary 6,
+critical value 15.086 at 5 degrees of freedom and α = 0.01). It is not a
+Kolmogorov–Smirnov test and it is not a CI gate. The lint job is disabled,
+so the jobs that depend on it, including test-cpu, do not run. Pytest is
+still configured to fail under 95% line coverage, and that gate has not
+been met.
 
 ---
 
@@ -445,8 +455,8 @@ benchmarks/         Runners, configs, and results/ for all paper numbers
 tests/              Unit · integration · chaos suites (95%+ coverage target)
 notebooks/          Quickstart · bandit regret analysis · kernel profiling
 docs/               MkDocs site (architecture, kernels, bandit, benchmarks)
-paper/              LaTeX source + bibliography (MLSys/NeurIPS template)
-paper/joss/         JOSS submission (paper.md + paper.bib)
+paper/              Draft Zenodo preprint (article class) and bibliography
+paper/joss/         JOSS-format draft, not under review
 paper/figures/      Vector and raster figures (bandit_regret.jpg generated)
 scripts/            CLI tools (export draft, download models, profile kernels)
 deploy/             Dockerfile · docker-compose.yml · k8s manifests
@@ -461,7 +471,8 @@ social/             X thread and LinkedIn post drafts for project launch
 |---|---|
 | Documentation | [flashspec.readthedocs.io](https://flashspec.readthedocs.io) |
 | Preprint (Zenodo) | [10.5281/zenodo.20766119](https://doi.org/10.5281/zenodo.20766119) |
-| JOSS submission | [`paper/joss/paper.md`](paper/joss/paper.md) |
+| Draft preprint | [`paper/flashspec.tex`](paper/flashspec.tex) |
+| JOSS draft | [`paper/joss/paper.md`](paper/joss/paper.md) |
 | Benchmark guide | [`benchmarks/README.md`](benchmarks/README.md) |
 | Changelog | [`CHANGELOG.md`](CHANGELOG.md) |
 | Contributing | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
@@ -485,7 +496,7 @@ social/             X thread and LinkedIn post drafts for project launch
 }
 ```
 
-**Preprint DOI**: [10.5281/zenodo.20766119](https://doi.org/10.5281/zenodo.20766119) (June 2026)
+**Preprint DOI**: [10.5281/zenodo.20766119](https://doi.org/10.5281/zenodo.20766119) (June 2026). That record is the citable archive. [`paper/flashspec.tex`](paper/flashspec.tex) is a later draft (October 2026, software 0.1.5) and has not been deposited.
 
 Machine-readable metadata in [`CITATION.cff`](CITATION.cff).
 

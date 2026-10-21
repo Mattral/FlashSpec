@@ -168,5 +168,5 @@ and Tesla T4 pairs are slower than autoregressive decoding.
 1. Leviathan et al. (2023), "Fast Inference from Transformers via Speculative
    Decoding", arXiv:2211.17192 — Algorithm 1, Theorem 1.
 2. Auer et al. (2002), *Machine Learning* 47(2-3) — UCB1 regret bound.
-3. Cai et al. (2024), arXiv:2401.10774 — Medusa (baseline).
-4. Li et al. (2024), arXiv:2401.15077 — EAGLE (baseline).
+3. Cai et al. (2024), arXiv:2401.10774 — Medusa. Not implemented here.
+4. Li et al. (2024), arXiv:2401.15077 — EAGLE. Not implemented here.

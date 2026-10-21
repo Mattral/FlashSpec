@@ -17,17 +17,17 @@ authors:
   - family-names: Myet
     given-names: "Min Htet"
     alias: Mattral
+    orcid: "https://orcid.org/0009-0005-0853-8301"
 abstract: >-
   FlashSpec is an open-source adaptive speculative-decoding inference
-  engine for large language models. It implements GPU-native token
-  verification via a Triton kernel with O(1) SRAM usage in vocabulary
-  size, and frames draft-model selection as a K-armed bandit problem
-  solved online via UCB1 or Thompson sampling with a provable
-  O(sqrt(K T log T)) regret bound. The output distribution is
-  provably identical to standard autoregressive sampling, verified
-  continuously via a Kolmogorov-Smirnov test in CI.
+  engine for large language models. It implements token verification
+  with a Triton kernel and a pure-PyTorch reference, and can select
+  among registered drafters with UCB1 or Thompson sampling. The suite
+  checks the output distribution with a chi-squared test. That test is
+  not a continuous-integration gate in this revision. Committed
+  end-to-end pairs are slower than autoregressive decoding.
 version: 0.1.5
-date-released: "2026-10-15"
+date-released: "2026-10-16"
 license: Apache-2.0
 repository-code: "https://github.com/Mattral/FlashSpec"
 url: "https://flashspec.readthedocs.io"
@@ -49,8 +49,12 @@ preferred-citation:
     - family-names: Myet
       given-names: "Min Htet"
       alias: Mattral
+      orcid: "https://orcid.org/0009-0005-0853-8301"
   year: 2026
   doi: 10.5281/zenodo.20766119
   notes: >-
-    Preprint. DOI: https://doi.org/10.5281/zenodo.20766119
-    JOSS and arXiv submission pending.
+    Zenodo preprint deposited 2026-06-19.
+    DOI: https://doi.org/10.5281/zenodo.20766119
+    paper/flashspec.tex is a later draft (October 2026, software 0.1.5)
+    and has not been deposited. It is not an arXiv submission.
+    The JOSS-format draft is not under review.

@@ -115,7 +115,7 @@ Cumulative regret at T=10,000 was UCB1 100.2 and Thompson 18.9.
 
 ---
 
-## Benchmark result schema (AGENTS.md §14)
+## Benchmark result schema
 
 `benchmarks/results/baseline.json` is a schema template. Its `status` is
 `template` and its `metrics` object is empty. It is not a measurement.
