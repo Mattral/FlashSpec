@@ -12,11 +12,7 @@ tags:
 authors:
   - name: Min Htet Myet
     orcid: 0009-0005-0853-8301
-    affiliation: 1
-affiliations:
-  - name: Independent Researcher
-    index: 1
-date: 2026-06-16
+date: 2026-10-16
 bibliography: paper.bib
 ---
 
@@ -78,9 +74,9 @@ drafter selection and provides a formal regret guarantee
 best-performing drafter for a given workload. Researchers studying
 speculative decoding, practitioners deploying LLM inference services, and
 students learning GPU kernel programming with Triton may find `FlashSpec`
-useful both as a working system and as a reference implementation with an
-unusually extensive test and documentation suite for a project of its
-scope.
+useful as a readable implementation of those two choices. The project
+status is alpha. The committed generation pairs are slower than
+autoregressive decoding, and the 95% coverage gate has not been met.
 
 # Implementation and correctness
 
@@ -103,15 +99,20 @@ checkpointing, windowed statistics for tracking non-stationary acceptance
 rates, and thread-safe updates. New draft models can be registered via a
 Python entry-point mechanism without modifying library internals.
 
-An initial measurement using TinyLlama-1.1B-Chat (4-bit NF4 quantization)
-on a Tesla T4 GPU achieved 44.2 tokens/second with a mean token acceptance
-rate of α = 0.75 and a median step latency of 22.1 ms, using speculation
-length γ = 4. The UCB1 bandit selector was empirically verified to satisfy
-the O(√(KT log T)) regret bound over T = 10,000 rounds with K = 3 arms,
-achieving cumulative regret of 100.2 against a theoretical upper bound of
-approximately 526. Full benchmarks on larger models (Llama-3-8B-Instruct,
-Llama-3-70B-Instruct) are in progress; all benchmark code and committed
-results are available in the repository under `benchmarks/results/`.
+Committed end-to-end pairs are slower than autoregressive decoding on the
+same prompts. A CPU float32 HumanEval/23 run measured 1.75 tok/s against
+4.30 tok/s (acceptance 0.114, speedup 0.407). A Colab Tesla T4 float16
+run of eight synthetic samples measured 17.6 tok/s against 29.0 tok/s
+(speedup 0.606). A historical NF4 log records 44.2 tok/s, acceptance
+0.75, and p50 latency 22.1 ms. The notebook cell assigns those three
+fields after the checkpoint load, and the maintainer recalls a timing log
+from an earlier machine that is not in this repository. That log has no
+autoregressive baseline. A synthetic three-arm simulation reports UCB1
+regret 100.2 over T = 10,000 rounds, inside a bound near 526. That
+simulation is not language-model throughput. Medusa and EAGLE are not
+implemented, and no H100 generation result is committed. The longer
+research draft is `paper/flashspec.tex`. It is not deposited and it is
+not under review.
 
 # Acknowledgements
 

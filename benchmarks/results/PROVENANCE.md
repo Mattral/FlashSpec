@@ -40,10 +40,10 @@ The files keep full precision.
 
 | Figure | Evidence |
 |---|---|
-| NF4 TinyLlama on Tesla T4: 44.2 tok/s, acceptance 0.75, p50 22.1 ms | `notebooks/Colab_Benchmarks_T4.ipynb` cell 25 (0-based index, execution count 63) and `benchmarks/results/flashspec_ucb_tiny_llama.json`. The saved output shows the checkpoint load, then the three fields. The cell source assigns those three fields after the load. Speedup, p95, p99, and GPU memory are 0.0 in the JSON. No vanilla autoregressive baseline was recorded. |
+| NF4 TinyLlama on Tesla T4: 44.2 tok/s, acceptance 0.75, p50 22.1 ms | `notebooks/Colab_Benchmarks_T4.ipynb` cell 25 (0-based index, execution count 63) and `benchmarks/results/flashspec_ucb_tiny_llama.json`. The saved output shows the checkpoint load, then the three fields. The cell source assigns those three fields after the load. The maintainer recalls a timing log from an earlier machine. That log is not in this repository. Speedup, p95, p99, and GPU memory are 0.0 in the JSON. No vanilla autoregressive baseline was recorded. |
 
-The 44.2 row stays in the historical section. It is not reclassified
-further unless a timing log turns up outside this tree.
+The 44.2 row stays logged. The recollection does not add a file to this
+tree and does not change the classification.
 
 ## UNVERIFIED
 
@@ -62,7 +62,8 @@ further unless a timing log turns up outside this tree.
 
 ## Asking before a downgrade
 
-A MEASURED or LOGGED row stays until the maintainer says a timing log
-does not exist. The open question on the NF4 row is whether a Colab log
-outside this repository timed 44.2 tok/s, 0.75, and 22.1 ms, rather than
-only the notebook cell that assigns them.
+A MEASURED or LOGGED row stays until the maintainer says the underlying
+log does not exist. For the NF4 row, the maintainer recalls a timing log
+from an earlier machine. That log is not in this repository. The row
+stays LOGGED. The notebook cell still assigns the three fields after the
+checkpoint load.

@@ -8,8 +8,12 @@ move without them.
 
 - 0.1.5 is on PyPI as a wheel and an sdist, and it has a GitHub Release.
   The Zenodo record 10.5281/zenodo.20766119 was still the 2026-06-19
-  version when last checked. Publishing a new Zenodo version stays with
-  the maintainer.
+  version when last checked. The draft for a later deposit is
+  `paper/flashspec.tex` (October 2026, software 0.1.5). Publishing that
+  version stays with the maintainer.
+- The PyPI project `flashspec` at 0.1.2 was yanked by the maintainer.
+  Do not install `flashspec==0.1.2`. There is no `v0.1.2` tag.
+  `flashspec-asm-kernel` 0.1.2 is a different package.
 
 ## Packaging
 

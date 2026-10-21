@@ -1,16 +1,20 @@
 # FlashSpec Notebooks
 
-This checkout ships `01_quickstart.py` and
-`04_gpu_measurement.ipynb`.
+This checkout ships `01_quickstart.py`, `01_quickstart.ipynb`,
+`02_bandit_analysis.ipynb`, `03_kernel_profiling.ipynb`,
+`04_gpu_measurement.ipynb`, and `Colab_Benchmarks_T4.ipynb`.
+`01_quickstart.py` is the CPU toy. The notebooks are the longer walkthroughs.
 
 `04_gpu_measurement.ipynb` is the notebook that was run on a free Colab
 T4. The `n_samples=8` JSON and the bar chart are in
-`benchmarks/results/`. An H100 is not required. A Pascal GPU at
-compute capability 6.1 with 5 GB is refused by the probe cell. The
+`benchmarks/results/`. An H100 is not required. The probe cell refuses a
+GPU that does not meet its compute-capability and memory checks. The
 optional ASM cell installs `flashspec-asm-kernel` >= 0.1.2 and builds
 flashspec-asm from source when that wheel does not select the kernel. A rerun
 still downloads `flashspec_bring_back.zip`. Copy new JSON into
 `benchmarks/results/`. Colab Drive is not this repo.
+The PyPI project `flashspec` at 0.1.2 was yanked. Do not install it.
+`flashspec-asm-kernel` 0.1.2 is a different package.
 
 `notebooks/colab_triton_tests.py` runs the Triton GPU parity tests and
 writes `colab_triton_tests.log`. Download that log. CI does not run

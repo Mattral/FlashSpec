@@ -1,7 +1,9 @@
 # Contributing to FlashSpec
 
-Thank you for contributing.  This document describes everything you need
-to know to open a pull request that will pass CI on the first try.
+Thank you for contributing.  This document describes how to open a pull
+request. A green GitHub check is not evidence that lint or the coverage
+gate passed: the lint job is disabled, and the jobs that depend on it do
+not run.
 
 ---
 
@@ -10,11 +12,17 @@ to know to open a pull request that will pass CI on the first try.
 Before opening a PR, run:
 
 ```bash
-make lint          # ruff + mypy + import-linter — must pass with zero errors
-make test          # unit + integration, CPU — must pass at ≥ 95% coverage
-make test-chaos    # adversarial bandit tests — must pass
-make bench-quick   # toy benchmark smoke-test — must pass
+make lint          # ruff + mypy + import-linter. Not a CI gate while lint is off.
+make test          # unit + integration on CPU. Configured to fail under 95% coverage.
+make test-chaos    # adversarial bandit tests
+make bench-quick   # toy benchmark smoke-test
 ```
+
+`make test` still carries `cov-fail-under=95`. That gate has not been met.
+`mypy --strict` has not been shown to pass on the maintainer checkout.
+One chaos test, `test_adversarial_swap_recovery_within_200_rounds` at
+seed 55, fails deterministically. Do not treat the chaos suite as uniformly
+passing.
 
 ---
 
@@ -58,12 +66,11 @@ docs(kernels): add SRAM usage analysis for verify_kernel
 
 | Branch | Purpose | Rules |
 |--------|---------|-------|
-| `main` | Stable, paper-reproducible | Never force-push. All CI must pass. |
-| `dev` | Integration target | All PRs merge here first. |
-| `feat/<name>` | Feature development | Branch from `dev`, PR back to `dev`. |
-| `fix/<name>` | Bug fixes | Branch from `main` for hotfixes, `dev` otherwise. |
-| `bench/<name>` | Benchmark experiments | Branch from `dev`. Results committed as CSV. |
-| `paper/<section>` | Paper writing | Branch from `main`. Docs only. |
+| `main` | Stable history | Do not force-push. Open a branch and a pull request. |
+| `feat/<name>` | Feature development | Branch from `main`, pull request back to `main`. |
+| `fix/<name>` | Bug fixes | Branch from `main`. |
+| `bench/<name>` | Benchmark experiments | Branch from `main`. Commit a result file only from a run. |
+| `docs/<name>` | Documentation and the draft paper | Branch from `main`. |
 
 ---
 
@@ -72,18 +79,21 @@ docs(kernels): add SRAM usage analysis for verify_kernel
 Every PR must include:
 
 1. **What changed and why** — a clear description in the PR body.
-2. **Invariant or performance contract reference** — cite the relevant §2 or §6 item.
+2. **What the change preserves** — name the sampling, batching, or measurement contract it touches.
 3. **Test evidence** — a pointer to the new or existing test that now passes.
 4. **`CHANGELOG.md` entry** under `[Unreleased]`.
-5. **No coverage regression** — CI enforces ≥ 95% line coverage.
+5. **Coverage** — pytest is configured to fail under 95% line coverage.
+   CI does not enforce that gate while the lint job is off. Do not claim
+   the gate passed.
 
 ---
 
 ## What you may change autonomously (§13.1)
 
-- New Python functions and classes following all rules in `AGENTS.md`.
-- New Triton kernels following the kernel standards in `AGENTS.md §3.2`.
-- New tests following the test standards in `AGENTS.md §5`.
+- New Python functions and classes that follow the style rules in this file.
+- New Triton kernels that keep the numerical contract in `docs/kernels.md`.
+- New tests under `tests/unit/`, `tests/integration/`, or `tests/chaos/`.
+  `AGENTS.md` is not in this checkout.
 - Refactoring that does **not** change the public API.
 - Docstring updates.
 - `CHANGELOG.md` entries.
@@ -105,7 +115,7 @@ Every PR must include:
 
 All style rules are enforced by `make lint` (ruff + mypy + import-linter).
 
-Key rules (full list in `AGENTS.md §3`):
+Key rules:
 
 - NumPy-style docstrings on every public function and class.
 - `logger.debug(...)` instead of `print(...)` in library code.
@@ -160,11 +170,13 @@ Key rules (full list in `AGENTS.md §3`):
 
 Tags follow semver: `v{MAJOR}.{MINOR}.{PATCH}`.
 Every tag must have a corresponding GitHub Release with the relevant
-CHANGELOG section.  The arXiv paper cites the GitHub tag matching the
-submitted version.
+CHANGELOG section. Releases exist for v0.1.0, v0.1.1, v0.1.3, v0.1.4,
+and v0.1.5. There is no v0.1.2 tag: the `flashspec` package at 0.1.2 was
+yanked, and `flashspec==0.1.2` is not an install target.
+`paper/flashspec.tex` is a draft preprint. It is not on arXiv.
 
 ---
 
 ## Getting help
 
-Open a GitHub Discussion or email `mattral@example.com`.
+Open a GitHub issue on `Mattral/FlashSpec`.

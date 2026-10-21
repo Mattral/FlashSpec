@@ -14,6 +14,27 @@ Postponed work is listed in [`docs/postponed.md`](docs/postponed.md).
 v0.2.0 stays reserved for a measured datacenter-GPU Llama run. Do not
 tag 0.2.0 before that measurement exists.
 
+### Changed
+- `paper/flashspec.tex` is a draft preprint for a later Zenodo version
+  (October 2026, software 0.1.5, ORCID 0009-0005-0853-8301, no
+  affiliation). The citable record remains
+  10.5281/zenodo.20766119 (June 2026) until the maintainer deposits the
+  draft. The draft is not an arXiv submission, and the JOSS-format text
+  is not under review.
+- The README, `docs/`, and the draft paper no longer say that CI enforces
+  a 95% coverage gate or a Kolmogorov–Smirnov test at N = 10,000. The
+  distribution check is the chi-squared test in
+  `tests/integration/test_output_distribution.py`. The lint job is off,
+  so that test is not a CI gate. Pytest is still configured to fail under
+  95% coverage, and that gate has not been met.
+- The PyPI project `flashspec` at 0.1.2 was yanked by the maintainer.
+  Do not install `flashspec==0.1.2`. There is no `v0.1.2` tag.
+  `flashspec-asm-kernel` 0.1.2 is a different package and remains the
+  optional Linux wheel.
+- The NF4 row (44.2 tok/s, acceptance 0.75, p50 22.1 ms) stays logged.
+  The maintainer recalls a timing log from an earlier machine. That log
+  is not in this repository.
+
 ### Added
 - 0.1.5 is on PyPI as `flashspec-0.1.5-py3-none-any.whl` and
   `flashspec-0.1.5.tar.gz`. The git tag `v0.1.5` points at the changelog
@@ -243,8 +264,8 @@ files under `benchmarks/results/`.
   `03_kernel_profiling.ipynb`.
 - Triton kernel profiling on Tesla T4 committed (notebook 03). Reference
   kernel: 0.07–0.72ms. Triton kernel: faster at batch=8 (1.6×), slower at
-  batch=1 (0.2×) on T4 due to HBM bandwidth constraints — expected;
-  H100 profiling pending.
+  batch=1 (0.2×) on T4 due to HBM bandwidth constraints — expected.
+  No H100 profile has been committed.
 - README updated: all real T4 measurements separated from H100 design targets;
   ⊛ symbol marks every unverified number.
 

@@ -1,4 +1,4 @@
-# This file exists to satisfy the repository layout in AGENTS.md §1.
+# MkDocs reads the configuration from the repository root mkdocs.yml.
 # MkDocs reads the configuration from the repo root mkdocs.yml.
 # The authoritative configuration is at: ../mkdocs.yml
 #
