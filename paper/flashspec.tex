@@ -2,7 +2,10 @@
 % FlashSpec: Adaptive Speculative Decoding with Online Bandit Draft Selection
 %            and Triton-Optimised Verification
 %
-% Preprint — submitted to arXiv (cs.LG + cs.DC), Zenodo, and Preprint.org
+% Draft preprint for a new Zenodo version. October 2026. Software 0.1.5.
+% Not peer reviewed. Not an arXiv submission.
+% The published record remains 10.5281/zenodo.20766119 (2026-06-19)
+% until the maintainer deposits this draft.
 %
 % Compile:
 %   pdflatex flashspec.tex
@@ -65,14 +68,14 @@
 }
 
 \author{%
-  Min Htet Myet (Mattral)\\[4pt]
-  Independent Researcher\\
-  \texttt{https://github.com/Mattral/FlashSpec}
+  Min Htet Myet\\[4pt]
+  \href{https://orcid.org/0009-0005-0853-8301}{ORCID 0009-0005-0853-8301}\\[4pt]
+  \href{https://github.com/Mattral/FlashSpec}{github.com/Mattral/FlashSpec}
 }
 
-\date{June 2026\quad|\quad
-  arXiv preprint\quad|\quad
-  \href{https://github.com/Mattral/FlashSpec}{github.com/Mattral/FlashSpec}
+\date{October 2026\\[4pt]
+  Draft preprint for a new Zenodo version\\
+  Software 0.1.5. Not peer reviewed.
 }
 
 % =============================================================================
@@ -82,46 +85,43 @@
 
 % ── Abstract ─────────────────────────────────────────────────────────────────
 \begin{abstract}
-Speculative decoding accelerates large language model (LLM) inference by
-having a small \emph{draft} model propose $\gamma$ candidate tokens that a
-larger \emph{target} model verifies in a single forward pass, preserving the
-target model's output distribution exactly.
-This paper studies two design choices: where the per-token accept/reject
-decision runs, and whether the draft model stays fixed for the life of a
-deployment.
+Speculative decoding lets a small draft model propose $\gamma$ tokens that a
+larger target model verifies in one forward pass.
+Under the Leviathan et al.\ acceptance rule, the tokens that are kept follow
+the target distribution.
+\flashspec{} is an open-source engine for that rule.
+It provides a Triton verification kernel, a pure-PyTorch reference, and an
+optional UCB1 or Thompson selector over drafters that have been registered.
+This text is a draft preprint for a later Zenodo version of software 0.1.5.
+It is not peer reviewed and it is not an arXiv submission.
+The citable archive remains the June 2026 record
+\href{https://doi.org/10.5281/zenodo.20766119}{10.5281/zenodo.20766119}
+until the maintainer deposits this draft.
 
-We present \flashspec, an open-source adaptive speculative-decoding engine
-that addresses both.
-Our first contribution is a Triton GPU kernel that performs the
-accept/reject test entirely on-device, reading only two log-probability
-scalars per candidate token.
-The kernel's SRAM footprint is $O(1)$ in vocabulary size, independent of
-whether the model has 32k or 128k tokens.
-Our second contribution frames draft-model selection as a $K$-armed bandit
-problem and solves it online with UCB1~\citep{auer2002finite} or Thompson
-sampling~\citep{thompson1933,chapelle2011thompson}, adapting to non-stationary
-acceptance rates without human retuning.
+The committed end-to-end pairs are slower than autoregressive decoding.
+On CPU in float32, TinyLlama-1.1B-Chat with one 160M drafter, HumanEval/23,
+16 new tokens, and no warmup measured 1.75 tok/s against 4.30 tok/s
+(acceptance 0.114, speedup 0.407).
+On a Colab Tesla T4 in float16, eight synthetic samples measured 17.6 tok/s
+against 29.0 tok/s (speedup 0.606).
+A historical NF4 log on a Tesla T4 records 44.2 tok/s, acceptance 0.75, and
+a p50 step latency of 22.1 ms.
+The notebook cell assigns those three fields after the checkpoint load.
+The maintainer recalls a timing log from an earlier machine that is not in
+this repository.
+That log has no autoregressive baseline, so it is not a measured speedup.
+A synthetic three-arm simulation reports UCB1 regret 100.2 and Thompson
+regret 18.9 over $T{=}10{,}000$ rounds, inside a theory bound near 526.
+That simulation is not language-model throughput.
 
-We prove that the output distribution of \flashspec{} is identical to
-standard autoregressive sampling from the target model
-(Theorem~\ref{thm:correctness}).
-The suite checks that claim with a chi-squared test on discrete token ids.
-The GitHub Actions lint job is off, and the jobs that depend on it do not
-run, so that test is not a CI gate in this revision.
-
-Initial measurements on a Tesla~T4 GPU with TinyLlama-1.1B-Chat
-(4-bit NF4 quantization, $\gamma{=}4$) achieve
-\textbf{44.2~tok/s} at a mean acceptance rate $\bar{\alpha} = 0.75$
-and p50 step latency of 22.1~ms.
-The UCB1 bandit achieves empirical cumulative regret of 100.2 over
-$T{=}10{,}000$ rounds ($K{=}3$ arms), well within the $O(\sqrt{KT\log T})$
-theoretical upper bound of ${\approx}526$.
-Full benchmarks on Llama-3-8B/70B and comparison with
-Medusa~\citep{cai2024medusa} and EAGLE~\citep{li2024eagle} on H100 SXM5
-are in progress; all benchmark code and committed results are available
-in the repository.
-
-\flashspec{} is released under Apache~2.0 at
+Theorem~\ref{thm:correctness} states distribution equivalence for the
+acceptance process used here.
+The suite checks emitted token ids with a chi-squared test.
+The GitHub Actions lint job is off, so the jobs that depend on it do not
+run, and that test is not a continuous-integration gate.
+Medusa and EAGLE are not implemented.
+No H100 generation result is committed.
+The code is released under Apache~2.0 at
 \url{https://github.com/Mattral/FlashSpec}.
 \end{abstract}
 
@@ -166,8 +166,11 @@ gaps remain in open-source implementations:
   source code or long-context summarization, leaving throughput on the table.
 \end{enumerate}
 
-\flashspec{} addresses both gaps within a single, provably correct, and
-extensively tested open-source library.
+\flashspec{} puts both choices in one open-source library.
+Theorem~\ref{thm:correctness} states distribution equivalence for the
+acceptance process.
+The implementation check is the chi-squared test in Section~\ref{sec:testing},
+and it is not a continuous-integration gate in this revision.
 
 \paragraph{Contributions.}
 \begin{itemize}
@@ -181,10 +184,12 @@ extensively tested open-source library.
   \item A formal proof of output distribution equivalence to the target
         model for both the rejection sampling and typical-acceptance variants
         (Section~\ref{sec:correctness}).
-  \item An open-source implementation with a full test suite,
-        including a KS-based distribution-equivalence test (CI hard gate),
-        property-based tests via Hypothesis, Triton kernel parity tests
-        (float32 and bfloat16), and adversarial bandit chaos tests.
+  \item An open-source implementation with unit tests, a chi-squared
+        distribution check (not a CI gate in this revision), property-based
+        tests via Hypothesis, Triton kernel parity tests (float32 and
+        bfloat16), and adversarial bandit tests.
+        One adversarial swap test fails deterministically at seed 55, so
+        the chaos category is not uniformly passing.
 \end{itemize}
 
 % ── 2. Background ────────────────────────────────────────────────────────────
@@ -463,6 +468,9 @@ The test suite comprises four categories:
         ONNX export parity at \texttt{atol}=$10^{-5}$ for batch sizes 1--32.
   \item \textbf{Chaos tests}: adversarial bandit scenarios (0\% acceptance,
         100\% acceptance, sudden arm swap, $K=20$ arms).
+        \texttt{test\_adversarial\_swap\_recovery\_within\_200\_rounds}
+        fails deterministically at seed 55.
+        This draft does not treat that failure as a passing result.
   \item \textbf{GPU tests} (\texttt{@pytest.mark.gpu}):
         Triton kernel parity against the PyTorch reference in float32
         (\texttt{atol}=$10^{-5}$) and bfloat16 (\texttt{atol}=$10^{-3}$)
@@ -498,8 +506,58 @@ All experiments below are labelled by hardware and model.
 We distinguish committed results from unmeasured design targets.
 The classification is \texttt{benchmarks/results/PROVENANCE.md}.
 No unmeasured design target is cited as a measured result.
+Prose uses three significant figures.
+Full precision is in the JSON files named below and in
+\texttt{benchmarks/results/PROVENANCE.md}.
 
-\subsection{Inference Throughput: TinyLlama-1.1B-Chat on Tesla T4}
+\subsection{Measured end-to-end pairs}
+\label{sec:measured}
+
+Two committed pairs compare \flashspec{} with autoregressive decoding on
+the same prompts.
+Both pairs are slower than the autoregressive baseline.
+Each used one drafter, so the bandit could not switch models.
+
+\begin{table}[t]
+\centering
+\caption{%
+  Committed end-to-end pairs.
+  CPU: TinyLlama-1.1B-Chat and Felladrin/Llama-160M-Chat-v1, float32,
+  HumanEval/23, $\gamma=4$, 16 new tokens, \texttt{n\_warmup}$=0$,
+  one sample, git \texttt{f59b5b4}.
+  T4: TinyLlama-1.1B-Chat, float16, eight synthetic samples, git
+  \texttt{cb02ca1}.
+  Figures are rounded to three significant figures.
+}
+\label{tab:measured}
+\begin{tabular}{lrr}
+  \toprule
+  & CPU float32 & T4 float16 \\
+  \midrule
+  FlashSpec (tok/s) & 1.75 & 17.6 \\
+  Autoregressive (tok/s) & 4.30 & 29.0 \\
+  Speedup & 0.407 & 0.606 \\
+  Acceptance & 0.114 & 0.208 \\
+  \bottomrule
+\end{tabular}
+\end{table}
+
+The CPU pair is
+\texttt{benchmarks/results/tinyllama\_cpu\_humaneval\_flashspec\_ucb\_f59b5b4.json}
+and
+\texttt{benchmarks/results/tinyllama\_cpu\_humaneval\_vanilla\_ar\_f59b5b4.json}.
+Wall time was 9.14~s for FlashSpec and 3.72~s for autoregressive decoding.
+The T4 pair is
+\texttt{benchmarks/results/tinyllama\_gpu\_flashspec\_ucb\_cb02ca1.json}
+and
+\texttt{benchmarks/results/tinyllama\_gpu\_vanilla\_ar\_cb02ca1.json},
+with the chart \texttt{benchmarks/results/tinyllama\_throughput.png}.
+FlashSpec throughput on that pair is $17.6 \pm 1.43$ tok/s and the
+autoregressive figure is $29.0 \pm 0.757$ tok/s.
+Reported GPU memory is 2.38~GB.
+These pairs are the measured generation results in this draft.
+
+\subsection{Historical logged NF4 prompt}
 \label{sec:t4bench}
 
 \begin{table}[t]
@@ -510,6 +568,9 @@ No unmeasured design target is cited as a measured result.
   Recorded in \texttt{notebooks/Colab\_Benchmarks\_T4.ipynb} cell 25
   (0-based) and \texttt{benchmarks/results/flashspec\_ucb\_tiny\_llama.json}.
   That cell loads the checkpoint and then assigns these three fields.
+  The maintainer recalls a timing log from an earlier machine.
+  That log is not in this repository.
+  The row stays logged.
   Vanilla AR baseline and speedup are 0.0 in the JSON because they were
   not recorded.
 }
@@ -525,7 +586,7 @@ No unmeasured design target is cited as a measured result.
   Quantization                 & NF4 (4-bit, bitsandbytes) \\
   FlashSpec version            & 0.1.3 \\
   \midrule
-  Speedup vs.\ vanilla AR      & \emph{pending} \\
+  Speedup vs.\ vanilla AR      & 0.0 (not recorded) \\
   \bottomrule
 \end{tabular}
 \end{table}
@@ -560,20 +621,23 @@ not a measured speedup.
 \end{tabular}
 \end{table}
 
-Table~\ref{tab:kernel} shows that on T4 the Triton kernel is faster only at
-$B=8$ (1.6$\times$) and slower at $B=1$.
-This is expected: the Tesla~T4 provides 320~GB/s of HBM bandwidth, while the
-H100~SXM5 (the target hardware) provides 3.35~TB/s---a 10$\times$ advantage.
-The verification kernel is memory-bandwidth-bound; its benefit materialises
-most strongly on high-bandwidth hardware where the $O(1)$-in-$V$ memory
-footprint yields a proportionally larger reduction in transfer time.
-
-The roofline lower bound for the kernel at shape $(1, 4, 32\mathrm{k})$ on H100
-is $\approx 0.01$~ms (based on 3.35~TB/s bandwidth and approximately 32 bytes
-accessed per position); at $1.0$~ms the T4 result places the kernel
-$100\times$ above the H100 roofline, consistent with T4 bandwidth limitations
-rather than kernel design deficiency.
-H100 profiling is the subject of the next experimental campaign.
+Table~\ref{tab:kernel} is the measured Tesla~T4 comparison in
+\texttt{notebooks/03\_kernel\_profiling.ipynb} cell 3.
+The Triton kernel is faster only at $B=8$ ($1.6\times$) and slower at
+$B=1$: 0.785~ms against a 0.151~ms reference at $\gamma=4$ and
+$V=32\mathrm{k}$.
+\texttt{docs/kernels.md} separates that measurement from a section titled
+``Roofline analysis, not a profile.''
+The arithmetic there uses the NVIDIA H100 whitepaper figures of
+989~TFLOP/s in bfloat16 and 3.35~TB/s of HBM.
+A gather-limited estimate at $B=32$, $\gamma=4$ is about 6~$\mu$s, and
+skipping a vocabulary sweep is about $14\times$ fewer bytes.
+Those figures are not a profile of a run in this repository, and this
+draft does not add an H100 measurement.
+An earlier draft compared a 1.0~ms T4 time with an H100 bound near
+0.01~ms.
+The recorded batch-1 Triton time is 0.785~ms, so that comparison is not
+used here.
 
 \subsection{Bandit Regret: Empirical Verification}
 \label{sec:banditbench}
@@ -649,10 +713,10 @@ exploitation dominates.
 Table~\ref{tab:gamma} shows acceptance rates across $\gamma \in \{1,2,4,8,16\}$.
 The acceptance rate is non-monotone in $\gamma$: $\gamma=8$ achieves the
 highest rate (0.748) in this setting.
-We note that the throughput values in Table~\ref{tab:gamma} reflect only
-the sampling kernel, not end-to-end inference including target-model forward
-passes; full end-to-end throughput depends on the target model's latency and
-is the subject of the H100 benchmark campaign.
+The throughput column counts only the sampling kernel on random
+log-probabilities (\texttt{benchmarks/results/gamma\_sweep.csv}).
+It is not end-to-end generation and it is not an H100 result.
+End-to-end generation in this draft is Table~\ref{tab:measured}.
 
 \subsection{Unmeasured design targets}
 \label{sec:targets}
@@ -686,21 +750,27 @@ The fix required identifying the correct architectural layer for temperature
 scaling (the verifier's \texttt{score\_draft()}) and removing the parameter
 from the sampling function entirely.
 
-\paragraph{The KS test sample size matters.}
-The distribution-equivalence test was initially running at $N=1{,}000$
-samples; the specification required $N=10{,}000$.
-A KS test at $N=1{,}000$ has substantially lower power to detect subtle
-distribution shifts than one at $N=10{,}000$.
-The discrepancy was invisible at $N=1{,}000$ because no test in the suite
-was failing; the gap was found only by systematic comparison of the code
-against the specification document.
-The test now runs at $N=10{,}000$ and is a hard CI gate.
+\paragraph{The distribution check is a chi-squared test, and it is not a CI gate.}
+An earlier specification called for a Kolmogorov--Smirnov test at
+$N=10{,}000$ as a continuous-integration gate.
+The suite uses a chi-squared test on discrete token ids in
+\texttt{tests/integration/test\_output\_distribution.py}:
+$N=30{,}000$, vocabulary 6, five degrees of freedom, and critical value
+15.086 at $\alpha=0.01$.
+The GitHub Actions lint job is disabled, and the jobs that depend on it
+do not run, so this test is not a CI gate.
+Pytest is still configured to fail under 95 percent line coverage, and
+that gate has not been met.
 
 \paragraph{Platform-specific dependencies break the install silently.}
-The initial releases (v0.1.0--v0.1.2) listed \texttt{triton>=3.0.0} as
+Releases v0.1.0 and v0.1.1 listed \texttt{triton>=3.0.0} as
 an unconditional core dependency.
-Triton publishes official PyPI wheels for Linux only; the package was
-uninstallable on Windows and macOS.
+The \texttt{flashspec} package at 0.1.2 was later yanked and is not an
+install target.
+The optional package \texttt{flashspec-asm-kernel} 0.1.2 is a different
+artifact.
+Triton publishes official PyPI wheels for Linux only, so those
+\texttt{flashspec} releases were uninstallable on Windows and macOS.
 The fix moves Triton to a \texttt{[gpu]} optional extra with a
 \texttt{platform\_system == 'Linux'} environment marker, and wraps the
 Triton imports in a \texttt{try/except ImportError} with a clear
@@ -750,58 +820,76 @@ operating on the minimum necessary data---to the verification step.
 \section{Conclusion}
 \label{sec:conclusion}
 
-We presented \flashspec{}, an adaptive speculative-decoding engine with an
-on-device verification kernel and an online draft selector.
-The measured batch-1 kernel comparison did not show the Triton path to be
-faster, and a single registered drafter does not let the bandit adapt.
-The Triton verification kernel achieves $O(1)$ SRAM usage in vocabulary size
-by reading only the two log-probability scalars relevant to each candidate
-token.
-The online bandit selector satisfies a formal $O(\sqrt{KT\ln T})$ regret
-bound and converges empirically to well within the theoretical limit on the
-first hardware experiment.
+We presented \flashspec{}, an adaptive speculative-decoding engine with a
+verification kernel and an optional online draft selector.
+On the measured Tesla~T4 batch-1 comparison the Triton path was slower
+than the pure-PyTorch reference, and a single registered drafter does not
+let the bandit adapt.
+The committed end-to-end pairs in Table~\ref{tab:measured} are slower than
+autoregressive decoding on the same prompts.
+The historical NF4 log records 44.2~tok/s at $\bar{\alpha}=0.75$ and a p50
+step latency of 22.1~ms, without an autoregressive baseline.
+The UCB1 regret bound is $O(\sqrt{KT\ln T})$.
+The synthetic three-arm run sits inside that bound.
+It is not a hardware generation result.
+Medusa and EAGLE are not implemented, and no H100 generation result is
+committed.
 
-Initial measurements on a Tesla T4 with TinyLlama-1.1B-Chat (NF4, $\gamma=4$)
-achieve 44.2~tok/s at $\bar{\alpha}=0.75$.
-Full benchmarks on Llama-3-8B/70B-Instruct and Mistral-7B, and comparisons
-with Medusa and EAGLE on H100~SXM5, are in progress and will be added to
-the repository upon completion.
-
-\flashspec{} is released under Apache~2.0.
-The software, test suite, documentation, and all committed benchmark results
-are at \url{https://github.com/Mattral/FlashSpec}.
-A JOSS software paper is currently under review.
+\flashspec{} 0.1.5 is released under Apache~2.0.
+The software, tests, documentation, and committed benchmark files are at
+\url{https://github.com/Mattral/FlashSpec}.
+This draft is the source for a later Zenodo version.
+The JOSS-format note in \texttt{paper/joss/} is not under review.
 
 % ── 9. Reproducibility ───────────────────────────────────────────────────────
 \section*{Reproducibility Statement}
 \label{sec:repro}
 
 \begin{itemize}
-  \item \textbf{Software:} PyTorch 2.11.0+cu128, Triton~3.x,
-        bitsandbytes (NF4), Python 3.11.
-        \flashspec{} v0.1.3 (\texttt{pip install flashspec==0.1.3}).
-  \item \textbf{Hardware (T4 results):} Google Colab, Tesla T4 15.6~GiB,
-        CUDA 12.8.
-  \item \textbf{Random seeds:} all seeds set via
-        \texttt{flashspec.utils.device.set\_seed(seed)},
-        which calls \texttt{torch.manual\_seed}, \texttt{numpy.random.seed},
-        and \texttt{random.seed} together.
+  \item \textbf{Software version in this draft:} \flashspec{} 0.1.5.
+        Install the current release with \texttt{pip install flashspec}.
+        Do not install \texttt{flashspec==0.1.2}; that package release was
+        yanked.
+        Each result file records its own Python, PyTorch, and git commit.
+        The CPU pair used Python 3.14.8 and PyTorch 2.14.1+cpu.
+        The float16 T4 pair and the historical NF4 log record their own
+        stacks, including bitsandbytes for the NF4 checkpoint.
+        This draft does not collapse those runs onto one stack.
+  \item \textbf{End-to-end pairs:} the JSON files named in
+        Section~\ref{sec:measured}.
+        The CPU pair is HumanEval/23 at git \texttt{f59b5b4}.
+        The float16 T4 pair is eight synthetic samples at git
+        \texttt{cb02ca1}.
+  \item \textbf{Historical NF4 log:}
+        \texttt{notebooks/Colab\_Benchmarks\_T4.ipynb} cell 25 and
+        \texttt{benchmarks/results/flashspec\_ucb\_tiny\_llama.json}
+        (version field 0.1.3, Tesla T4, CUDA 12.8).
+        The cell assigns 44.2 tok/s, acceptance 0.75, and p50 22.1~ms
+        after the checkpoint load.
+        The maintainer recalls a timing log from an earlier machine.
+        That log is not in this repository.
+  \item \textbf{Random seeds:} result files record the seed they used.
+        \texttt{flashspec.utils.device.set\_seed} sets the PyTorch, NumPy,
+        and Python seeds together when a caller uses it.
   \item \textbf{Bandit experiment:}
-        \texttt{notebooks/02\_bandit\_analysis.ipynb}, 5 seeds,
-        T=10{,}000, K=3.
+        \texttt{notebooks/02\_bandit\_analysis.ipynb} cell 3, synthetic
+        $K{=}3$, $T{=}10{,}000$.
+        This is not language-model throughput.
   \item \textbf{Kernel profiling:}
-        \texttt{notebooks/03\_kernel\_profiling.ipynb}, 10 warmup + 100
-        measurement steps per shape.
+        \texttt{notebooks/03\_kernel\_profiling.ipynb} cell 3, 10 warmup
+        steps and 100 measurement steps per shape, Tesla T4.
   \item \textbf{Gamma sweep:}
-        \texttt{python benchmarks/sweep\_gamma.py}
-        (results in \texttt{benchmarks/results/gamma\_sweep.csv}).
-  \item \textbf{H100 benchmarks:}
-        none are committed.
+        \texttt{benchmarks/results/gamma\_sweep.csv}, sampling kernel on
+        random log-probabilities.
+  \item \textbf{H100 generation:} none is committed.
         A datacenter-GPU Llama run remains future work.
-        Publishing a new Zenodo version after that run is left to the
-        maintainer.
+        v0.2.0 stays reserved for that measurement.
+  \item \textbf{This document:} draft source for a new Zenodo version.
+        The published record is still
+        \href{https://doi.org/10.5281/zenodo.20766119}{10.5281/zenodo.20766119}
+        (19 June 2026) until the maintainer deposits this draft.
   \item \textbf{Smoke test (no GPU or model weights):}
-        \texttt{make bench-quick} ($<2$~min on any machine).
+        \texttt{make bench-quick}.
 \end{itemize}
 
 % ── References ───────────────────────────────────────────────────────────────

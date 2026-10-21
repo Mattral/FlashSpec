@@ -5,8 +5,9 @@ This directory contains `paper.md` and `paper.bib` formatted for the
 
 JOSS review focuses on the **software**, not on novel research claims —
 reviewers check that the software does what it says, has tests, has docs,
-and that the paper accurately describes it. This is a good fit for
-FlashSpec given its test suite and documentation are already complete.
+and that the paper accurately describes it. This directory is a
+pre-submission draft. It has not been submitted, and it is not under
+review.
 
 ---
 
@@ -21,17 +22,22 @@ them):
       `pip install -e ".[dev]"` on a clean machine
 - [ ] **Example usage** runs — `notebooks/01_quickstart.ipynb` executes
       end-to-end without errors
-- [ ] **Automated tests exist and pass** — `make test` ✅ already done
-- [ ] **Community guidelines** — `CONTRIBUTING.md` ✅ already done
-- [ ] **paper.md compiles** — see "Local preview" below
-- [ ] **Version tag exists** — create a GitHub Release (e.g. `v0.1.0`)
-      before or during review; reviewers cite a specific version
-- [ ] **paper.md word count is 250–1000 words** (excluding YAML header,
-      references) — current draft is ~750 words ✅
-- [ ] **ORCID filled in** — `paper.md` has a placeholder
-      `0000-0000-0000-0000`; replace with your real ORCID
-      (register free at https://orcid.org if you don't have one)
-- [ ] **Submission date set** — replace `date: TODO` in `paper.md`
+- [ ] **Automated tests exist and pass** — tests exist. `make test` is
+      configured to fail under 95% coverage, and that gate has not been
+      met. Do not check this box from a skipped CI job.
+- [ ] **Community guidelines** — `CONTRIBUTING.md` is present. It describes
+      the current branch and CI state.
+- [ ] **paper.md compiles** — see "Local preview" below. This checkout has
+      not produced `paper.pdf` in this pass.
+- [ ] **Version tag exists** — GitHub Releases exist for v0.1.0, v0.1.1,
+      v0.1.3, v0.1.4, and v0.1.5. There is no v0.1.2 tag. The `flashspec`
+      package at 0.1.2 was yanked.
+- [ ] **paper.md word count is 250–1000 words** (excluding YAML header and
+      references) — recount before submission. This draft does not claim
+      a checked word count.
+- [x] **ORCID filled in** — `0009-0005-0853-8301`. No affiliation is listed.
+- [x] **Draft date set** — `date: 2026-10-16` is the draft date, not a
+      submission date.
 
 ---
 
@@ -68,25 +74,19 @@ before submitting.
 
 ---
 
-## Relationship to the arXiv preprint
+## Relationship to the Zenodo draft
 
-JOSS and arXiv serve different purposes and are **not mutually
-exclusive**:
+`paper/flashspec.tex` is the draft research preprint for a later Zenodo
+version. It is not an arXiv submission. `AGENTS.md` is not in this
+checkout. The citable archive is still
+[10.5281/zenodo.20766119](https://doi.org/10.5281/zenodo.20766119)
+(June 2026) until the maintainer deposits a new version.
 
-| | JOSS (`paper/joss/`) | arXiv (`paper/flashspec.tex`) |
+| | JOSS draft (`paper/joss/`) | Zenodo draft (`paper/flashspec.tex`) |
 |---|---|---|
-| Focus | The *software* — does it work, is it documented, is it tested | The *research* — the bandit formulation, regret bounds, benchmark results |
-| Length | 250–1000 words | Full paper (8–15 pages) |
-| Review | Open peer review on GitHub, 2–8 weeks | None (preprint) — or full peer review if later submitted to a venue |
-| Output | Citable DOI | arXiv ID, citable but not peer-reviewed |
-| Numbers required | None — describes architecture and test methodology | Full benchmark tables (Section 4 of `flashspec.tex`) |
+| Focus | The software: what it does, how it is tested | The method, the bound, and the committed measurements |
+| Status | Not submitted | Not deposited |
+| Numbers | Must match the committed pairs | Tables cite the JSON and notebook cells |
 
-**Recommended order**: submit to arXiv first (no benchmark blocker beyond
-what's needed for Section 4 — but per AGENTS.md §18, real numbers from
-`benchmarks/results/` are required before that submission). Submit to
-JOSS in parallel or shortly after — JOSS's `paper.md` makes no specific
-performance claims, so it does **not** need to wait for `make bench`.
-
-**FlashSpec is ready for JOSS submission right now**, modulo the three
-placeholders listed in the checklist above (ORCID, date, GitHub Release
-tag).
+Do not describe either draft as under review. Do not install
+`flashspec==0.1.2`.
