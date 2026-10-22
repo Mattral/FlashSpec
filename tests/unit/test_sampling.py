@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import pytest
 import torch
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 from flashspec.sampling.rejection import rejection_sample
 from flashspec.utils.device import set_seed
@@ -192,9 +194,6 @@ class TestRejectionSample:
 
 
 # ── Hypothesis property-based tests (§5.1) ───────────────────────────────────
-
-from hypothesis import given, settings
-from hypothesis import strategies as st
 
 
 @given(

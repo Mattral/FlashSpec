@@ -9,6 +9,8 @@ skipped in the fast CPU CI lane.
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 import torch
 import torch.nn as nn
@@ -45,6 +47,7 @@ MISTRAL_VOCAB_SIZE: int = 32_768
 
 # ── Tiny causal LM ────────────────────────────────────────────────────────────
 
+
 class _TinyCausalLM(nn.Module):
     """Minimal causal LM for testing: embedding → transformer → lm_head."""
 
@@ -52,16 +55,18 @@ class _TinyCausalLM(nn.Module):
         super().__init__()
         self.embed = nn.Embedding(vocab_size, hidden)
         encoder_layer = nn.TransformerEncoderLayer(
-            d_model=hidden, nhead=4, dim_feedforward=hidden * 2,
-            batch_first=True, norm_first=True,
+            d_model=hidden,
+            nhead=4,
+            dim_feedforward=hidden * 2,
+            batch_first=True,
+            norm_first=True,
         )
         self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=n_layers)
         self.lm_head = nn.Linear(hidden, vocab_size, bias=False)
         self.vocab_size = vocab_size
 
-    def forward(self, input_ids: torch.Tensor) -> "SimpleNamespace":  # type: ignore[name-defined]
+    def forward(self, input_ids: torch.Tensor) -> SimpleNamespace:
         """Forward pass returning a namespace with ``logits``."""
-        from types import SimpleNamespace
         x = self.embed(input_ids)
         x = self.transformer(x)
         logits = self.lm_head(x)
@@ -69,6 +74,7 @@ class _TinyCausalLM(nn.Module):
 
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
+
 
 @pytest.fixture(scope="session")
 def toy_vocab_size() -> int:

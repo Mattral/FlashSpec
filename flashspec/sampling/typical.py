@@ -20,7 +20,7 @@ __all__ = ["typical_sample"]
 logger = get_logger(__name__)
 
 # ── Constants ─────────────────────────────────────────────────────────────────
-_TYPICAL_EPSILON: float = 0.001   # Minimum acceptance floor.
+_TYPICAL_EPSILON: float = 0.001  # Minimum acceptance floor.
 _ENTROPY_CLAMP_MIN: float = 1e-9  # Guard for log(0) in entropy computation.
 
 
@@ -31,7 +31,7 @@ def typical_sample(
     gamma: int,
     typical_p: float = 0.9,
 ) -> tuple[torch.Tensor, torch.Tensor, float]:
-    """Typical-acceptance speculative sampling.
+    r"""Apply typical-acceptance speculative sampling.
 
     Accepts a draft token if its (negative) log-probability under the target
     model is within the typical set defined by the target entropy.
@@ -75,8 +75,8 @@ def typical_sample(
 
     .. math::
 
-        \\text{accept}_i = \\left|{-\\log p(x_i)} - H(p)\\right| \\le
-            -\\log(\\text{typical\\_p})
+        \text{accept}_i = \left|{-\log p(x_i)} - H(p)\right| \le
+            -\log(\text{typical\_p})
 
     where :math:`H(p)` is the entropy of the target distribution.
 
@@ -102,21 +102,21 @@ def typical_sample(
     batch_size, _gamma, vocab_size = draft_logprobs.shape
     device = target_logprobs.device
 
-    tlp = target_logprobs.float()    # (B, γ, V)
-    tp = tlp.exp()                   # (B, γ, V)
+    tlp = target_logprobs.float()  # (B, γ, V)
+    tp = tlp.exp()  # (B, γ, V)
 
     # Entropy H(p) over vocab for each (batch, gamma) position.
     log_tp_safe = (tp + _ENTROPY_CLAMP_MIN).log()
-    entropy = -(tp * log_tp_safe).sum(dim=-1)            # (B, γ)
+    entropy = -(tp * log_tp_safe).sum(dim=-1)  # (B, γ)
 
     # Gather target log-prob at draft token.
-    ids = draft_token_ids.to(device).unsqueeze(-1)       # (B, γ, 1)
-    lp_x = tlp.gather(-1, ids).squeeze(-1)               # (B, γ)
+    ids = draft_token_ids.to(device).unsqueeze(-1)  # (B, γ, 1)
+    lp_x = tlp.gather(-1, ids).squeeze(-1)  # (B, γ)
 
     # Typical acceptance: |(-log p(x)) - H(p)| <= -log(typical_p)
     threshold = -torch.log(torch.tensor(typical_p, device=device, dtype=torch.float32))
-    surprisal = -lp_x                                    # (B, γ)
-    accepted_mask = (surprisal - entropy).abs() <= threshold   # (B, γ)
+    surprisal = -lp_x  # (B, γ)
+    accepted_mask = (surprisal - entropy).abs() <= threshold  # (B, γ)
 
     # first_rejection
     rejected = ~accepted_mask

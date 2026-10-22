@@ -359,12 +359,11 @@ class TestVerifyTokensTritonParity:
 
 
 class TestKernelsPackageWithoutTriton:
-    """``flashspec.kernels`` must import successfully even if Triton is
-    absent (e.g. on Windows or macOS, where Triton ships no PyPI wheels).
+    """Import ``flashspec.kernels`` when Triton is absent.
 
-    Simulates the absence of Triton by removing ``triton`` and the kernel
-    submodules from ``sys.modules`` and blocking their import, then
-    re-importing ``flashspec.kernels`` fresh.
+    Triton ships no PyPI wheels for Windows or macOS. These tests remove
+    ``triton`` and the kernel submodules from ``sys.modules``, block the
+    import, and re-import ``flashspec.kernels``.
     """
 
     def test_kernels_package_imports_without_triton(self) -> None:
@@ -375,7 +374,7 @@ class TestKernelsPackageWithoutTriton:
 
         real_import = builtins.__import__
 
-        def fake_import(name, *args, **kwargs):
+        def fake_import(name: str, *args: object, **kwargs: object) -> object:
             if name == "triton" or name.startswith("triton."):
                 raise ModuleNotFoundError(f"No module named '{name}'")
             return real_import(name, *args, **kwargs)
@@ -406,7 +405,7 @@ class TestKernelsPackageWithoutTriton:
 
         real_import = builtins.__import__
 
-        def fake_import(name, *args, **kwargs):
+        def fake_import(name: str, *args: object, **kwargs: object) -> object:
             if name == "triton" or name.startswith("triton."):
                 raise ModuleNotFoundError(f"No module named '{name}'")
             return real_import(name, *args, **kwargs)
@@ -434,7 +433,7 @@ class TestKernelsPackageWithoutTriton:
 
         real_import = builtins.__import__
 
-        def fake_import(name, *args, **kwargs):
+        def fake_import(name: str, *args: object, **kwargs: object) -> object:
             if name == "triton" or name.startswith("triton."):
                 raise ModuleNotFoundError(f"No module named '{name}'")
             return real_import(name, *args, **kwargs)

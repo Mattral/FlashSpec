@@ -1,0 +1,1 @@
+"""FlashSpec test suite."""

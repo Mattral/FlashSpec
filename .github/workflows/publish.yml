@@ -1,0 +1,40 @@
+name: Publish
+
+# Manual publish with PyPI Trusted Publishing.
+# The GitHub environment `pypi` must require a reviewer.
+# This workflow stores no API token and no repository secret.
+# A run publishes only from the main branch. Do not dispatch it from this task.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-pypi
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: publish
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-22.04
+    environment:
+      name: pypi
+      url: https://pypi.org/p/flashspec
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Build the sdist and wheel
+        run: |
+          python -m pip install build
+          python -m build
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist

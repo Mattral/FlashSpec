@@ -49,9 +49,7 @@ def _windows_has_avx2() -> bool:
     import ctypes
 
     try:
-        present = ctypes.windll.kernel32.IsProcessorFeaturePresent(
-            _PF_AVX2_INSTRUCTIONS_AVAILABLE
-        )
+        present = ctypes.windll.kernel32.IsProcessorFeaturePresent(_PF_AVX2_INSTRUCTIONS_AVAILABLE)
     except (AttributeError, OSError):
         return False
     return bool(present)

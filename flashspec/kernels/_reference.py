@@ -28,7 +28,7 @@ def verify_tokens_reference(
     u: torch.Tensor,
     draft_token_ids: torch.Tensor,
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    """Reference parallel token acceptance test (pure PyTorch).
+    r"""Apply the reference token acceptance test in pure PyTorch.
 
     Implements the acceptance criterion from Algorithm 1 of Leviathan et al.
     (2023) in plain PyTorch.  The Triton kernel ``verify_tokens`` in
@@ -73,8 +73,8 @@ def verify_tokens_reference(
 
     .. math::
 
-        \\text{accept}_i = u_i < \\min\\!\\left(1,\\,
-            \\exp\\!\\left(\\log p(x_i) - \\log q(x_i)\\right)\\right)
+        \text{accept}_i = u_i < \min\!\left(1,\,
+            \exp\!\left(\log p(x_i) - \log q(x_i)\right)\right)
 
     Arithmetic is performed in float32 to match Triton kernel precision.
 
@@ -102,13 +102,11 @@ def verify_tokens_reference(
     batch_size, gamma, _vocab_size = draft_logprobs.shape
     if u.shape != (batch_size, gamma):
         raise ValueError(
-            f"u must have shape (batch_size, gamma) = ({batch_size}, {gamma}); "
-            f"got {u.shape}."
+            f"u must have shape (batch_size, gamma) = ({batch_size}, {gamma}); got {u.shape}."
         )
     if draft_token_ids.shape != (batch_size, gamma):
         raise ValueError(
-            f"draft_token_ids must have shape ({batch_size}, {gamma}); "
-            f"got {draft_token_ids.shape}."
+            f"draft_token_ids must have shape ({batch_size}, {gamma}); got {draft_token_ids.shape}."
         )
     if draft_logprobs.device != target_logprobs.device:
         raise RuntimeError(
@@ -124,19 +122,19 @@ def verify_tokens_reference(
     # Gather log-probs for the actual draft tokens.
     # ids: (batch, gamma) → (batch, gamma, 1) → gather → (batch, gamma, 1) → squeeze
     ids = draft_token_ids.to(dlp.device).unsqueeze(-1)  # (B, γ, 1)
-    lp_q = dlp.gather(-1, ids).squeeze(-1)               # (B, γ)
-    lp_p = tlp.gather(-1, ids).squeeze(-1)               # (B, γ)
+    lp_q = dlp.gather(-1, ids).squeeze(-1)  # (B, γ)
+    lp_p = tlp.gather(-1, ids).squeeze(-1)  # (B, γ)
 
     # Acceptance probability: min(1, p/q) = min(1, exp(log p - log q))
-    log_ratio = lp_p - lp_q                              # (B, γ)
-    accept_prob = log_ratio.exp().clamp(max=1.0)         # (B, γ)
-    accepted = u_f32 < accept_prob                       # (B, γ)  bool
+    log_ratio = lp_p - lp_q  # (B, γ)
+    accept_prob = log_ratio.exp().clamp(max=1.0)  # (B, γ)
+    accepted = u_f32 < accept_prob  # (B, γ)  bool
 
     # first_rejection: index of the first False in each row, or gamma if all True.
     # Using argmax on the inverted mask; handle the all-True case explicitly.
-    rejected = ~accepted                                 # (B, γ)
-    has_rejection = rejected.any(dim=-1)                 # (B,)
-    first_rej_raw = rejected.int().argmax(dim=-1)        # (B,)  — 0 when no rejection
+    rejected = ~accepted  # (B, γ)
+    has_rejection = rejected.any(dim=-1)  # (B,)
+    first_rej_raw = rejected.int().argmax(dim=-1)  # (B,)  — 0 when no rejection
     first_rejection = torch.where(
         has_rejection, first_rej_raw, torch.full_like(first_rej_raw, gamma)
     )
@@ -147,7 +145,7 @@ def gather_accepted_reference(
     token_ids: torch.Tensor,
     first_rejection: torch.Tensor,
 ) -> torch.Tensor:
-    """Reference gather of accepted tokens up to the first rejection (pure PyTorch).
+    """Gather accepted tokens up to the first rejection in pure PyTorch.
 
     Parameters
     ----------
@@ -188,9 +186,8 @@ def gather_accepted_reference(
     batch_size, gamma = token_ids.shape
     if first_rejection.shape != (batch_size,):
         raise ValueError(
-            f"first_rejection must have shape ({batch_size},); "
-            f"got {first_rejection.shape}."
+            f"first_rejection must have shape ({batch_size},); got {first_rejection.shape}."
         )
     positions = torch.arange(gamma, device=token_ids.device).unsqueeze(0)  # (1, γ)
-    mask = positions < first_rejection.long().unsqueeze(1)                  # (B, γ)
+    mask = positions < first_rejection.long().unsqueeze(1)  # (B, γ)
     return token_ids.masked_fill(~mask, -1)

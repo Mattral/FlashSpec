@@ -113,8 +113,7 @@ def gather_accepted(
     batch_size, gamma = token_ids.shape
     if first_rejection.shape != (batch_size,):
         raise ValueError(
-            f"first_rejection must have shape ({batch_size},); "
-            f"got {first_rejection.shape}."
+            f"first_rejection must have shape ({batch_size},); got {first_rejection.shape}."
         )
     if token_ids.device != first_rejection.device:
         raise RuntimeError(

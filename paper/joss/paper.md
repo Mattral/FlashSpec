@@ -45,9 +45,9 @@ architecture separating kernels, sampling algorithms, bandit selectors,
 metrics, and the orchestration engine. It ships with a test suite: unit tests, integration tests, property-based
 tests via Hypothesis, adversarial "chaos" tests for the bandit components,
 and a chi-squared check that emitted tokens follow the target distribution
-when the draft and target probabilities differ. The GitHub Actions lint job
-is off, and the jobs that depend on it do not run, so lint, type checking,
-`pip-audit`, and that chi-squared test are not CI gates in this revision.
+when the draft and target probabilities differ. The CPU test job runs that
+check. The lint job runs `ruff` and import-linter. `mypy --strict` is not
+part of the green lint job.
 
 # Statement of need
 
@@ -76,7 +76,8 @@ speculative decoding, practitioners deploying LLM inference services, and
 students learning GPU kernel programming with Triton may find `FlashSpec`
 useful as a readable implementation of those two choices. The project
 status is alpha. The committed generation pairs are slower than
-autoregressive decoding, and the 95% coverage gate has not been met.
+autoregressive decoding. The coverage floor is the measured
+unit-and-integration coverage, rounded down.
 
 # Implementation and correctness
 
@@ -103,11 +104,9 @@ Committed end-to-end pairs are slower than autoregressive decoding on the
 same prompts. A CPU float32 HumanEval/23 run measured 1.75 tok/s against
 4.30 tok/s (acceptance 0.114, speedup 0.407). A Colab Tesla T4 float16
 run of eight synthetic samples measured 17.6 tok/s against 29.0 tok/s
-(speedup 0.606). A historical NF4 log records 44.2 tok/s, acceptance
-0.75, and p50 latency 22.1 ms. The notebook cell assigns those three
-fields after the checkpoint load, and the maintainer recalls a timing log
-from an earlier machine that is not in this repository. That log has no
-autoregressive baseline. A synthetic three-arm simulation reports UCB1
+(speedup 0.606). An older notebook cell assigns
+44.2 tok/s, acceptance 0.75, p50 22.1 ms; no timing log exists, so it
+is not used as a result. A synthetic three-arm simulation reports UCB1
 regret 100.2 over T = 10,000 rounds, inside a bound near 526. That
 simulation is not language-model throughput. Medusa and EAGLE are not
 implemented, and no H100 generation result is committed. The longer

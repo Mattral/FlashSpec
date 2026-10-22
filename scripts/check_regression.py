@@ -23,14 +23,14 @@ from pathlib import Path
 # Value: dict of metric → minimum acceptable value (or maximum for latency).
 # A result file is matched to the first key whose substring appears in model name.
 _SPEEDUP_FLOORS: dict[str, float] = {
-    "Llama-3-8B":  1.8,   # < 1.8× fails
-    "Llama-3-70B": 2.2,   # < 2.2× fails
-    "Mistral-7B":  1.7,   # < 1.7× fails
+    "Llama-3-8B": 1.8,  # < 1.8× fails
+    "Llama-3-70B": 2.2,  # < 2.2× fails
+    "Mistral-7B": 1.7,  # < 1.7× fails
 }
 
 # Kernel and bandit overhead ceilings are stored as separate result methods.
-_KERNEL_LATENCY_CEILING_MS: float = 1.0     # > 1 ms fails (§6)
-_BANDIT_LATENCY_CEILING_US: float = 200.0   # > 200 µs fails (§6)
+_KERNEL_LATENCY_CEILING_MS: float = 1.0  # > 1 ms fails (§6)
+_BANDIT_LATENCY_CEILING_US: float = 200.0  # > 200 µs fails (§6)
 _GPU_MEMORY_OVERHEAD_CEILING: float = 0.25  # > 25% overhead fails (§6)
 
 
@@ -105,9 +105,7 @@ def check_regressions(results_dir: Path) -> bool:
 
     results = _load_results(results_dir)
     if not results:
-        sys.stdout.write(
-            f"No result files found in {results_dir}.  Nothing to check.\n"
-        )
+        sys.stdout.write(f"No result files found in {results_dir}.  Nothing to check.\n")
         return True
 
     regressions: list[str] = []
@@ -151,22 +149,20 @@ def check_regressions(results_dir: Path) -> bool:
                     if overhead > _GPU_MEMORY_OVERHEAD_CEILING:
                         regressions.append(
                             f"[{model} / {method}] GPU memory overhead="
-                            f"{overhead*100:.1f}% > {_GPU_MEMORY_OVERHEAD_CEILING*100:.0f}% (§6)"
+                            f"{overhead * 100:.1f}% > "
+                            f"{_GPU_MEMORY_OVERHEAD_CEILING * 100:.0f}% (§6)"
                         )
             except (json.JSONDecodeError, OSError):
                 pass  # baseline unreadable — skip relative memory check
 
     if regressions:
-        sys.stderr.write(
-            f"REGRESSION FAILURES ({len(regressions)}):\n"
-        )
+        sys.stderr.write(f"REGRESSION FAILURES ({len(regressions)}):\n")
         for msg in regressions:
             sys.stderr.write(f"  ✗ {msg}\n")
         return False
 
     sys.stdout.write(
-        f"No regressions detected against §6 thresholds "
-        f"({len(results)} result file(s) checked).\n"
+        f"No regressions detected against §6 thresholds ({len(results)} result file(s) checked).\n"
     )
     return True
 
@@ -177,16 +173,16 @@ def main() -> None:
         description="FlashSpec performance regression checker (AGENTS.md §6)",
     )
     parser.add_argument(
-        "--results-dir", type=str, default="benchmarks/results",
-        help=f"Directory containing benchmark JSON files (default: benchmarks/results).",
+        "--results-dir",
+        type=str,
+        default="benchmarks/results",
+        help="Directory containing benchmark JSON files (default: benchmarks/results).",
     )
     args = parser.parse_args()
 
     results_dir = Path(args.results_dir)
     if not results_dir.exists():
-        sys.stderr.write(
-            f"ERROR: results dir does not exist: {results_dir}\n"
-        )
+        sys.stderr.write(f"ERROR: results dir does not exist: {results_dir}\n")
         sys.exit(1)
 
     ok = check_regressions(results_dir)

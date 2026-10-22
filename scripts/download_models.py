@@ -78,6 +78,7 @@ def download_model(model_id: str, token: str, dry_run: bool) -> None:
 
     try:
         from huggingface_hub import snapshot_download  # type: ignore[import]
+
         sys.stdout.write(f"  Downloading {model_id} ...\n")
         local_path = snapshot_download(
             repo_id=model_id,
@@ -87,8 +88,7 @@ def download_model(model_id: str, token: str, dry_run: bool) -> None:
         sys.stdout.write(f"  Saved to: {local_path}\n")
     except ImportError:
         sys.stderr.write(
-            "ERROR: huggingface_hub not installed.\n"
-            "Install with: pip install huggingface_hub\n"
+            "ERROR: huggingface_hub not installed.\nInstall with: pip install huggingface_hub\n"
         )
         sys.exit(1)
     except Exception as exc:
@@ -101,11 +101,14 @@ def main() -> None:
         description="Download HuggingFace model checkpoints for FlashSpec benchmarks",
     )
     parser.add_argument(
-        "--dry-run", action="store_true",
+        "--dry-run",
+        action="store_true",
         help="Print which models would be downloaded without actually downloading.",
     )
     parser.add_argument(
-        "--models", nargs="+", default=None,
+        "--models",
+        nargs="+",
+        default=None,
         help="Specific model IDs to download (default: all benchmark models).",
     )
     args = parser.parse_args()

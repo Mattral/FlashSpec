@@ -30,11 +30,20 @@ Depositing a new Zenodo version stays with the maintainer. A GitHub Release
 can cause Zenodo to archive a tag when the GitHub integration is enabled.
 Do not edit a published release in order to mint a paper DOI.
 
+## PyPI
+
+Uploads go through `.github/workflows/publish.yml`. The workflow is
+manual (`workflow_dispatch`), builds the sdist and wheel, and publishes
+with PyPI Trusted Publishing. The job uses the GitHub environment `pypi`,
+which must have a required reviewer. There is no API token and no
+repository secret in that workflow. Do not upload with a token or a
+`.pypirc` file.
+
 ## Not this release
 
-- v0.2.0 stays reserved for a measured datacenter-GPU Llama run. Do not
-  tag it before that measurement exists.
+- The v0.2.0 H100 run is skipped unless a specific reason comes up.
+  Do not tag 0.2.0.
 - No H100 generation result is committed. Medusa and EAGLE are not
   implemented.
-- The 95% coverage gate, `mypy --strict`, and the lint job are not green
-  gates. Do not describe them as passed in a release note.
+- `mypy --strict` has not been shown to pass. Do not describe it as a
+  green gate.

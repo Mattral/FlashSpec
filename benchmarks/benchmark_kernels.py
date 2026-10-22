@@ -19,7 +19,7 @@ import argparse
 import json
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -27,11 +27,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 # ── Benchmark shapes (§13.5: representative of production use) ─────────────
 # Each entry: (label, batch_size, gamma, vocab_size)
 KERNEL_SHAPES: list[tuple[str, int, int, int]] = [
-    ("B=1  γ=4  V=32k",  1,  4, 32_000),
-    ("B=1  γ=8  V=32k",  1,  8, 32_000),
-    ("B=8  γ=4  V=32k",  8,  4, 32_000),
-    ("B=32 γ=4  V=32k", 32,  4, 32_000),
-    ("B=1  γ=4  V=32768", 1,  4, 32_768),  # Mistral vocab
+    ("B=1  γ=4  V=32k", 1, 4, 32_000),
+    ("B=1  γ=8  V=32k", 1, 8, 32_000),
+    ("B=8  γ=4  V=32k", 8, 4, 32_000),
+    ("B=32 γ=4  V=32k", 32, 4, 32_000),
+    ("B=1  γ=4  V=32768", 1, 4, 32_768),  # Mistral vocab
 ]
 
 N_WARMUP: int = 20
@@ -39,13 +39,11 @@ N_STEPS: int = 200
 
 # H100 SXM5 hardware roofline constants.
 # Source: NVIDIA H100 Tensor Core GPU Architecture whitepaper.
-_H100_PEAK_BANDWIDTH_TB_S: float = 3.35   # HBM3 bandwidth (TB/s)
-_H100_PEAK_TFLOPS_BF16: float = 989.0     # TFLOP/s BF16 tensor core
+_H100_PEAK_BANDWIDTH_TB_S: float = 3.35  # HBM3 bandwidth (TB/s)
+_H100_PEAK_TFLOPS_BF16: float = 989.0  # TFLOP/s BF16 tensor core
 
 
-def _bytes_for_verify_kernel(
-    batch_size: int, gamma: int, vocab_size: int
-) -> int:
+def _bytes_for_verify_kernel(batch_size: int, gamma: int, vocab_size: int) -> int:
     """Compute memory bytes accessed by one verify_tokens kernel call.
 
     The kernel reads two scalars per (batch, gamma) position:
@@ -124,6 +122,7 @@ def _time_reference(
         ``(mean_ms, std_ms)`` over ``N_STEPS`` steps after ``N_WARMUP`` warmup.
     """
     import torch
+
     from flashspec.kernels._reference import verify_tokens_reference
     from flashspec.utils.device import set_seed
 
@@ -131,7 +130,7 @@ def _time_reference(
     device = torch.device(device_str)
     dlp = torch.randn(batch_size, gamma, vocab_size).log_softmax(-1).to(device)
     tlp = torch.randn(batch_size, gamma, vocab_size).log_softmax(-1).to(device)
-    u   = torch.rand(batch_size, gamma, device=device)
+    u = torch.rand(batch_size, gamma, device=device)
     ids = torch.randint(0, vocab_size, (batch_size, gamma), device=device)
 
     for _ in range(N_WARMUP):
@@ -149,12 +148,10 @@ def _time_reference(
 
     mean_ms = sum(lats) / len(lats)
     var = sum((x - mean_ms) ** 2 for x in lats) / len(lats)
-    return mean_ms, var ** 0.5
+    return mean_ms, var**0.5
 
 
-def _time_triton(
-    batch_size: int, gamma: int, vocab_size: int
-) -> tuple[float, float]:
+def _time_triton(batch_size: int, gamma: int, vocab_size: int) -> tuple[float, float]:
     """Time the Triton verify_tokens kernel and return (mean_ms, std_ms).
 
     Parameters
@@ -177,6 +174,7 @@ def _time_triton(
         If CUDA is not available.
     """
     import torch
+
     from flashspec.kernels import verify_tokens
     from flashspec.utils.device import set_seed
 
@@ -187,7 +185,7 @@ def _time_triton(
     device = torch.device("cuda:0")
     dlp = torch.randn(batch_size, gamma, vocab_size).log_softmax(-1).to(device)
     tlp = torch.randn(batch_size, gamma, vocab_size).log_softmax(-1).to(device)
-    u   = torch.rand(batch_size, gamma, device=device)
+    u = torch.rand(batch_size, gamma, device=device)
     ids = torch.randint(0, vocab_size, (batch_size, gamma), device=device)
 
     # Warmup triggers autotune.
@@ -205,7 +203,7 @@ def _time_triton(
 
     mean_ms = sum(lats) / len(lats)
     var = sum((x - mean_ms) ** 2 for x in lats) / len(lats)
-    return mean_ms, var ** 0.5
+    return mean_ms, var**0.5
 
 
 def run_roofline_benchmark(
@@ -230,11 +228,7 @@ def run_roofline_benchmark(
     import torch
 
     device_str = "cpu" if toy else ("cuda:0" if torch.cuda.is_available() else "cpu")
-    gpu_name = (
-        torch.cuda.get_device_name(0)
-        if torch.cuda.is_available() and not toy
-        else "CPU"
-    )
+    gpu_name = torch.cuda.get_device_name(0) if torch.cuda.is_available() and not toy else "CPU"
 
     sys.stdout.write(
         f"\nFlashSpec Kernel Roofline Benchmark\n"
@@ -250,9 +244,7 @@ def run_roofline_benchmark(
 
     results: list[dict] = []
     for label, batch_size, gamma, vocab_size in KERNEL_SHAPES:
-        ref_mean, ref_std = _time_reference(
-            batch_size, gamma, vocab_size, device_str
-        )
+        ref_mean, ref_std = _time_reference(batch_size, gamma, vocab_size, device_str)
         bytes_acc = _bytes_for_verify_kernel(batch_size, gamma, vocab_size)
         roofline_ms = _roofline_time_ms(bytes_acc, _H100_PEAK_BANDWIDTH_TB_S)
 
@@ -273,11 +265,9 @@ def run_roofline_benchmark(
         )
 
         row: dict = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "hardware": {"gpu": gpu_name},
-            "shape": {
-                "batch_size": batch_size, "gamma": gamma, "vocab_size": vocab_size
-            },
+            "shape": {"batch_size": batch_size, "gamma": gamma, "vocab_size": vocab_size},
             "label": label,
             "reference_mean_ms": ref_mean,
             "reference_std_ms": ref_std,
@@ -312,11 +302,14 @@ def main() -> None:
         description="FlashSpec kernel roofline benchmark (§13.5)",
     )
     parser.add_argument(
-        "--toy", action="store_true",
+        "--toy",
+        action="store_true",
         help="CPU-only reference timing — no GPU or Triton needed.",
     )
     parser.add_argument(
-        "--output", type=str, default=None,
+        "--output",
+        type=str,
+        default=None,
         help="Directory to write JSON result files (default: print only).",
     )
     args = parser.parse_args()

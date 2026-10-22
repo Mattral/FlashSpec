@@ -11,8 +11,8 @@ orthogonal innovations over prior work:
    adapts which draft model is used, maximising acceptance rate without human tuning.
 3. **Exact output distribution** — Algorithm 1 (Leviathan et al., 2023) with the
    correct residual distribution. The check is the chi-squared test in
-   `tests/integration/test_output_distribution.py`. The lint job is off, so
-   the CI jobs that depend on it do not run that test.
+   `tests/integration/test_output_distribution.py`. The CPU test job runs
+   that check.
 
 ---
 

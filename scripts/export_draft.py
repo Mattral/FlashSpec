@@ -1,4 +1,4 @@
-"""CLI: export a registered draft model to ONNX format.
+r"""Export a registered draft model to ONNX format.
 
 Loads a draft model from the FlashSpec registry (or a local HuggingFace
 checkpoint), exports it to ONNX, and verifies numerical parity against
@@ -6,10 +6,10 @@ the PyTorch baseline.
 
 Usage
 -----
-    python scripts/export_draft.py \\
-        --drafter llama3-1b \\
-        --output draft.onnx \\
-        --gamma 4 \\
+    python scripts/export_draft.py \
+        --drafter llama3-1b \
+        --output draft.onnx \
+        --gamma 4 \
         --batch-size 1
 
     python scripts/export_draft.py --help
@@ -52,12 +52,11 @@ def _verify_parity(
         ``True`` if parity holds for all batch sizes, ``False`` otherwise.
     """
     import torch
+
     try:
         import onnxruntime as ort  # type: ignore[import]
     except ImportError:
-        sys.stderr.write(
-            "onnxruntime not installed. Install with: pip install flashspec[onnx]\n"
-        )
+        sys.stderr.write("onnxruntime not installed. Install with: pip install flashspec[onnx]\n")
         return False
 
     session = ort.InferenceSession(onnx_path)
@@ -74,9 +73,7 @@ def _verify_parity(
 
         max_diff = abs(pt_logits - ort_logits).max()
         status = "PASS" if max_diff < atol else "FAIL"
-        sys.stdout.write(
-            f"  batch_size={batch_size}: max_diff={max_diff:.2e} [{status}]\n"
-        )
+        sys.stdout.write(f"  batch_size={batch_size}: max_diff={max_diff:.2e} [{status}]\n")
         if max_diff >= atol:
             all_ok = False
 
@@ -90,36 +87,50 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
-        "--drafter", type=str, required=True,
+        "--drafter",
+        type=str,
+        required=True,
         help="Drafter registry key (e.g. 'llama3-1b') or HuggingFace model id.",
     )
     parser.add_argument(
-        "--output", type=str, default="draft.onnx",
+        "--output",
+        type=str,
+        default="draft.onnx",
         help="Output ONNX file path (default: draft.onnx).",
     )
     parser.add_argument(
-        "--gamma", type=int, default=4,
+        "--gamma",
+        type=int,
+        default=4,
         help="Speculation length γ used to set input sequence length (default: 4).",
     )
     parser.add_argument(
-        "--batch-size", type=int, default=1,
+        "--batch-size",
+        type=int,
+        default=1,
         help="Example batch size for tracing (default: 1).",
     )
     parser.add_argument(
-        "--vocab-size", type=int, default=32_000,
+        "--vocab-size",
+        type=int,
+        default=32_000,
         help="Vocabulary size of the draft model (default: 32000).",
     )
     parser.add_argument(
-        "--opset", type=int, default=17,
+        "--opset",
+        type=int,
+        default=17,
         help="ONNX opset version (minimum 17, AGENTS.md §2.4; default: 17).",
     )
     parser.add_argument(
-        "--verify", action="store_true",
+        "--verify",
+        action="store_true",
         help="Verify ONNX parity against PyTorch after export (requires onnxruntime).",
     )
     args = parser.parse_args()
 
     import torch
+
     from flashspec.export.onnx import export_draft_to_onnx
 
     sys.stdout.write(f"Exporting drafter '{args.drafter}' to {args.output} ...\n")
@@ -127,6 +138,7 @@ def main() -> None:
     # Attempt to load from registry first; fall back to HuggingFace if not found.
     try:
         from flashspec.engine.drafter import get_drafter
+
         drafter_cls = get_drafter(args.drafter)
         # Registry drafters are expected to accept no constructor args in toy mode.
         drafter_model: torch.nn.Module = drafter_cls()  # type: ignore[call-arg]
@@ -138,6 +150,7 @@ def main() -> None:
         )
         try:
             from transformers import AutoModelForCausalLM  # type: ignore[import]
+
             drafter_model = AutoModelForCausalLM.from_pretrained(
                 args.drafter, torch_dtype=torch.float32
             )

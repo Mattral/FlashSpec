@@ -78,12 +78,8 @@ def _verify_acceptance_kernel(
     logprob_base = batch_offsets * GAMMA * VOCAB_SIZE + gamma_idx * VOCAB_SIZE
 
     # Gather log-probs at the selected token ids
-    lp_q = tl.load(
-        draft_logprobs_ptr + logprob_base + token_ids, mask=mask_b, other=0.0
-    )
-    lp_p = tl.load(
-        target_logprobs_ptr + logprob_base + token_ids, mask=mask_b, other=0.0
-    )
+    lp_q = tl.load(draft_logprobs_ptr + logprob_base + token_ids, mask=mask_b, other=0.0)
+    lp_p = tl.load(target_logprobs_ptr + logprob_base + token_ids, mask=mask_b, other=0.0)
 
     # Load uniform samples
     u = tl.load(u_ptr + flat_idx, mask=mask_b, other=1.0)
@@ -194,9 +190,7 @@ def verify_tokens(
         )
     batch_size, gamma, vocab_size = draft_logprobs.shape
     if u.shape != (batch_size, gamma):
-        raise ValueError(
-            f"u must have shape ({batch_size}, {gamma}); got {u.shape}."
-        )
+        raise ValueError(f"u must have shape ({batch_size}, {gamma}); got {u.shape}.")
     if draft_logprobs.device != target_logprobs.device:
         raise RuntimeError(
             f"All tensors must be on the same device; "
@@ -205,15 +199,10 @@ def verify_tokens(
 
     accepted = torch.empty((batch_size, gamma), dtype=torch.bool, device=draft_logprobs.device)
 
-    block_b: int = 1  # Autotune selects; this default is only for grid calculation.
-    grid = (
-        lambda meta: (  # noqa: E731
-            triton.cdiv(batch_size, meta["BLOCK_B"]),
-            gamma,
-        )
-    )
+    def _grid(meta: dict[str, int]) -> tuple[int, int]:
+        return (triton.cdiv(batch_size, meta["BLOCK_B"]), gamma)
 
-    _verify_acceptance_kernel[grid](
+    _verify_acceptance_kernel[_grid](
         draft_logprobs,
         target_logprobs,
         draft_token_ids,

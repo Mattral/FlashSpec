@@ -73,9 +73,7 @@ class _JsonFormatter(logging.Formatter):
             "timestamp": self.formatTime(record, self.datefmt),
         }
         # Merge any extra fields provided via extra={...} in the log call.
-        reserved = frozenset(logging.LogRecord(
-            "", 0, "", 0, "", (), None
-        ).__dict__.keys())
+        reserved = frozenset(logging.LogRecord("", 0, "", 0, "", (), None).__dict__.keys())
         for key, value in record.__dict__.items():
             if key not in reserved and not key.startswith("_"):
                 payload[key] = value

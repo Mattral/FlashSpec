@@ -71,9 +71,7 @@ class AcceptanceTracker:
         2
         """
         if not (0 <= n_accepted <= self.gamma):
-            raise ValueError(
-                f"n_accepted must be in [0, {self.gamma}]; got {n_accepted}."
-            )
+            raise ValueError(f"n_accepted must be in [0, {self.gamma}]; got {n_accepted}.")
         self._total_accepted += n_accepted
         self._total_possible += self.gamma
         self._step_count += 1

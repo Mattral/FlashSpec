@@ -27,9 +27,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 # ── Profile targets ───────────────────────────────────────────────────────────
 # Each entry: (label, batch_size, gamma, vocab_size).
 PROFILE_SHAPES: list[tuple[str, int, int, int]] = [
-    ("B=1  γ=4  V=32k", 1,  4, 32_000),
-    ("B=8  γ=4  V=32k", 8,  4, 32_000),
-    ("B=1  γ=8  V=32k", 1,  8, 32_000),
+    ("B=1  γ=4  V=32k", 1, 4, 32_000),
+    ("B=8  γ=4  V=32k", 8, 4, 32_000),
+    ("B=1  γ=8  V=32k", 1, 8, 32_000),
     ("B=32 γ=4  V=32k", 32, 4, 32_000),
 ]
 
@@ -37,9 +37,7 @@ N_WARMUP: int = 10
 N_PROFILE: int = 50
 
 
-def _profile_reference(
-    batch_size: int, gamma: int, vocab_size: int, device: str
-) -> float:
+def _profile_reference(batch_size: int, gamma: int, vocab_size: int, device: str) -> float:
     """Profile the pure-PyTorch reference kernel and return mean latency (ms).
 
     Parameters
@@ -59,7 +57,9 @@ def _profile_reference(
         Mean step latency in milliseconds over N_PROFILE steps.
     """
     import time
+
     import torch
+
     from flashspec.kernels._reference import verify_tokens_reference
     from flashspec.utils.device import set_seed
 
@@ -68,7 +68,7 @@ def _profile_reference(
 
     dlp = torch.randn(batch_size, gamma, vocab_size).log_softmax(-1).to(dev)
     tlp = torch.randn(batch_size, gamma, vocab_size).log_softmax(-1).to(dev)
-    u   = torch.rand(batch_size, gamma).to(dev)
+    u = torch.rand(batch_size, gamma).to(dev)
     ids = torch.randint(0, vocab_size, (batch_size, gamma)).to(dev)
 
     # Warm-up.
@@ -91,9 +91,7 @@ def _profile_reference(
     return sum(latencies) / len(latencies)
 
 
-def _profile_triton(
-    batch_size: int, gamma: int, vocab_size: int
-) -> float:
+def _profile_triton(batch_size: int, gamma: int, vocab_size: int) -> float:
     """Profile the Triton verify_tokens kernel and return mean latency (ms).
 
     Parameters
@@ -116,7 +114,9 @@ def _profile_triton(
         If CUDA is not available.
     """
     import time
+
     import torch
+
     from flashspec.kernels import verify_tokens
     from flashspec.utils.device import set_seed
 
@@ -128,7 +128,7 @@ def _profile_triton(
 
     dlp = torch.randn(batch_size, gamma, vocab_size).log_softmax(-1).to(device)
     tlp = torch.randn(batch_size, gamma, vocab_size).log_softmax(-1).to(device)
-    u   = torch.rand(batch_size, gamma, device=device)
+    u = torch.rand(batch_size, gamma, device=device)
     ids = torch.randint(0, vocab_size, (batch_size, gamma), device=device)
 
     # Warm-up (triggers autotune).
@@ -153,11 +153,14 @@ def main() -> None:
         description="FlashSpec kernel profiler (torch.profiler / Nsight Systems)"
     )
     parser.add_argument(
-        "--cpu", action="store_true",
+        "--cpu",
+        action="store_true",
         help="Profile reference implementation on CPU only (no GPU needed).",
     )
     parser.add_argument(
-        "--output", type=str, default="/tmp/flashspec_kernel_trace.json",
+        "--output",
+        type=str,
+        default="/tmp/flashspec_kernel_trace.json",
         help="Path for the torch.profiler Chrome-trace JSON.",
     )
     args = parser.parse_args()
@@ -174,6 +177,7 @@ def main() -> None:
 
     try:
         import torch.profiler as profiler  # noqa: F401
+
         _has_profiler = True
     except ImportError:
         _has_profiler = False
@@ -193,9 +197,7 @@ def main() -> None:
             triton_str = "N/A (CPU)"
             speedup = "N/A"
 
-        sys.stdout.write(
-            f"{label:<24} {ref_ms:>16.3f} {triton_str:>14} {speedup:>10}\n"
-        )
+        sys.stdout.write(f"{label:<24} {ref_ms:>16.3f} {triton_str:>14} {speedup:>10}\n")
 
     sys.stdout.write(sep + "\n")
     sys.stdout.write(

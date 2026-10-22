@@ -93,9 +93,7 @@ class LatencyTracker:
         >>> latency_ms = tracker.stop()
         """
         if self._start_time is None:
-            raise RuntimeError(
-                "LatencyTracker.stop() called without a preceding start()."
-            )
+            raise RuntimeError("LatencyTracker.stop() called without a preceding start().")
         if torch.cuda.is_available():
             torch.cuda.synchronize()
         elapsed_ms = (time.perf_counter() - self._start_time) * 1000.0
