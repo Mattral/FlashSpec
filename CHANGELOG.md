@@ -10,6 +10,15 @@ Versioning follows [Semantic Versioning 2.0.0](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- `test_adversarial_swap_recovery_within_200_rounds` checked the wrong
+  quantity ([issue 27](https://github.com/Mattral/FlashSpec/issues/27)).
+  UCB1 does switch: at seed 55 it picks the new best arm in 197 of the 200
+  rounds after the swap. The old best arm is then pulled only 3 times, so
+  its per-arm window still holds pre-swap rounds (0.81), and comparing
+  windowed means failed. The test now checks the selections (new best arm
+  in at least 45 of the last 50 rounds) and is no longer marked xfail.
+
 Postponed work is listed in [`docs/postponed.md`](docs/postponed.md).
 The v0.2.0 H100 run is skipped unless a specific reason comes up. Do not
 tag 0.2.0.

@@ -21,10 +21,6 @@ make bench-quick   # toy benchmark smoke-test
 
 The coverage floor is the measured unit-and-integration coverage, rounded
 down. `mypy --strict` has not been shown to pass.
-`test_adversarial_swap_recovery_within_200_rounds` is an expected failure
-at seed 55
-([issue 27](https://github.com/Mattral/FlashSpec/issues/27)).
-The mark is strict. Do not treat that failure as a passing result.
 
 ---
 
