@@ -7,7 +7,6 @@ best/worst arm swaps.
 from __future__ import annotations
 
 import numpy as np
-import pytest
 
 from flashspec.bandit.ucb import UCB1Selector
 from flashspec.utils.device import set_seed
@@ -32,10 +31,6 @@ class TestBanditAdversarial:
             selector.update(arm, accepted=1)
         assert selector.t == 200, f"Expected t=200, got {selector.t}"
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="https://github.com/Mattral/FlashSpec/issues/27",
-    )
     def test_adversarial_swap_recovery_within_200_rounds(self) -> None:
         """UCB1 recovers the new optimal arm within 200 rounds after a swap."""
         set_seed(55)
@@ -56,15 +51,24 @@ class TestBanditAdversarial:
 
         # Swap rates.
         true_rates = [0.85, 0.2]
+        picks: list[int] = []
         for _ in range(200):
             arm = selector.select()
+            picks.append(arm)
             accepted = int(rng.random() < true_rates[arm])
             selector.update(arm, accepted)
 
-        # Arm 0 should now have higher windowed acceptance rate.
-        assert selector._arms[0].mean_accept_rate > selector._arms[1].mean_accept_rate, (
-            f"After swap, arm0 rate={selector._arms[0].mean_accept_rate:.2f} should exceed "
-            f"arm1 rate={selector._arms[1].mean_accept_rate:.2f}"
+        # Recovery is a property of the selections, not of the arms' windowed
+        # means: once UCB1 switches, the old best arm is pulled only a few
+        # times, so its per-arm window still holds pre-swap rounds (at seed 55
+        # arm 1 keeps 0.81 from 3 phase-2 pulls). Check what the bandit picks.
+        recent = picks[-50:].count(0)
+        assert recent >= 45, (
+            f"After swap, arm 0 was picked in {recent}/50 of the last rounds; "
+            "expected UCB1 to have switched to the new best arm (>= 45/50)."
+        )
+        assert picks.count(0) > picks.count(1), (
+            f"Phase-2 picks: arm0={picks.count(0)}, arm1={picks.count(1)}"
         )
 
     def test_single_arm_bandit_always_selects_arm_zero(self) -> None:

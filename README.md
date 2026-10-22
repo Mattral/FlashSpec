@@ -427,9 +427,7 @@ The distribution check in the suite is a chi-squared test
 critical value 15.086 at 5 degrees of freedom and α = 0.01). It is not a
 Kolmogorov–Smirnov test. The CPU test job runs it. Pytest fails under 83%
 line coverage, the measured unit-and-integration coverage rounded down.
-`mypy --strict` is not part of the green lint job. One chaos test is an
-expected failure at seed 55
-([issue 27](https://github.com/Mattral/FlashSpec/issues/27)).
+`mypy --strict` is not part of the green lint job.
 
 ---
 
