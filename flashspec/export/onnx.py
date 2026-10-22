@@ -99,6 +99,9 @@ def export_draft_to_onnx(
                 "logits": {0: "batch_size", 1: "sequence_length"},
             },
             do_constant_folding=True,
+            # Torch 2.9 makes the dynamo exporter the default. That path
+            # imports onnxscript. These parity tests trace with the legacy exporter.
+            dynamo=False,
         )
         model_proto = onnx.load(output_path)
         onnx.checker.check_model(model_proto)

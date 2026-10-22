@@ -29,6 +29,13 @@ tag 0.2.0.
 - PyPI publishes through `.github/workflows/publish.yml` with Trusted
   Publishing. The `pypi` environment requires a reviewer. Token upload
   instructions are not part of this repository.
+- `torch.onnx.export` stays on the legacy tracer (`dynamo=False`).
+  Torch 2.9 makes the dynamo exporter the default, and that path imports
+  `onnxscript`, which the `onnx` extra does not install. The parity tests
+  export a tensor-returning copy of the toy model, because the toy forward
+  returns a namespace and the tracer rejects that. The variable-sequence
+  check uses an embedding and a linear layer. The transformer trace bakes
+  the example sequence length into attention.
 - The CPU coverage gate is 83% line coverage, the measured
   unit-and-integration coverage rounded down. The lint job runs
   `ruff check`, `ruff format --check`, and import-linter.
