@@ -33,13 +33,14 @@ move without them.
 - A longer TinyLlama T4 run than the recorded `n_samples=8` pair.
 - Two real drafters on a real model. The synthetic two-drafter switch
   is already measured. The T4 pair used one drafter.
-- Llama-3-8B, or any larger target. That needs about 24 GB and compute
-  capability 8 or newer. v0.2.0 stays reserved for a measured
-  datacenter-GPU Llama run. Do not tag 0.2.0 before that measurement
-  exists.
+- Llama-3-8B, or any larger target, is not scheduled. The v0.2.0 H100
+  run is skipped unless a specific reason comes up. It costs money, and
+  the committed pairs are already slower than plain decoding. Do not
+  tag 0.2.0.
 
 This repository has no self-hosted GPU runner. GPU Tests and the H100
 benchmark start only from `workflow_dispatch` after a runner exists.
+Neither is part of the current plan.
 
 ## Local checks
 

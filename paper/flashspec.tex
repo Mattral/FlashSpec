@@ -104,12 +104,6 @@ On CPU in float32, TinyLlama-1.1B-Chat with one 160M drafter, HumanEval/23,
 (acceptance 0.114, speedup 0.407).
 On a Colab Tesla T4 in float16, eight synthetic samples measured 17.6 tok/s
 against 29.0 tok/s (speedup 0.606).
-A historical NF4 log on a Tesla T4 records 44.2 tok/s, acceptance 0.75, and
-a p50 step latency of 22.1 ms.
-The notebook cell assigns those three fields after the checkpoint load.
-The maintainer recalls a timing log from an earlier machine that is not in
-this repository.
-That log has no autoregressive baseline, so it is not a measured speedup.
 A synthetic three-arm simulation reports UCB1 regret 100.2 and Thompson
 regret 18.9 over $T{=}10{,}000$ rounds, inside a theory bound near 526.
 That simulation is not language-model throughput.
@@ -117,8 +111,7 @@ That simulation is not language-model throughput.
 Theorem~\ref{thm:correctness} states distribution equivalence for the
 acceptance process used here.
 The suite checks emitted token ids with a chi-squared test.
-The GitHub Actions lint job is off, so the jobs that depend on it do not
-run, and that test is not a continuous-integration gate.
+That check is not a Kolmogorov--Smirnov gate.
 Medusa and EAGLE are not implemented.
 No H100 generation result is committed.
 The code is released under Apache~2.0 at
@@ -418,7 +411,7 @@ all accepted tokens is preserved regardless of the bandit's policy.
 
 The test suite checks the emitted tokens with a chi-squared test on
 discrete ids (Section~\ref{sec:testing}).
-That check is not a CI gate while the lint job is off.
+The CPU test job runs that check.
 
 % ── 4. Implementation ────────────────────────────────────────────────────────
 \section{Implementation}
@@ -469,22 +462,23 @@ The test suite comprises four categories:
   \item \textbf{Chaos tests}: adversarial bandit scenarios (0\% acceptance,
         100\% acceptance, sudden arm swap, $K=20$ arms).
         \texttt{test\_adversarial\_swap\_recovery\_within\_200\_rounds}
-        fails deterministically at seed 55.
-        This draft does not treat that failure as a passing result.
+        is an expected failure at seed 55
+        (\url{https://github.com/Mattral/FlashSpec/issues/27}).
+        The mark is strict, so a future pass fails the job until that
+        issue is closed. This draft does not treat the failure as a
+        passing result.
   \item \textbf{GPU tests} (\texttt{@pytest.mark.gpu}):
         Triton kernel parity against the PyTorch reference in float32
         (\texttt{atol}=$10^{-5}$) and bfloat16 (\texttt{atol}=$10^{-3}$)
         at canonical shapes.
 \end{itemize}
 
-The GitHub Actions workflow lists lint, test-cpu, test-chaos, onnx-parity,
-and docs-build.
-The lint job is disabled, and the other jobs need it, so they do not run.
-The separate coverage job has been removed.
-Pytest still carries a 95 percent coverage gate in its configuration, and
-that gate has not been met.
-\texttt{pip-audit} sits inside the disabled lint job, so it does not run
-either.
+The GitHub Actions workflow runs lint, the CPU tests, the chaos tests,
+ONNX parity, the docs build, and a LaTeX build of this draft.
+The CPU suite's coverage gate is the measured unit-and-integration
+coverage, rounded down, not a 95 percent target.
+One chaos test is an expected failure at seed 55.
+\texttt{mypy --strict} is not part of the green lint job.
 
 \subsection{Installation}
 
@@ -556,46 +550,11 @@ FlashSpec throughput on that pair is $17.6 \pm 1.43$ tok/s and the
 autoregressive figure is $29.0 \pm 0.757$ tok/s.
 Reported GPU memory is 2.38~GB.
 These pairs are the measured generation results in this draft.
-
-\subsection{Historical logged NF4 prompt}
-\label{sec:t4bench}
-
-\begin{table}[t]
-\centering
-\caption{%
-  \flashspec{} UCB1 on TinyLlama-1.1B-Chat (NF4 4-bit quantization,
-  $\gamma=4$, Tesla T4 15.6~GiB, CUDA 12.8, single prompt).
-  Recorded in \texttt{notebooks/Colab\_Benchmarks\_T4.ipynb} cell 25
-  (0-based) and \texttt{benchmarks/results/flashspec\_ucb\_tiny\_llama.json}.
-  That cell loads the checkpoint and then assigns these three fields.
-  The maintainer recalls a timing log from an earlier machine.
-  That log is not in this repository.
-  The row stays logged.
-  Vanilla AR baseline and speedup are 0.0 in the JSON because they were
-  not recorded.
-}
-\label{tab:t4}
-\begin{tabular}{lc}
-  \toprule
-  Metric & Value \\
-  \midrule
-  Throughput (tok/s)           & \textbf{44.2} \\
-  Mean acceptance rate $\bar{\alpha}$ & \textbf{0.75} \\
-  p50 step latency (ms)        & \textbf{22.1} \\
-  Speculation length $\gamma$  & 4 \\
-  Quantization                 & NF4 (4-bit, bitsandbytes) \\
-  FlashSpec version            & 0.1.3 \\
-  \midrule
-  Speedup vs.\ vanilla AR      & 0.0 (not recorded) \\
-  \bottomrule
-\end{tabular}
-\end{table}
-
-Table~\ref{tab:t4} records the historical NF4 prompt.
-At $\bar{\alpha} = 0.75$ and $\gamma=4$, the expected tokens per target
-forward pass is $(1 - \bar{\alpha}^{\gamma+1}) / (1 - \bar{\alpha}) \approx 3.05$.
-The JSON has no vanilla autoregressive baseline, so this expectation is
-not a measured speedup.
+At a constant acceptance rate $\bar{\alpha}=0.75$ and $\gamma=4$, the
+expected tokens per target forward is
+$(1 - \bar{\alpha}^{\gamma+1}) / (1 - \bar{\alpha}) \approx 3.05$.
+That figure is the expectation under the constant rate.
+It is not a measured speedup, and it is not taken from an end-to-end run.
 
 \subsection{Verification Kernel: Latency on Tesla T4}
 \label{sec:kernelbench}
@@ -757,10 +716,10 @@ The suite uses a chi-squared test on discrete token ids in
 \texttt{tests/integration/test\_output\_distribution.py}:
 $N=30{,}000$, vocabulary 6, five degrees of freedom, and critical value
 15.086 at $\alpha=0.01$.
-The GitHub Actions lint job is disabled, and the jobs that depend on it
-do not run, so this test is not a CI gate.
-Pytest is still configured to fail under 95 percent line coverage, and
-that gate has not been met.
+The CPU test job runs that check.
+The coverage gate is the measured unit-and-integration coverage,
+rounded down, not a 95 percent target.
+\texttt{mypy --strict} is not part of the green lint job.
 
 \paragraph{Platform-specific dependencies break the install silently.}
 Releases v0.1.0 and v0.1.1 listed \texttt{triton>=3.0.0} as
@@ -827,8 +786,6 @@ than the pure-PyTorch reference, and a single registered drafter does not
 let the bandit adapt.
 The committed end-to-end pairs in Table~\ref{tab:measured} are slower than
 autoregressive decoding on the same prompts.
-The historical NF4 log records 44.2~tok/s at $\bar{\alpha}=0.75$ and a p50
-step latency of 22.1~ms, without an autoregressive baseline.
 The UCB1 regret bound is $O(\sqrt{KT\ln T})$.
 The synthetic three-arm run sits inside that bound.
 It is not a hardware generation result.
@@ -852,22 +809,15 @@ The JOSS-format note in \texttt{paper/joss/} is not under review.
         yanked.
         Each result file records its own Python, PyTorch, and git commit.
         The CPU pair used Python 3.14.8 and PyTorch 2.14.1+cpu.
-        The float16 T4 pair and the historical NF4 log record their own
-        stacks, including bitsandbytes for the NF4 checkpoint.
+        The float16 T4 pair records its own stack.
         This draft does not collapse those runs onto one stack.
   \item \textbf{End-to-end pairs:} the JSON files named in
         Section~\ref{sec:measured}.
         The CPU pair is HumanEval/23 at git \texttt{f59b5b4}.
         The float16 T4 pair is eight synthetic samples at git
         \texttt{cb02ca1}.
-  \item \textbf{Historical NF4 log:}
-        \texttt{notebooks/Colab\_Benchmarks\_T4.ipynb} cell 25 and
-        \texttt{benchmarks/results/flashspec\_ucb\_tiny\_llama.json}
-        (version field 0.1.3, Tesla T4, CUDA 12.8).
-        The cell assigns 44.2 tok/s, acceptance 0.75, and p50 22.1~ms
-        after the checkpoint load.
-        The maintainer recalls a timing log from an earlier machine.
-        That log is not in this repository.
+  \item \textbf{Older notebook cell:}
+        An older notebook cell assigns 44.2 tok/s, acceptance 0.75, p50 22.1 ms; no timing log exists, so it is not used as a result.
   \item \textbf{Random seeds:} result files record the seed they used.
         \texttt{flashspec.utils.device.set\_seed} sets the PyTorch, NumPy,
         and Python seeds together when a caller uses it.
@@ -882,8 +832,8 @@ The JOSS-format note in \texttt{paper/joss/} is not under review.
         \texttt{benchmarks/results/gamma\_sweep.csv}, sampling kernel on
         random log-probabilities.
   \item \textbf{H100 generation:} none is committed.
-        A datacenter-GPU Llama run remains future work.
-        v0.2.0 stays reserved for that measurement.
+        The v0.2.0 datacenter-GPU run is not scheduled.
+        It stays off this draft unless a specific reason comes up.
   \item \textbf{This document:} draft source for a new Zenodo version.
         The published record is still
         \href{https://doi.org/10.5281/zenodo.20766119}{10.5281/zenodo.20766119}

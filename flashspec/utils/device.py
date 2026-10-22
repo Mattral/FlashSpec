@@ -53,9 +53,7 @@ def get_device(device_str: str) -> torch.device:
     device(type='cuda', index=0)
     """
     if not device_str.strip():
-        raise ValueError(
-            f"device_str must be a non-empty string; got: {device_str!r}"
-        )
+        raise ValueError(f"device_str must be a non-empty string; got: {device_str!r}")
     device = torch.device(device_str)
     if device.type == "cuda" and not torch.cuda.is_available():
         raise RuntimeError(
@@ -162,4 +160,4 @@ def device_memory_gb(device: torch.device) -> float:
     if device.type != "cuda":
         return 0.0
     props = torch.cuda.get_device_properties(device)
-    return props.total_memory / (1024 ** 3)
+    return props.total_memory / (1024**3)

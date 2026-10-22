@@ -6,7 +6,6 @@ unless ``@pytest.mark.gpu`` is set.
 
 from __future__ import annotations
 
-import pytest
 import torch
 
 from flashspec.sampling.rejection import rejection_sample
@@ -26,7 +25,7 @@ def _greedy_logprobs(
     with torch.no_grad():
         for _ in range(gamma):
             out = model(ctx)
-            logits = out.logits[:, -1, :]              # (B, V)
+            logits = out.logits[:, -1, :]  # (B, V)
             next_id = logits.argmax(dim=-1, keepdim=True)  # (B, 1)
             all_draft_ids.append(next_id)
             ctx = torch.cat([ctx, next_id], dim=-1)
@@ -37,7 +36,10 @@ def _greedy_logprobs(
     full = torch.cat([input_ids, draft_ids], dim=-1)
     with torch.no_grad():
         out = model(full)
-    logprobs = torch.log_softmax(out.logits[:, input_ids.shape[1] - 1 : input_ids.shape[1] + gamma - 1, :].float(), dim=-1)
+    logprobs = torch.log_softmax(
+        out.logits[:, input_ids.shape[1] - 1 : input_ids.shape[1] + gamma - 1, :].float(),
+        dim=-1,
+    )
     return draft_ids, logprobs, logprobs  # draft == target for same model
 
 
@@ -53,9 +55,7 @@ class TestGreedySpeculativeEquivalence:
         batch_size, vocab = 2, 1000
 
         input_ids = torch.randint(0, vocab, (batch_size, 8))
-        draft_ids, draft_lp, target_lp = _greedy_logprobs(
-            toy_model_cpu, input_ids, gamma, vocab
-        )
+        draft_ids, draft_lp, target_lp = _greedy_logprobs(toy_model_cpu, input_ids, gamma, vocab)
 
         accepted, first_rej, alpha = rejection_sample(
             input_ids=input_ids,
@@ -77,9 +77,7 @@ class TestGreedySpeculativeEquivalence:
         set_seed(10)
         gamma, vocab = 4, 1000
         input_ids = torch.randint(0, vocab, (1, 8))
-        draft_ids, draft_lp, target_lp = _greedy_logprobs(
-            toy_model_cpu, input_ids, gamma, vocab
-        )
+        draft_ids, draft_lp, target_lp = _greedy_logprobs(toy_model_cpu, input_ids, gamma, vocab)
         _accepted, first_rej, alpha = rejection_sample(
             input_ids=input_ids,
             draft_logprobs=draft_lp,
@@ -109,9 +107,7 @@ class TestGreedySpeculativeEquivalence:
             draft_token_ids=draft_ids,
             gamma=1,
         )
-        assert (first_rej == 1).all(), (
-            f"gamma=1 with p==q: expected first_rej==1, got {first_rej}"
-        )
+        assert (first_rej == 1).all(), f"gamma=1 with p==q: expected first_rej==1, got {first_rej}"
         assert alpha == 1.0, f"gamma=1 with p==q: expected alpha=1.0, got {alpha}"
 
     def test_greedy_speculative_short_context_length_one_succeeds(
@@ -121,9 +117,7 @@ class TestGreedySpeculativeEquivalence:
         set_seed(12)
         gamma, vocab = 2, 1000
         input_ids = torch.randint(0, vocab, (1, 1))  # minimal context
-        draft_ids, draft_lp, target_lp = _greedy_logprobs(
-            toy_model_cpu, input_ids, gamma, vocab
-        )
+        draft_ids, draft_lp, target_lp = _greedy_logprobs(toy_model_cpu, input_ids, gamma, vocab)
         accepted, first_rej, alpha = rejection_sample(
             input_ids=input_ids,
             draft_logprobs=draft_lp,

@@ -137,14 +137,9 @@ The optional ASM cell printed `Residual bench failed` and did not write
 `residual_colab_cpu.json`. That cell had installed PyPI
 `flashspec-asm-kernel` 0.1.0. The larger-model cell was skipped.
 
-### Historical NF4
+### Older notebook cell
 
-`flashspec_ucb_tiny_llama.json` is one prompt (`n_samples=1`): 44.2
-tok/s, acceptance 0.75, p50 22.1 ms. The same three figures are the saved
-output of `notebooks/Colab_Benchmarks_T4.ipynb` cell 25 (0-based index,
-execution count 63). That cell loads the checkpoint and then assigns
-those fields. Speedup, p95, p99, and GPU memory are `0.0` because they
-were not recorded. There is no vanilla autoregressive baseline.
+An older notebook cell assigns 44.2 tok/s, acceptance 0.75, p50 22.1 ms; no timing log exists, so it is not used as a result. The file `flashspec_ucb_tiny_llama.json` is kept. Its `_notes.provenance` field says the values were assigned in notebook cell 25 and were not timed.
 
 ### Other recorded rows
 

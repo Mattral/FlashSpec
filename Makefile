@@ -4,8 +4,10 @@
 lint:
 	ruff check flashspec benchmarks tests scripts
 	ruff format --check flashspec benchmarks tests scripts
-	mypy --strict flashspec
 	lint-imports
+
+typecheck:
+	mypy --strict flashspec
 
 format:
 	ruff format flashspec benchmarks tests scripts
@@ -17,7 +19,7 @@ test-gpu:
 	pytest tests/ -m gpu -x --cov=flashspec
 
 test-chaos:
-	pytest tests/chaos -x
+	pytest tests/chaos -x --no-cov
 
 bench:
 	python benchmarks/run_all.py --config benchmarks/configs/

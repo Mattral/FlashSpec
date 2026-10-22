@@ -23,7 +23,7 @@ _PEAK_TFLOPS: dict[str, float] = {
 
 
 class ThroughputTracker:
-    """Track tokens-per-second and Model FLOPs Utilisation (MFU).
+    r"""Track tokens-per-second and Model FLOPs Utilisation (MFU).
 
     Parameters
     ----------
@@ -37,8 +37,8 @@ class ThroughputTracker:
 
     .. math::
 
-        \\text{MFU} = \\frac{\\text{tokens\\_per\\_second} \\times
-            \\text{model\\_flops\\_per\\_token}}{\\text{peak\\_flops}}
+        \text{MFU} = \frac{\text{tokens\_per\_second} \times
+            \text{model\_flops\_per\_token}}{\text{peak\_flops}}
 
     Peak FLOPs are looked up from the ``_PEAK_TFLOPS`` table using the
     GPU name reported by ``torch.cuda.get_device_name(0)``.  If the GPU
@@ -116,9 +116,7 @@ class ThroughputTracker:
         >>> tokens_per_second = tracker.stop(n_tokens=5)
         """
         if self._start_time is None:
-            raise RuntimeError(
-                "ThroughputTracker.stop() called without a preceding start()."
-            )
+            raise RuntimeError("ThroughputTracker.stop() called without a preceding start().")
         if n_tokens < 0:
             raise ValueError(f"n_tokens must be >= 0; got {n_tokens}.")
         if torch.cuda.is_available():
@@ -180,10 +178,7 @@ class ThroughputTracker:
         """
         if self._model_flops_per_token <= 0.0 or self._peak_flops <= 0.0:
             return 0.0
-        return (
-            self.mean_tokens_per_second
-            * self._model_flops_per_token
-        ) / self._peak_flops
+        return (self.mean_tokens_per_second * self._model_flops_per_token) / self._peak_flops
 
     @property
     def step_count(self) -> int:

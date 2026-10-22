@@ -150,10 +150,8 @@ class FlashSpecConfig(BaseModel):
     model_config = {"frozen": True}
 
     @model_validator(mode="after")
-    def _validate_device_format(self) -> "FlashSpecConfig":
+    def _validate_device_format(self) -> FlashSpecConfig:
         """Validate that device string is non-empty and plausibly formatted."""
         if not self.device.strip():
-            raise ValueError(
-                f"'device' must be a non-empty string, got: {self.device!r}"
-            )
+            raise ValueError(f"'device' must be a non-empty string, got: {self.device!r}")
         return self

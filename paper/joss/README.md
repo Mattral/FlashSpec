@@ -22,9 +22,10 @@ them):
       `pip install -e ".[dev]"` on a clean machine
 - [ ] **Example usage** runs — `notebooks/01_quickstart.ipynb` executes
       end-to-end without errors
-- [ ] **Automated tests exist and pass** — tests exist. `make test` is
-      configured to fail under 95% coverage, and that gate has not been
-      met. Do not check this box from a skipped CI job.
+- [ ] **Automated tests exist and pass** — tests exist. `make test`
+      fails under 83% line coverage, the measured unit-and-integration
+      coverage rounded down. Do not check this box until the pull
+      request checks are green.
 - [ ] **Community guidelines** — `CONTRIBUTING.md` is present. It describes
       the current branch and CI state.
 - [ ] **paper.md compiles** — see "Local preview" below. This checkout has

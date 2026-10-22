@@ -27,7 +27,8 @@
     "quantization": "NF4 (4-bit) via bitsandbytes",
     "torch_version": "2.11.0+cu128",
     "flashspec_version": "0.1.3",
-    "vanilla_ar_baseline": "not measured in this run — speedup_vs_ar fields are 0.0 pending AR baseline run",
-    "context": "First real GPU measurement. Single-prompt run on Colab T4. Full multi-prompt benchmark pending H100 run."
+    "vanilla_ar_baseline": "not recorded. speedup_vs_ar fields are 0.0",
+    "context": "Single prompt. The quoted metrics were assigned after the checkpoint load.",
+    "provenance": "values assigned in notebook cell 25, not timed"
   }
 }

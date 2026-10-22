@@ -20,6 +20,7 @@ def _onnx_available() -> bool:
     try:
         import onnx  # noqa: F401
         import onnxruntime  # noqa: F401
+
         return True
     except ImportError:
         return False
@@ -29,11 +30,10 @@ def _onnx_available() -> bool:
 class TestOnnxParity:
     """§2.4 ONNX parity: max |onnx_logits - pytorch_logits| < 1e-5."""
 
-    def test_onnx_parity_batch_sizes_1_to_8(
-        self, toy_model_cpu: torch.nn.Module
-    ) -> None:
+    def test_onnx_parity_batch_sizes_1_to_8(self, toy_model_cpu: torch.nn.Module) -> None:
         """ONNX export matches PyTorch logits within 1e-5 for batch_size 1..8 (§2.4)."""
         import onnxruntime as ort
+
         from flashspec.export.onnx import export_draft_to_onnx
 
         toy_model_cpu.eval()
@@ -62,11 +62,10 @@ class TestOnnxParity:
                     f"max_diff={max_diff:.2e} ≥ 1e-5"
                 )
 
-    def test_onnx_parity_batch_sizes_9_to_32(
-        self, toy_model_cpu: torch.nn.Module
-    ) -> None:
+    def test_onnx_parity_batch_sizes_9_to_32(self, toy_model_cpu: torch.nn.Module) -> None:
         """Edge case: ONNX parity holds for larger batch sizes 9..32 (§2.4)."""
         import onnxruntime as ort
+
         from flashspec.export.onnx import export_draft_to_onnx
 
         toy_model_cpu.eval()
@@ -95,11 +94,10 @@ class TestOnnxParity:
                     f"max_diff={max_diff:.2e} ≥ 1e-5"
                 )
 
-    def test_onnx_export_different_sequence_lengths(
-        self, toy_model_cpu: torch.nn.Module
-    ) -> None:
+    def test_onnx_export_different_sequence_lengths(self, toy_model_cpu: torch.nn.Module) -> None:
         """Edge case: ONNX dynamic axis allows variable sequence lengths (§2.4)."""
         import onnxruntime as ort
+
         from flashspec.export.onnx import export_draft_to_onnx
 
         toy_model_cpu.eval()
@@ -124,13 +122,10 @@ class TestOnnxParity:
                 ort_logits = ort_out[0]
                 max_diff = float(abs(pt_logits - ort_logits).max())
                 assert max_diff < 1e-5, (
-                    f"§2.4 ONNX parity FAILED at seq_len={seq_len}: "
-                    f"max_diff={max_diff:.2e} ≥ 1e-5"
+                    f"§2.4 ONNX parity FAILED at seq_len={seq_len}: max_diff={max_diff:.2e} ≥ 1e-5"
                 )
 
-    def test_onnx_invalid_opset_raises_value_error(
-        self, toy_model_cpu: torch.nn.Module
-    ) -> None:
+    def test_onnx_invalid_opset_raises_value_error(self, toy_model_cpu: torch.nn.Module) -> None:
         """Edge case: opset < 17 raises ValueError with a clear message."""
         from flashspec.export.onnx import export_draft_to_onnx
 

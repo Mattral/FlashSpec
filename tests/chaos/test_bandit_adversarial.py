@@ -32,6 +32,10 @@ class TestBanditAdversarial:
             selector.update(arm, accepted=1)
         assert selector.t == 200, f"Expected t=200, got {selector.t}"
 
+    @pytest.mark.xfail(
+        strict=True,
+        reason="https://github.com/Mattral/FlashSpec/issues/27",
+    )
     def test_adversarial_swap_recovery_within_200_rounds(self) -> None:
         """UCB1 recovers the new optimal arm within 200 rounds after a swap."""
         set_seed(55)

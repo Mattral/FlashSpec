@@ -11,8 +11,8 @@ Versioning follows [Semantic Versioning 2.0.0](https://semver.org/).
 ## [Unreleased]
 
 Postponed work is listed in [`docs/postponed.md`](docs/postponed.md).
-v0.2.0 stays reserved for a measured datacenter-GPU Llama run. Do not
-tag 0.2.0 before that measurement exists.
+The v0.2.0 H100 run is skipped unless a specific reason comes up. Do not
+tag 0.2.0.
 
 ### Changed
 - `paper/flashspec.tex` is a draft preprint for a later Zenodo version
@@ -21,19 +21,30 @@ tag 0.2.0 before that measurement exists.
   10.5281/zenodo.20766119 (June 2026) until the maintainer deposits the
   draft. The draft is not an arXiv submission, and the JOSS-format text
   is not under review.
-- The README, `docs/`, and the draft paper no longer say that CI enforces
-  a 95% coverage gate or a Kolmogorov–Smirnov test at N = 10,000. The
-  distribution check is the chi-squared test in
-  `tests/integration/test_output_distribution.py`. The lint job is off,
-  so that test is not a CI gate. Pytest is still configured to fail under
-  95% coverage, and that gate has not been met.
+- The NF4 figures 44.2 tok/s, acceptance 0.75, and p50 22.1 ms are
+  UNVERIFIED. An older notebook cell assigns them, and no timing log is
+  in the repository, so they are not used as a result. The JSON file and
+  the notebook output stay. The paper table and the README table are
+  removed.
+- PyPI publishes through `.github/workflows/publish.yml` with Trusted
+  Publishing. The `pypi` environment requires a reviewer. Token upload
+  instructions are not part of this repository.
+- The CPU coverage gate is 83% line coverage, the measured
+  unit-and-integration coverage rounded down. The lint job runs
+  `ruff check`, `ruff format --check`, and import-linter.
+  The layer order puts `serve` and `engine` above the sibling modules,
+  and `utils` at the base. `mypy --strict` is `make typecheck` and is
+  not part of that job.
+  `test_adversarial_swap_recovery_within_200_rounds` is an expected
+  failure at seed 55
+  ([issue 27](https://github.com/Mattral/FlashSpec/issues/27)).
+  The mark is strict. A LaTeX job builds `paper/flashspec.tex` and
+  uploads the PDF. The PyPI project URL for the paper points at
+  10.5281/zenodo.20766119.
 - The PyPI project `flashspec` at 0.1.2 was yanked by the maintainer.
   Do not install `flashspec==0.1.2`. There is no `v0.1.2` tag.
   `flashspec-asm-kernel` 0.1.2 is a different package and remains the
   optional Linux wheel.
-- The NF4 row (44.2 tok/s, acceptance 0.75, p50 22.1 ms) stays logged.
-  The maintainer recalls a timing log from an earlier machine. That log
-  is not in this repository.
 
 ### Added
 - 0.1.5 is on PyPI as `flashspec-0.1.5-py3-none-any.whl` and

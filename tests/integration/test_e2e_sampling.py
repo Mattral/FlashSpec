@@ -87,8 +87,7 @@ def _run_gamma1_samples(
             gamma=gamma,
         )
         assert first_rej[0].item() == 1, (
-            f"Draw {i}: gamma=1 with p==q must always accept; "
-            f"got first_rej={first_rej[0]}"
+            f"Draw {i}: gamma=1 with p==q must always accept; got first_rej={first_rej[0]}"
         )
         tok = int(accepted[0, 0].item())
         if 0 <= tok < vocab:
@@ -97,9 +96,7 @@ def _run_gamma1_samples(
     return samples, target_probs
 
 
-def _empirical_ks_statistic(
-    samples: list[int], target_probs: torch.Tensor
-) -> float:
+def _empirical_ks_statistic(samples: list[int], target_probs: torch.Tensor) -> float:
     """Compute the empirical KS statistic D_n between observed and expected CDF.
 
     Parameters
@@ -144,12 +141,8 @@ class TestDistributionEquivalence:
         a test of the residual. See ``test_output_distribution.py``.
         """
         vocab = 80  # large enough for power, small enough for chi² expected counts ≥ 5
-        samples, target_probs = _run_gamma1_samples(
-            n_samples=_N_SAMPLES, vocab=vocab, seed=42
-        )
-        assert len(samples) == _N_SAMPLES, (
-            f"Expected {_N_SAMPLES} samples; got {len(samples)}"
-        )
+        samples, target_probs = _run_gamma1_samples(n_samples=_N_SAMPLES, vocab=vocab, seed=42)
+        assert len(samples) == _N_SAMPLES, f"Expected {_N_SAMPLES} samples; got {len(samples)}"
         ks_stat = _empirical_ks_statistic(samples, target_probs)
         critical = _ks_critical_value(_N_SAMPLES)
         assert ks_stat < critical, (
@@ -166,9 +159,7 @@ class TestDistributionEquivalence:
         vocab = 40
         samples_a, tp_a = _run_gamma1_samples(n_samples=200, vocab=vocab, seed=7)
         samples_b, tp_b = _run_gamma1_samples(n_samples=200, vocab=vocab, seed=7)
-        assert samples_a == samples_b, (
-            "Identical seeds must produce identical sample sequences."
-        )
+        assert samples_a == samples_b, "Identical seeds must produce identical sample sequences."
 
     def test_ks_gate_n10000_acceptance_rate_is_one_when_p_equals_q(self) -> None:
         """When draft==target, every draw must return alpha=1.0.
@@ -194,9 +185,7 @@ class TestDistributionEquivalence:
             assert (first_rej == gamma).all(), (
                 f"Trial {trial}: p==q must accept all; got first_rej={first_rej.tolist()}"
             )
-            assert alpha == 1.0, (
-                f"Trial {trial}: p==q must give alpha=1.0; got {alpha}"
-            )
+            assert alpha == 1.0, f"Trial {trial}: p==q must give alpha=1.0; got {alpha}"
 
     def test_ks_gate_n10000_residual_low_target_prob(self) -> None:
         """Residual distribution is sampled when draft is always rejected (u=1).
@@ -235,17 +224,13 @@ class TestDistributionEquivalence:
             tok = int(accepted[0, 0].item())
             if 0 <= tok < vocab:
                 n_valid += 1
-        assert n_valid == 200, (
-            f"All 200 draws must produce a valid residual token; got {n_valid}"
-        )
+        assert n_valid == 200, f"All 200 draws must produce a valid residual token; got {n_valid}"
 
     @pytest.mark.slow
     def test_ks_gate_larger_vocab_n10000(self) -> None:
         """Same draft-equals-target draw, with vocab 200. Not a residual test."""
         vocab = 200
-        samples, target_probs = _run_gamma1_samples(
-            n_samples=_N_SAMPLES, vocab=vocab, seed=77
-        )
+        samples, target_probs = _run_gamma1_samples(n_samples=_N_SAMPLES, vocab=vocab, seed=77)
         ks_stat = _empirical_ks_statistic(samples, target_probs)
         critical = _ks_critical_value(_N_SAMPLES)
         assert ks_stat < critical, (
