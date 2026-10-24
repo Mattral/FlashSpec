@@ -11,6 +11,29 @@ Versioning follows [Semantic Versioning 2.0.0](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- Phase 4 GPU measurement setup (no GPU numbers yet).
+  - `benchmarks/configs/qwen_t4.yaml` (Qwen2.5-1.5B-Instruct verified,
+    Qwen2.5-0.5B-Instruct drafting) and `benchmarks/configs/tinyllama_t4.yaml`
+    (TinyLlama-1.1B-Chat, Llama-160M-Chat): float16, batch 1, gamma 4,
+    128 new tokens, 2 warmup prompts, 10 MT-Bench + 10 HumanEval prompts
+    through the target's chat template (`chat_template: true`), greedy
+    and temperature 0.7 (`temperatures: [0.0, 0.7]`).
+  - Per method: tok/s median, p25, p75 and IQR over prompts; forward
+    counts; peak GPU memory; host reads and NaN/inf logit counts from an
+    untimed probe generation; `greedy_token_match` against `hf_greedy`
+    (FlashSpec and `hf_assisted`). Method order rotates per prompt.
+  - The drafter and target tokenizers must be identical (vocab and added
+    tokens), checked at load. Checkpoints load once per config.
+  - `benchmarks/gpu_bundle.py` runs configs into one zip (result JSONs,
+    `manifest.json` with hashes, `profile.txt`, `run.log`).
+    `scripts/ingest_gpu_bundle.py` validates a bundle (layout, hashes,
+    commit, clean tree, GPU, real prompts, allowed hardware fields,
+    required sections) and rebuilds the README `gpu-results` block from
+    the JSONs only. Notebook cell 3a runs both configs and downloads the
+    zip.
+- The MT-Bench and HumanEval prompt sets have 10 prompts each (were 4),
+  extended with the same selection rules; the first four keep their
+  positions.
 - Per-step profiling: `MetricsConfig(profile_steps=True)` records
   draft, verify, sample and bookkeeping time for every step
   (`flashspec/metrics/step_profile.py`, CUDA events on GPU), returned as
@@ -54,6 +77,17 @@ Versioning follows [Semantic Versioning 2.0.0](https://semver.org/).
   serve CLI sets it from the tokenizer, so completions end at EOS.
 
 ### Fixed
+- The HuggingFace baselines were not plain greedy or plain temperature
+  sampling on checkpoints that ship generation defaults. Qwen2.5-Instruct
+  ships `top_k=20`, `top_p=0.8` and `repetition_penalty=1.1`, and
+  `generate` applied them (the repetition penalty even with
+  `do_sample=False`). Loaded checkpoints now get a neutral
+  `GenerationConfig()` (the shipped settings are recorded in
+  `generation_config_overrides`), and sampled baselines pass `top_k=0`
+  and `top_p=1.0`, because `GenerationConfig()` resolves `top_k` to 50
+  when sampling. Earlier CPU toy `hf_sample` and `vanilla_ar` rows
+  sampled with that top-k of 50. The TinyLlama checkpoint ships no
+  sampling defaults, so its greedy rows are unaffected.
 - `SamplingConfig.seed` is applied. Each `generate` call seeds a private
   `torch.Generator` used for every draw (drafts, acceptance uniforms,
   residual, bonus), so one seed reproduces one output and the global RNG

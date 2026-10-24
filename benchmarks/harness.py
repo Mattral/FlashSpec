@@ -15,20 +15,29 @@ HuggingFace baselines ``hf_greedy`` (``generate(do_sample=False)``),
 drafter, using HuggingFace's own default assistant schedule). They need
 HuggingFace modules, so ``model: toy`` skips them and ``model: toy_llama``
 or a hub checkpoint runs them. All methods share the target, prompts,
-dtype and ``max_new_tokens``.
+dtype and ``max_new_tokens``. With ``temperatures: [...]`` each dataset
+runs once per mode, and only the matching plain baseline runs
+(``hf_greedy`` at 0, ``hf_sample`` otherwise); ``hf_assisted`` follows
+the mode. Loaded checkpoints get a neutral ``GenerationConfig()`` so the
+baselines are plain greedy or plain temperature sampling, not the
+checkpoint's shipped top-k/top-p/repetition-penalty defaults.
 
-The FlashSpec document also carries ``step_profile`` (per-phase time),
-``forward_counts`` (forward calls per step on each model) and
-``host_syncs`` (device-to-host reads per step, from one extra untimed
-generation on the first prompt).
+Every document carries ``forward_counts``, ``host_syncs`` and
+``nonfinite_logits`` (the last two from one extra untimed generation per
+method on the first prompt), ``decoding``, ``drafter``,
+``prompt_format`` and ``prompt_tokens``. FlashSpec also carries
+``step_profile``; greedy FlashSpec and ``hf_assisted`` carry
+``greedy_token_match``.
 """
 
 from __future__ import annotations
 
 import json
 import platform
+import statistics
 import subprocess
 import time
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -53,7 +62,7 @@ from flashspec.engine.kv_cache import (
 )
 from flashspec.engine.speculative import SpeculativeEngine
 from flashspec.engine.verifier import TargetModel
-from flashspec.metrics.instrument import ForwardRecorder, count_host_syncs
+from flashspec.metrics.instrument import ForwardRecorder, NonFiniteLogits, count_host_syncs
 from flashspec.metrics.step_profile import StepRecord, summarise_steps
 from flashspec.utils.config import BanditConfig, FlashSpecConfig, MetricsConfig, SamplingConfig
 from flashspec.utils.cpu import cpu_has_avx2
@@ -261,9 +270,20 @@ def summarise_runs(
     ]
     mean_tps = sum(throughputs) / len(throughputs)
     var_tps = sum((item - mean_tps) ** 2 for item in throughputs) / len(throughputs)
+    ordered = sorted(throughputs)
+    if len(ordered) > 1:
+        # Linear interpolation between order statistics (statistics.quantiles,
+        # method="inclusive"), so the IQR uses every prompt.
+        p25, _median, p75 = statistics.quantiles(ordered, n=4, method="inclusive")
+    else:
+        p25 = p75 = ordered[0]
     metrics: dict[str, float] = {
         "tokens_per_second_mean": mean_tps,
         "tokens_per_second_std": var_tps**0.5,
+        "tokens_per_second_median": statistics.median(ordered),
+        "tokens_per_second_p25": p25,
+        "tokens_per_second_p75": p75,
+        "tokens_per_second_iqr": p75 - p25,
         "p50_latency_ms": percentile(latencies_ms, 50),
         "p95_latency_ms": percentile(latencies_ms, 95),
         "p99_latency_ms": percentile(latencies_ms, 99),
@@ -538,6 +558,7 @@ def _hf_generate(
     *,
     do_sample: bool = True,
     assistant_model: nn.Module | None = None,
+    eos_token_ids: list[int] | None = None,
 ) -> torch.Tensor:
     """Decode with ``model.generate`` and the model's own KV cache.
 
@@ -557,6 +578,9 @@ def _hf_generate(
     assistant_model : nn.Module or None
         Drafter for HuggingFace assisted generation. Its own generation
         config sets the assistant schedule.
+    eos_token_ids : list of int or None
+        Stop at these ids. ``None`` (the default) generates exactly
+        ``max_new_tokens`` with no EOS handling at all.
 
     Returns
     -------
@@ -573,12 +597,16 @@ def _hf_generate(
     kwargs: dict[str, Any] = {
         "do_sample": do_sample,
         "max_new_tokens": max_new_tokens,
-        "min_new_tokens": max_new_tokens,
         "use_cache": True,
-        "eos_token_id": None,
     }
+    if eos_token_ids:
+        kwargs["eos_token_id"] = list(eos_token_ids)
+    else:
+        kwargs.update({"min_new_tokens": max_new_tokens, "eos_token_id": None})
     if do_sample:
-        kwargs["temperature"] = temperature
+        # Plain temperature sampling, as FlashSpec does. GenerationConfig()
+        # resolves top_k to 50 at generate time; 0 disables top-k.
+        kwargs.update({"temperature": temperature, "top_k": 0, "top_p": 1.0})
     else:
         # Clear sampling defaults a checkpoint may ship, so generate does
         # not warn that they are ignored.
@@ -590,6 +618,8 @@ def _hf_generate(
     with torch.no_grad():
         output = model.generate(input_ids, **kwargs)
     new_tokens = output[:, prompt_len:]
+    if eos_token_ids:
+        return new_tokens
     if int(new_tokens.shape[1]) != max_new_tokens:
         raise RuntimeError(
             f"generate returned {int(new_tokens.shape[1])} new tokens, expected {max_new_tokens}."
@@ -842,7 +872,9 @@ def _build_toy_llama_modules(
 
     vocab = int(config.get("vocab_size", 512))
     init_range = float(config.get("initializer_range", 0.1))
-    max_positions = int(config.get("prompt_length", 8)) + int(config.get("max_new_tokens", 8)) + 64
+    # Real prompt sets have no prompt_length cap; leave room for them.
+    prompt_room = config.get("prompt_length") or 2048
+    max_positions = int(prompt_room) + int(config.get("max_new_tokens", 8)) + 64
 
     def _one(hidden: int, layers: int) -> nn.Module:
         heads = 4 if hidden % 4 == 0 else 1
@@ -954,12 +986,23 @@ def _real_prompts(
     chosen = records if capped else records[:requested]
     raw_limit = config.get("prompt_length")
     limit = int(raw_limit) if raw_limit is not None else None
-    prompts = tokenize_prompts(chosen, tokenizer, device, limit)
+    chat = bool(config.get("chat_template", False))
+    if chat:
+        prompts = [
+            torch.tensor(
+                [_chat_ids(tokenizer, item["text"])[:limit]], dtype=torch.long, device=device
+            )
+            for item in chosen
+        ]
+    else:
+        prompts = tokenize_prompts(chosen, tokenizer, device, limit)
     ids = [item["id"] for item in chosen]
-    note = (
-        f" Prompts are the fixed {slug} set ({', '.join(ids)}), tokenized "
-        "with the target tokenizer."
+    how = (
+        "as one user turn through the target's chat template (generation prompt added)"
+        if chat
+        else "with the target tokenizer"
     )
+    note = f" Prompts are the fixed {slug} set ({', '.join(ids)}), tokenized {how}."
     if capped:
         note += (
             f" {source} asked for {requested} prompts; the fixed set has "
@@ -970,6 +1013,30 @@ def _real_prompts(
             " The network is randomly initialised, so acceptance is not a checkpoint measurement."
         )
     return prompts, ids, note
+
+
+def _chat_ids(tokenizer: object, text: str) -> list[int]:
+    """Token ids of ``text`` as one user turn, through the tokenizer's chat template.
+
+    Raises
+    ------
+    RuntimeError
+        If the tokenizer has no chat template or returns no ids.
+    """
+    apply = getattr(tokenizer, "apply_chat_template", None)
+    if not callable(apply) or getattr(tokenizer, "chat_template", None) is None:
+        raise RuntimeError(
+            "chat_template is set but the target tokenizer has no chat template. "
+            "No result file was written."
+        )
+    encoded = apply([{"role": "user", "content": text}], tokenize=True, add_generation_prompt=True)
+    raw = encoded["input_ids"] if not isinstance(encoded, list) else encoded
+    if raw and isinstance(raw[0], list):
+        raw = raw[0]
+    ids = [int(token) for token in raw]
+    if not ids:
+        raise RuntimeError("The chat template produced no tokens. No result file was written.")
+    return ids
 
 
 def run_paired_generations(
@@ -1108,7 +1175,81 @@ def _load_checkpoint_modules(
         ) from exc
     target.eval()
     drafter.eval()
+    _assert_shared_tokenizer(target_name, drafter_name)
+    for module in (target, drafter):
+        _neutralise_generation_config(module)
     return drafter.to(device), target.to(device)
+
+
+def _neutralise_generation_config(model: nn.Module) -> dict[str, object]:
+    """Replace a checkpoint's shipped generation defaults with HuggingFace's neutral ones.
+
+    Checkpoints ship sampling defaults (Qwen2.5-Instruct: ``top_k=20``,
+    ``top_p=0.8``, ``repetition_penalty=1.1``). ``generate`` applies them
+    unless every one is overridden, and a repetition penalty applies even
+    with ``do_sample=False``. The baselines must be plain greedy and plain
+    temperature sampling, as FlashSpec is, so the shipped config is
+    replaced by ``GenerationConfig()`` with only ``pad_token_id`` kept.
+
+    Parameters
+    ----------
+    model : nn.Module
+        HuggingFace model. Modules without ``generation_config`` are left alone.
+
+    Returns
+    -------
+    dict
+        The checkpoint's shipped non-default settings, also stored on the
+        module as ``flashspec_generation_overrides``. All of them are
+        replaced except ``pad_token_id``. The shipped ``eos_token_id`` is
+        kept separately as ``flashspec_eos_token_ids`` (used only when a
+        config sets ``stop_at_eos``).
+    """
+    from transformers import GenerationConfig
+
+    shipped = getattr(model, "generation_config", None)
+    if shipped is None:
+        return {}
+    shipped_settings = {
+        key: value
+        for key, value in shipped.to_diff_dict().items()
+        if key not in {"transformers_version", "_from_model_config"}
+    }
+    eos = shipped.eos_token_id
+    eos_ids = [] if eos is None else ([int(eos)] if isinstance(eos, int) else [int(e) for e in eos])
+    model.generation_config = GenerationConfig(pad_token_id=shipped.pad_token_id)
+    model.flashspec_generation_overrides = shipped_settings  # type: ignore[assignment]
+    model.flashspec_eos_token_ids = eos_ids  # type: ignore[assignment]
+    return shipped_settings
+
+
+def _assert_shared_tokenizer(target_name: str, drafter_name: str) -> None:
+    """Refuse a pair whose tokenizers map text to different ids.
+
+    Equal ``vocab_size`` is not enough: two tokenizers can share a size
+    and still assign ids differently.
+
+    Raises
+    ------
+    RuntimeError
+        If the vocabularies (including added tokens) differ. No result
+        file is written.
+    """
+    target_tok = _load_tokenizer(target_name)
+    drafter_tok = _load_tokenizer(drafter_name)
+    target_vocab = target_tok.get_vocab()  # type: ignore[attr-defined]
+    drafter_vocab = drafter_tok.get_vocab()  # type: ignore[attr-defined]
+    if target_vocab != drafter_vocab:
+        differing = sorted(
+            key
+            for key in set(target_vocab) | set(drafter_vocab)
+            if target_vocab.get(key) != drafter_vocab.get(key)
+        )
+        raise RuntimeError(
+            f"Tokenizers of {target_name!r} and {drafter_name!r} differ on "
+            f"{len(differing)} entries (first: {differing[:5]}). Speculative decoding "
+            "would compare different token ids. No result file was written."
+        )
 
 
 def _load_tokenizer(model_name: str) -> object:
@@ -1139,6 +1280,23 @@ def _load_tokenizer(model_name: str) -> object:
         ) from exc
 
 
+_SPEC = "flashspec_ucb"
+
+
+@dataclass
+class _MethodRuns:
+    """Measured generations of one method over the prompt set."""
+
+    latency_ms: list[float] = field(default_factory=list)
+    tokens: list[int] = field(default_factory=list)
+    alpha: list[float] = field(default_factory=list)
+    outputs: list[list[int]] = field(default_factory=list)
+    target_forwards: int = 0
+    drafter_forwards: int = 0
+    peak_memory_bytes: int = 0
+    steps: list[StepRecord] = field(default_factory=list)
+
+
 def _run_loaded_pair(
     *,
     config: dict[str, Any],
@@ -1158,6 +1316,7 @@ def _run_loaded_pair(
     tokenizer: object | None = None,
 ) -> dict[str, dict[str, object]]:
     """Time one loaded drafter/target pair. See :func:`run_paired_generations`."""
+    greedy = temperature == 0.0
     drafters = load_drafters(
         [drafter_name],
         device=device,
@@ -1166,12 +1325,17 @@ def _run_loaded_pair(
         models={drafter_name: drafter_module},
     )
     target = TargetModel(model_name, device, weight_dtype, model=target_module)
+    stop_at_eos = bool(config.get("stop_at_eos", False))
+    eos_ids = list(getattr(target_module, "flashspec_eos_token_ids", []) or [])
+    if stop_at_eos and not eos_ids:
+        raise RuntimeError("stop_at_eos is set but the target has no eos_token_id.")
     engine_config = FlashSpecConfig(
         drafter_name=drafter_name,
         target_name=model_name,
         device=str(device),
         dtype=str(weight_dtype).removeprefix("torch."),
         max_new_tokens=max_new_tokens,
+        eos_token_ids=tuple(eos_ids) if stop_at_eos else (),
         bandit=BanditConfig(n_arms=1, strategy="ucb1", window_size=0),
         sampling=SamplingConfig(gamma=gamma, temperature=temperature, seed=seed),
         metrics=MetricsConfig(profile_steps=True),
@@ -1206,14 +1370,41 @@ def _run_loaded_pair(
         )
     if prompt_note:
         shared_notes += prompt_note
-    greedy = temperature == 0.0
     if greedy:
         shared_notes += " Decoding is greedy (temperature 0)."
     else:
         shared_notes += f" Sampling at temperature {temperature}."
-    decoding: dict[str, object] = {
-        "decoding": {"mode": "greedy" if greedy else "sample", "temperature": temperature}
+    if stop_at_eos:
+        shared_notes += f" Every method stops at EOS {eos_ids}; max_new_tokens is a cap."
+    else:
+        shared_notes += (
+            f" Every method generates exactly {max_new_tokens} tokens; EOS is neither "
+            "a stop nor suppressed."
+        )
+    overrides = getattr(target_module, "flashspec_generation_overrides", None)
+    if overrides:
+        shared_notes += (
+            " The checkpoint's shipped generation defaults were replaced by "
+            "GenerationConfig() for the HuggingFace baselines (see generation_config_overrides)."
+        )
+    common_extra: dict[str, object] = {
+        "decoding": {
+            "mode": "greedy" if greedy else "sample",
+            "temperature": temperature,
+            "stop_at_eos": stop_at_eos,
+            "max_new_tokens": max_new_tokens,
+        },
+        "drafter": str(config.get("drafter", model_name)),
+        "prompt_format": "chat_template" if config.get("chat_template") else "raw",
+        "prompt_tokens": [int(prompt.shape[1]) for prompt in prompts],
+        "method_order": "rotated by one position per prompt",
     }
+    if overrides is not None:
+        common_extra["generation_config_overrides"] = {
+            "replaced_with": "transformers GenerationConfig() defaults; pad_token_id kept",
+            "shipped_target": overrides,
+            "shipped_drafter": getattr(drafter_module, "flashspec_generation_overrides", {}),
+        }
     spec_notes = shared_notes
     if len(drafters) < 2:
         spec_notes += (
@@ -1229,9 +1420,13 @@ def _run_loaded_pair(
         ar_notes = "Vanilla autoregressive loop on the same target and prompts. " + shared_notes
 
     requested = [str(name) for name in (config.get("methods") or [])]
-    hf_methods = [name for name in HF_BASELINES if name in requested]
+    # vanilla_ar runs when listed, or when no methods are listed (older configs).
+    run_ar = not requested or "vanilla_ar" in requested
+    if run_ar and stop_at_eos:
+        print("Skipping vanilla_ar: it has no EOS handling. No numbers were written for it.")
+        run_ar = False
     runnable_hf: list[str] = []
-    for name in hf_methods:
+    for name in (name for name in HF_BASELINES if name in requested):
         needs_drafter = name == "hf_assisted"
         if not _uses_hf_generate(target_module) or (
             needs_drafter and not _uses_hf_generate(drafter_module)
@@ -1241,180 +1436,242 @@ def _run_loaded_pair(
                 "No numbers were written for it."
             )
             continue
-        if name == "hf_sample" and temperature == 0.0:
+        if name == "hf_sample" and greedy:
             print(
                 "Skipping hf_sample: temperature is 0, so it would be hf_greedy. "
                 "No numbers were written for it."
             )
             continue
+        if name == "hf_greedy" and not greedy:
+            print(
+                f"Skipping hf_greedy: this run samples at temperature {temperature}; "
+                "hf_sample is the matching baseline. No numbers were written for it."
+            )
+            continue
         runnable_hf.append(name)
+    methods = [_SPEC] + (["vanilla_ar"] if run_ar else []) + runnable_hf
 
     target_forwards = ForwardRecorder(target_module)
     drafter_forwards = ForwardRecorder(drafter_module)
-    step_records: list[StepRecord] = []
-    # Greedy runs compare FlashSpec's tokens with the greedy baseline's,
-    # prompt by prompt, from the measured generations themselves.
-    last_outputs: dict[str, torch.Tensor] = {}
+    runs = {name: _MethodRuns() for name in methods}
+    first_lengths: dict[str, list[int]] = {}
 
-    def _time_speculative(prompt: torch.Tensor) -> tuple[float, int, float]:
+    def _generate(name: str, prompt: torch.Tensor) -> tuple[torch.Tensor, float | None, Any]:
+        if name == _SPEC:
+            result = engine.generate(prompt, max_new_tokens=max_new_tokens)
+            produced = result.output_ids[result.output_ids >= 0].view(1, -1)
+            return produced, result.acceptance_rate, result.step_profile
+        if name == "vanilla_ar":
+            tokens = autoregressive_generate(
+                target_module, prompt, max_new_tokens, temperature=temperature
+            )
+            return tokens, None, None
+        tokens = _hf_generate(
+            target_module,
+            prompt,
+            max_new_tokens,
+            temperature,
+            do_sample=not greedy,
+            assistant_model=drafter_module if name == "hf_assisted" else None,
+            eos_token_ids=eos_ids if stop_at_eos else None,
+        )
+        return tokens, None, None
+
+    def _timed(name: str, prompt: torch.Tensor, record: bool) -> None:
+        if device.type == "cuda":
+            torch.cuda.reset_peak_memory_stats()
+        target_forwards.clear()
+        drafter_forwards.clear()
         target_forwards.attach()
         drafter_forwards.attach()
         try:
             if device.type == "cuda":
                 torch.cuda.synchronize()
             started = time.perf_counter()
-            result = engine.generate(prompt, max_new_tokens=max_new_tokens)
+            tokens, alpha, steps = _generate(name, prompt)
             if device.type == "cuda":
                 torch.cuda.synchronize()
             elapsed_ms = (time.perf_counter() - started) * 1000.0
         finally:
             target_forwards.detach()
             drafter_forwards.detach()
-        if result.step_profile is not None:
-            step_records.extend(result.step_profile)
-        last_outputs["flashspec"] = result.output_ids
-        return elapsed_ms, result.n_tokens_generated, result.acceptance_rate
-
-    def _time_ar(prompt: torch.Tensor) -> tuple[float, int]:
+        if not record:
+            return
+        stats = runs[name]
+        stats.latency_ms.append(elapsed_ms)
+        stats.tokens.append(int(tokens.shape[1]))
+        stats.outputs.append([int(token) for token in tokens.view(-1).tolist()])
+        if alpha is not None:
+            stats.alpha.append(alpha)
+        if steps is not None:
+            stats.steps.extend(steps)
+        stats.target_forwards += target_forwards.calls
+        stats.drafter_forwards += drafter_forwards.calls
         if device.type == "cuda":
-            torch.cuda.synchronize()
-        started = time.perf_counter()
-        tokens = autoregressive_generate(
-            target_module, prompt, max_new_tokens, temperature=temperature
-        )
-        if device.type == "cuda":
-            torch.cuda.synchronize()
-        elapsed_ms = (time.perf_counter() - started) * 1000.0
-        last_outputs["vanilla_ar"] = tokens
-        return elapsed_ms, int(tokens.shape[1])
-
-    def _time_hf(name: str, prompt: torch.Tensor) -> tuple[float, int]:
-        if device.type == "cuda":
-            torch.cuda.synchronize()
-        started = time.perf_counter()
-        tokens = _hf_generate(
-            target_module,
-            prompt,
-            max_new_tokens,
-            temperature,
-            do_sample=name == "hf_sample",
-            assistant_model=drafter_module if name == "hf_assisted" else None,
-        )
-        if device.type == "cuda":
-            torch.cuda.synchronize()
-        elapsed_ms = (time.perf_counter() - started) * 1000.0
-        return elapsed_ms, int(tokens.shape[1])
+            stats.peak_memory_bytes = max(
+                stats.peak_memory_bytes, int(torch.cuda.max_memory_allocated())
+            )
+        if name not in first_lengths:
+            first_lengths[name] = list(target_forwards.lengths)
+            first_lengths[f"{name}_drafter"] = list(drafter_forwards.lengths)
 
     for prompt in prompts[: max(n_warmup, 0)]:
-        _time_speculative(prompt)
-        _time_ar(prompt)
-        for name in runnable_hf:
-            _time_hf(name, prompt)
-    target_forwards.clear()
-    drafter_forwards.clear()
-    step_records.clear()
+        for name in methods:
+            _timed(name, prompt, record=False)
+    for index, prompt in enumerate(prompts):
+        # Rotate the order so no method always runs first (or last) on a prompt.
+        shift = index % len(methods)
+        for name in methods[shift:] + methods[:shift]:
+            _timed(name, prompt, record=True)
 
-    spec_latency: list[float] = []
-    spec_tokens: list[int] = []
-    spec_alpha: list[float] = []
-    ar_latency: list[float] = []
-    ar_tokens: list[int] = []
-    hf_latency: dict[str, list[float]] = {name: [] for name in runnable_hf}
-    hf_tokens: dict[str, list[int]] = {name: [] for name in runnable_hf}
-    first_target_lengths: list[int] = []
-    first_drafter_lengths: list[int] = []
-    greedy_matches: list[bool] = []
-    for prompt in prompts:
-        latency_ms, n_tokens, alpha = _time_speculative(prompt)
-        if not first_target_lengths:
-            first_target_lengths = list(target_forwards.lengths)
-            first_drafter_lengths = list(drafter_forwards.lengths)
-        spec_latency.append(latency_ms)
-        spec_tokens.append(n_tokens)
-        spec_alpha.append(alpha)
-        ar_ms, ar_n = _time_ar(prompt)
-        if greedy:
-            greedy_matches.append(
-                torch.equal(last_outputs["flashspec"].cpu(), last_outputs["vanilla_ar"].cpu())
-            )
-        ar_latency.append(ar_ms)
-        ar_tokens.append(ar_n)
-        for name in runnable_hf:
-            hf_ms, hf_n = _time_hf(name, prompt)
-            hf_latency[name].append(hf_ms)
-            hf_tokens[name].append(hf_n)
+    # One extra, untimed pass per method on the first prompt: host reads
+    # and NaN/inf logits. These probes would disturb the timed runs.
+    counter_kind = "cuda_sync_debug_mode" if device.type == "cuda" else "cpu_tensor_read_proxy"
+    probes: dict[str, dict[str, object]] = {}
+    for name in methods:
+        with (
+            NonFiniteLogits(target_module) as target_bad,
+            NonFiniteLogits(drafter_module) as drafter_bad,
+            ForwardRecorder(target_module) as probe_forwards,
+        ):
+            with count_host_syncs(device) as syncs:
+                _tokens, _alpha, probe_steps = _generate(name, prompts[0])
+        after_prefill = max(probe_forwards.calls - 1, 0)
+        host: dict[str, object] = {
+            "counter": counter_kind,
+            "prompt_id": prompt_ids[0] if prompt_ids else None,
+            "total": syncs.count,
+            "target_forwards_after_prefill": after_prefill,
+            "per_target_forward": syncs.count / after_prefill if after_prefill else 0.0,
+            "by_kind": dict(syncs.by_kind),
+        }
+        if probe_steps is not None:
+            host["n_steps"] = len(probe_steps)
+            host["per_step"] = syncs.count / len(probe_steps) if probe_steps else 0.0
+        probes[name] = {
+            "host_syncs": host,
+            "nonfinite_logits": {
+                "scope": "the untimed probe generation on the first prompt",
+                "prompt_id": prompt_ids[0] if prompt_ids else None,
+                "target_entries": target_bad.count,
+                "target_forwards_checked": target_bad.calls,
+                "drafter_entries": drafter_bad.count,
+                "drafter_forwards_checked": drafter_bad.calls,
+            },
+        }
 
-    def _paired_speedup(other_latency: list[float], other_tokens: list[int]) -> tuple[float, float]:
+    spec = runs[_SPEC]
+
+    def _paired(other: _MethodRuns) -> dict[str, float]:
         ratios = [
-            (spec_n / (spec_ms / 1000.0)) / (o_n / (o_ms / 1000.0))
-            if spec_ms > 0.0 and o_ms > 0.0 and o_n > 0
+            (s_n / (s_ms / 1000.0)) / (o_n / (o_ms / 1000.0))
+            if s_ms > 0.0 and o_ms > 0.0 and o_n > 0
             else 0.0
-            for spec_ms, spec_n, o_ms, o_n in zip(
-                spec_latency, spec_tokens, other_latency, other_tokens, strict=True
+            for s_ms, s_n, o_ms, o_n in zip(
+                spec.latency_ms, spec.tokens, other.latency_ms, other.tokens, strict=True
             )
         ]
         mean = sum(ratios) / len(ratios)
         var = sum((item - mean) ** 2 for item in ratios) / len(ratios)
-        return mean, var**0.5
+        return {"mean": mean, "std": var**0.5, "median": statistics.median(ratios)}
 
-    spec_metrics = summarise_runs(spec_latency, spec_tokens, spec_alpha)
-    ar_metrics = summarise_runs(ar_latency, ar_tokens, None)
-    spec_metrics["speedup_vs_ar_mean"], spec_metrics["speedup_vs_ar_std"] = _paired_speedup(
-        ar_latency, ar_tokens
-    )
-    for name in runnable_hf:
-        mean, std = _paired_speedup(hf_latency[name], hf_tokens[name])
-        spec_metrics[f"speedup_vs_{name}_mean"] = mean
-        spec_metrics[f"speedup_vs_{name}_std"] = std
+    def _match(candidate: _MethodRuns, reference: _MethodRuns, ref_name: str) -> dict[str, object]:
+        firsts: list[int | None] = []
+        for got, want in zip(candidate.outputs, reference.outputs, strict=True):
+            if got == want:
+                firsts.append(None)
+                continue
+            limit = min(len(got), len(want))
+            firsts.append(next((i for i in range(limit) if got[i] != want[i]), limit))
+        return {
+            "reference": ref_name,
+            "prompts_matched": sum(item is None for item in firsts),
+            "n_prompts": len(firsts),
+            "first_divergence": firsts,
+        }
 
-    profile = summarise_steps(step_records)
-    n_steps = len(step_records)
-    n_emitted = sum(step.tokens_emitted for step in step_records)
-    # The first forward of each generation is the prefill. Every other
-    # forward happens inside a speculative step.
-    n_runs = len(prompts)
-    forward_counts: dict[str, object] = {
-        "n_generations": n_runs,
-        "n_steps": n_steps,
-        "tokens_emitted": n_emitted,
-        "target_forwards": target_forwards.calls,
-        "drafter_forwards": drafter_forwards.calls,
-        "target_forwards_per_step": (target_forwards.calls - n_runs) / n_steps if n_steps else 0.0,
-        "drafter_forwards_per_step": (
-            (drafter_forwards.calls - n_runs) / n_steps if n_steps else 0.0
-        ),
-        "target_forwards_per_emitted_token": (
-            target_forwards.calls / n_emitted if n_emitted else 0.0
-        ),
-        "target_input_lengths_first_generation": first_target_lengths,
-        "drafter_input_lengths_first_generation": first_drafter_lengths,
-    }
-    with count_host_syncs(device) as syncs:
-        sync_result = engine.generate(prompts[0], max_new_tokens=max_new_tokens)
-    sync_steps = len(sync_result.step_profile or ())
-    host_syncs: dict[str, object] = {
-        "counter": "cuda_sync_debug_mode" if device.type == "cuda" else "cpu_tensor_read_proxy",
-        "n_steps": sync_steps,
-        "total": syncs.count,
-        "per_step": syncs.count / sync_steps if sync_steps else 0.0,
-        "by_kind": dict(syncs.by_kind),
-    }
+    reference_name = "hf_greedy" if "hf_greedy" in runs else ("vanilla_ar" if run_ar else None)
+
+    def _forward_counts(name: str) -> dict[str, object]:
+        stats = runs[name]
+        n_runs = len(stats.tokens)
+        emitted = sum(stats.tokens)
+        after_prefill = stats.target_forwards - n_runs
+        counts: dict[str, object] = {
+            "n_generations": n_runs,
+            "tokens_emitted": emitted,
+            "target_forwards": stats.target_forwards,
+            "target_forwards_per_emitted_token": (
+                stats.target_forwards / emitted if emitted else 0.0
+            ),
+            "emitted_tokens_per_target_forward_after_prefill": (
+                emitted / after_prefill if after_prefill > 0 else 0.0
+            ),
+            "target_input_lengths_first_generation": first_lengths.get(name, []),
+        }
+        if name in (_SPEC, "hf_assisted"):
+            counts["drafter_forwards"] = stats.drafter_forwards
+            counts["drafter_input_lengths_first_generation"] = first_lengths.get(
+                f"{name}_drafter", []
+            )
+        if name == _SPEC:
+            n_steps = len(stats.steps)
+            counts["n_steps"] = n_steps
+            counts["target_forwards_per_step"] = (
+                (stats.target_forwards - n_runs) / n_steps if n_steps else 0.0
+            )
+            counts["drafter_forwards_per_step"] = (
+                (stats.drafter_forwards - n_runs) / n_steps if n_steps else 0.0
+            )
+        return counts
+
+    def _metrics(name: str) -> dict[str, float]:
+        stats = runs[name]
+        metrics = summarise_runs(
+            stats.latency_ms, stats.tokens, stats.alpha if name == _SPEC else None
+        )
+        metrics.pop("gpu_memory_gb", None)
+        if device.type == "cuda":
+            metrics["gpu_memory_gb"] = stats.peak_memory_bytes / (1024**3)
+        return metrics
 
     hardware = detect_hardware()
-    spec_unmeasured = [name for name in ("gpu_memory_gb",) if name not in spec_metrics]
-    ar_unmeasured = [
+    baseline_unmeasured = [
         "acceptance_rate_mean",
         "acceptance_rate_std",
         "speedup_vs_ar_mean",
         "speedup_vs_ar_std",
     ]
-    if "gpu_memory_gb" not in ar_metrics:
-        ar_unmeasured.append("gpu_memory_gb")
+    if device.type != "cuda":
+        baseline_unmeasured.append("gpu_memory_gb")
     unregister(drafter_name)
+
+    spec_metrics = _metrics(_SPEC)
+    if run_ar:
+        paired = _paired(runs["vanilla_ar"])
+        spec_metrics["speedup_vs_ar_mean"] = paired["mean"]
+        spec_metrics["speedup_vs_ar_std"] = paired["std"]
+    for name in runnable_hf:
+        paired = _paired(runs[name])
+        spec_metrics[f"speedup_vs_{name}_mean"] = paired["mean"]
+        spec_metrics[f"speedup_vs_{name}_std"] = paired["std"]
+        spec_metrics[f"speedup_vs_{name}_median"] = paired["median"]
+    spec_unmeasured = [] if device.type == "cuda" else ["gpu_memory_gb"]
+    if not run_ar:
+        spec_unmeasured += ["speedup_vs_ar_mean", "speedup_vs_ar_std"]
+    spec_extra: dict[str, object] = {
+        **common_extra,
+        "step_profile": summarise_steps(spec.steps),
+        "forward_counts": _forward_counts(_SPEC),
+        **probes[_SPEC],
+    }
+    if greedy and reference_name is not None:
+        spec_extra["greedy_token_match"] = _match(spec, runs[reference_name], reference_name)
+
     documents: dict[str, dict[str, object]] = {
-        "flashspec_ucb": assemble_result(
+        _SPEC: assemble_result(
             model=model_name,
-            method="flashspec_ucb",
+            method=_SPEC,
             gamma=gamma,
             dataset=dataset,
             n_samples=len(prompts),
@@ -1424,65 +1681,43 @@ def _run_loaded_pair(
             unmeasured=spec_unmeasured,
             hardware=hardware,
             prompt_ids=prompt_ids,
-            extra={
-                **decoding,
-                **(
-                    {
-                        "greedy_token_match": {
-                            "reference": "vanilla_ar (greedy decode of the target)",
-                            "prompts_matched": sum(greedy_matches),
-                            "n_prompts": len(greedy_matches),
-                        }
-                    }
-                    if greedy
-                    else {}
-                ),
-                "step_profile": profile,
-                "forward_counts": forward_counts,
-                "host_syncs": host_syncs,
-            },
-        ),
-        "vanilla_ar": assemble_result(
-            model=model_name,
-            method="vanilla_ar",
-            gamma=gamma,
-            dataset=dataset,
-            n_samples=len(prompts),
-            metrics=ar_metrics,
-            measurement_kind=kind,
-            notes=ar_notes,
-            unmeasured=ar_unmeasured,
-            hardware=hardware,
-            prompt_ids=prompt_ids,
-            extra=decoding,
-        ),
+            extra=spec_extra,
+        )
     }
-    hf_notes = {
-        "hf_greedy": "HuggingFace generate(do_sample=False) with the KV cache.",
-        "hf_sample": f"HuggingFace generate(do_sample=True, temperature={temperature}).",
+    mode = "greedy" if greedy else f"sampled (temperature {temperature})"
+    method_notes = {
+        "vanilla_ar": ar_notes,
+        "hf_greedy": "HuggingFace generate(do_sample=False) with the KV cache. ",
+        "hf_sample": f"HuggingFace generate(do_sample=True, temperature={temperature}). ",
         "hf_assisted": (
-            "HuggingFace greedy generate(assistant_model=drafter) with the "
-            "assistant's default schedule: " + _assistant_schedule(drafter_module) + "."
+            f"HuggingFace {mode} generate(assistant_model=drafter) with the "
+            "assistant's default schedule: " + _assistant_schedule(drafter_module) + ". "
         ),
     }
-    for name in runnable_hf:
-        metrics = summarise_runs(hf_latency[name], hf_tokens[name], None)
-        unmeasured = list(ar_unmeasured)
-        if "gpu_memory_gb" in metrics and "gpu_memory_gb" in unmeasured:
-            unmeasured.remove("gpu_memory_gb")
+    for name in methods[1:]:
+        extra: dict[str, object] = {
+            **common_extra,
+            "forward_counts": _forward_counts(name),
+            **probes[name],
+        }
+        if greedy and reference_name is not None and name not in (reference_name, "vanilla_ar"):
+            extra["greedy_token_match"] = _match(runs[name], runs[reference_name], reference_name)
+        notes = method_notes[name]
+        if name != "vanilla_ar":
+            notes += "Same target, prompts and max_new_tokens. " + shared_notes
         documents[name] = assemble_result(
             model=model_name,
             method=name,
             gamma=gamma,
             dataset=dataset,
             n_samples=len(prompts),
-            metrics=metrics,
+            metrics=_metrics(name),
             measurement_kind=kind,
-            notes=hf_notes[name] + " Same target, prompts and max_new_tokens. " + shared_notes,
-            unmeasured=unmeasured,
+            notes=notes,
+            unmeasured=list(baseline_unmeasured),
             hardware=hardware,
             prompt_ids=prompt_ids,
-            extra=decoding,
+            extra=extra,
         )
     return documents
 
@@ -1495,7 +1730,22 @@ def _assistant_schedule(drafter: nn.Module) -> str:
         "num_assistant_tokens_schedule",
         "assistant_confidence_threshold",
     )
-    parts = [f"{key}={getattr(generation_config, key, None)}" for key in keys]
+    # Transformers 5 leaves these unset on a fresh GenerationConfig and
+    # resolves them inside generate(); report the value it will use.
+    defaults: dict[str, object] = {}
+    resolver = getattr(type(generation_config), "_get_default_generation_params", None)
+    if callable(resolver):
+        try:
+            defaults = dict(resolver())
+        except Exception:  # noqa: BLE001 - a private helper; fall back to unset
+            defaults = {}
+    parts: list[str] = []
+    for key in keys:
+        value = getattr(generation_config, key, None)
+        if value is None and key in defaults:
+            parts.append(f"{key}={defaults[key]} (library default)")
+        else:
+            parts.append(f"{key}={value}")
     return ", ".join(parts)
 
 
@@ -1518,6 +1768,19 @@ def _dataset_names(config: dict[str, Any]) -> list[str]:
     return [canonical_dataset(str(config.get("dataset", "synthetic_prompts")))]
 
 
+def _temperatures(config: dict[str, Any]) -> list[float] | None:
+    """Return the ``temperatures`` list, or ``None`` for a single-mode config."""
+    raw = config.get("temperatures")
+    if isinstance(raw, list) and raw:
+        return [float(item) for item in raw]
+    return None
+
+
+def _mode_slug(temperature: float) -> str:
+    """``greedy`` for temperature 0, otherwise ``t<temperature>`` (``t0.7``)."""
+    return "greedy" if temperature == 0.0 else f"t{temperature:g}"
+
+
 def _result_filename(
     stem: str,
     dataset: str,
@@ -1525,6 +1788,7 @@ def _result_filename(
     commit: str,
     *,
     multiple: bool = False,
+    mode: str | None = None,
 ) -> str:
     """Return the JSON file name for one method and dataset.
 
@@ -1540,6 +1804,9 @@ def _result_filename(
         Git commit recorded in the file.
     multiple : bool
         True when the config runs more than one dataset.
+    mode : str or None
+        Decoding mode slug from a ``temperatures`` list (``greedy``,
+        ``t0.7``). It goes after the dataset slug.
 
     Returns
     -------
@@ -1549,6 +1816,8 @@ def _result_filename(
         than one dataset is run, so the files do not overwrite each other.
     """
     slug = canonical_dataset(dataset)
+    if mode is not None:
+        return f"{stem}_{slug}_{mode}_{method}_{commit}.json"
     if multiple or slug in REAL_DATASETS:
         return f"{stem}_{slug}_{method}_{commit}.json"
     return f"{stem}_{method}_{commit}.json"
@@ -1603,22 +1872,42 @@ def run_config_file(path: Path, output_dir: Path) -> list[Path]:
     multiple = len(planned) > 1
     written: list[Path] = []
     commit = git_commit()
+    temperatures = _temperatures(config)
+    modes: list[float | None] = list(temperatures) if temperatures else [None]
+    # Checkpoints are loaded once per config, not once per dataset and mode.
+    modules: dict[str, Any] = {}
+    if str(config.get("model", "toy")) not in TOY_MODELS:
+        device = resolve_device(str(config.get("device", "auto")))
+        drafter_module, target_module = _load_checkpoint_modules(config, device)
+        modules = {"drafter_module": drafter_module, "target_module": target_module}
+        if any(item in REAL_DATASETS for item in planned) and config.get("tokenizer") is None:
+            config = {**config, "tokenizer": _load_tokenizer(str(config["model"]))}
     for name in names:
         if name == "alpaca":
             print(f"Skipping alpaca: {ALPACA_REASON}")
             continue
-        one = {key: value for key, value in config.items() if key != "datasets"}
-        one["dataset"] = name
-        paired = run_paired_generations(one)
-        for method, document in paired.items():
-            destination = output_dir / _result_filename(
-                path.stem, name, method, commit, multiple=multiple
-            )
-            write_result(destination, document)
-            written.append(destination)
-            metrics = document["metrics"]
-            assert isinstance(metrics, dict)
-            print(
-                f"{method}: {metrics.get('tokens_per_second_mean')} tok/s on {document['hardware']}"
-            )
+        for temperature in modes:
+            one = {
+                key: value
+                for key, value in config.items()
+                if key not in {"datasets", "temperatures"}
+            }
+            one["dataset"] = name
+            if temperature is not None:
+                one["temperature"] = temperature
+            mode = _mode_slug(temperature) if temperature is not None else None
+            print(f"Running {path.stem}: dataset={name} mode={mode or one.get('temperature')}")
+            paired = run_paired_generations(one, **modules)
+            for method, document in paired.items():
+                destination = output_dir / _result_filename(
+                    path.stem, name, method, commit, multiple=multiple, mode=mode
+                )
+                write_result(destination, document)
+                written.append(destination)
+                metrics = document["metrics"]
+                assert isinstance(metrics, dict)
+                print(
+                    f"{method}: {metrics.get('tokens_per_second_median')} tok/s (median) "
+                    f"on {document['hardware']}"
+                )
     return written

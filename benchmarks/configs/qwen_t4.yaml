@@ -1,0 +1,41 @@
+# Phase 4 primary pair on a Colab Tesla T4: Qwen2.5-1.5B-Instruct verified
+# by FlashSpec with Qwen2.5-0.5B-Instruct drafting. Both share one
+# tokenizer; the harness checks that at load and refuses otherwise.
+#
+# Prompts are the vendored MT-Bench and HumanEval sets (10 each), each
+# rendered as one user turn through the target's chat template. Each
+# dataset is run greedy and at temperature 0.7. Per mode the methods are
+# FlashSpec, the matching plain HuggingFace baseline (hf_greedy or
+# hf_sample) and HuggingFace assisted generation with the same drafter.
+# Every method generates exactly max_new_tokens tokens (no EOS stop, no
+# EOS suppression). The checkpoints' shipped sampling defaults are
+# replaced by neutral ones for the HuggingFace baselines.
+#
+# Run it through notebooks/04_gpu_measurement.ipynb, which writes the
+# results bundle. Do not fill a result JSON by hand if the run fails.
+
+model: Qwen/Qwen2.5-1.5B-Instruct
+drafter: Qwen/Qwen2.5-0.5B-Instruct
+device: cuda:0
+dtype: float16
+gamma: 4
+batch_size: 1
+max_new_tokens: 128
+n_warmup: 2
+n_samples: 10
+seed: 0
+chat_template: true
+
+datasets:
+  - mt_bench
+  - humaneval
+
+temperatures:
+  - 0.0
+  - 0.7
+
+methods:
+  - flashspec_ucb
+  - hf_greedy
+  - hf_sample
+  - hf_assisted

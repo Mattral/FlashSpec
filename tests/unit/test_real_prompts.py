@@ -103,23 +103,59 @@ def test_mt_bench_without_a_tokenizer_writes_nothing(tmp_path: Path) -> None:
     assert list(output.glob("*.json")) == []
 
 
+def load_prompt_set_records(name: str) -> list[dict[str, str]]:
+    """Return the raw vendored records, including fields the loader drops."""
+    import json
+    from pathlib import Path
+
+    path = Path("benchmarks/prompt_sets") / f"{name}.json"
+    prompts: list[dict[str, str]] = json.loads(path.read_text(encoding="utf-8"))["prompts"]
+    return prompts
+
+
 def test_fixed_sets_keep_the_selected_ids() -> None:
     """Load the vendored ids and refuse Alpaca."""
     humaneval = load_prompt_set("human-eval")
+    # The first four are the original selection; the next six extend the
+    # same rule (the shortest HumanEval prompts) to ten.
     assert [item["id"] for item in humaneval] == [
         "HumanEval/23",
         "HumanEval/45",
         "HumanEval/53",
         "HumanEval/55",
+        "HumanEval/34",
+        "HumanEval/83",
+        "HumanEval/85",
+        "HumanEval/47",
+        "HumanEval/24",
+        "HumanEval/27",
     ]
     assert {item["id"]: len(item["text"]) for item in humaneval} == {
         "HumanEval/23": 133,
         "HumanEval/45": 138,
         "HumanEval/53": 115,
         "HumanEval/55": 130,
+        "HumanEval/34": 149,
+        "HumanEval/83": 164,
+        "HumanEval/85": 167,
+        "HumanEval/47": 168,
+        "HumanEval/24": 172,
+        "HumanEval/27": 179,
     }
     mt_bench = load_prompt_set("mtbench")
-    assert [item["id"] for item in mt_bench] == ["81", "101", "111", "121"]
+    assert [item["id"] for item in mt_bench] == [
+        "81",
+        "101",
+        "111",
+        "121",
+        "91",
+        "131",
+        "141",
+        "151",
+        "82",
+        "92",
+    ]
+    assert len({item["category"] for item in load_prompt_set_records("mt_bench")}) == 8
     assert mt_bench[0]["text"].startswith("Compose an engaging travel blog")
     assert "second person" in mt_bench[1]["text"]
     with pytest.raises(RuntimeError, match="CC BY-NC 4.0"):
@@ -147,8 +183,8 @@ def test_measurement_step_cap_uses_each_prompt_once() -> None:
         torch.device("cpu"),
         _CharTokenizer(),
     )
-    assert ids == ["81", "101", "111", "121"]
-    assert len(_rows) == 4
+    assert ids == ["81", "101", "111", "121", "91", "131", "141", "151", "82", "92"]
+    assert len(_rows) == 10
     assert "n_measurement_steps asked for 200" in note
     assert "used once" in note
     assert "not a checkpoint measurement" in note
