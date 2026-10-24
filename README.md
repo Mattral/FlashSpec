@@ -44,12 +44,12 @@ library plus a small HTTP server, not a production serving stack.
 <!-- BEGIN GENERATED: status (scripts/ingest_gpu_bundle.py) -->
 Measured at git `52993e4`: `Qwen/Qwen2.5-1.5B-Instruct` verified by `Qwen/Qwen2.5-0.5B-Instruct`, Tesla T4, fp16, batch 1, gamma 4, 10 prompts per set (chat template), 128 new tokens. One model pair, one GPU. Speedups are medians of per-prompt ratios within the same run. The headline baseline is HuggingFace `generate` with a static cache compiled the same way (CUDA graphs); eager HuggingFace and assisted generation are context. Cells are the stored JSON values.
 
-| dataset | mode | FlashSpec tok/s | compiled HF tok/s | **vs compiled HF** | eager HF tok/s | vs eager HF | vs HF assisted | acceptance | c (compiled) | greedy match vs eager HF |
-|---|---|---|---|---|---|---|---|---|---|---|
-| humaneval | greedy | 72.82514637900351 | 49.12146246181767 | **1.4858433502745476** | 23.47412238102048 | 3.07061233431369 | 3.266906470700773 | 0.7674472295086122 | 0.47729950026754264 | 9/10 |
-| humaneval | T=0.7 | 64.65023157407026 | 49.040621806485035 | **1.320689325997725** | 23.737994536255016 | 2.7423863913637065 | 3.3484703254583867 | 0.7018560004266362 | 0.47093952934629857 | n/a |
-| mt_bench | greedy | 55.252001625954684 | 49.12532116486909 | **1.1245701242847757** | 23.397178479769785 | 2.379455989273368 | 3.2676885098898643 | 0.5310738087770345 | 0.4727048901148993 | 10/10 |
-| mt_bench | T=0.7 | 55.877849299137125 | 48.94843360467012 | **1.1410430525952333** | 22.970064276527687 | 2.4026007789116655 | 4.0319731142311515 | 0.5374968568894605 | 0.47490476916347535 | n/a |
+| dataset | mode | FlashSpec tok/s | compiled HF tok/s | **vs compiled HF** | eager HF tok/s | vs eager HF | vs HF assisted | acceptance | c (compiled) | greedy match vs compiled HF | greedy match vs eager HF |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| humaneval | greedy | 72.82514637900351 | 49.12146246181767 | **1.4858433502745476** | 23.47412238102048 | 3.07061233431369 | 3.266906470700773 | 0.7674472295086122 | 0.47729950026754264 | n/a | 9/10 |
+| humaneval | T=0.7 | 64.65023157407026 | 49.040621806485035 | **1.320689325997725** | 23.737994536255016 | 2.7423863913637065 | 3.3484703254583867 | 0.7018560004266362 | 0.47093952934629857 | n/a | n/a |
+| mt_bench | greedy | 55.252001625954684 | 49.12532116486909 | **1.1245701242847757** | 23.397178479769785 | 2.379455989273368 | 3.2676885098898643 | 0.5310738087770345 | 0.4727048901148993 | n/a | 10/10 |
+| mt_bench | T=0.7 | 55.877849299137125 | 48.94843360467012 | **1.1410430525952333** | 22.970064276527687 | 2.4026007789116655 | 4.0319731142311515 | 0.5374968568894605 | 0.47490476916347535 | n/a | n/a |
 <!-- END GENERATED: status -->
 
 ---

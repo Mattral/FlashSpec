@@ -215,6 +215,33 @@ class TestValidate:
                 },
                 "missing section 'nonfinite_logits'",
             ),
+            (
+                "missing_outputs",
+                {
+                    "edit_doc": lambda d: (_as_gpu_run(d), d.pop("outputs")),
+                    "edit_manifest": _clean,
+                },
+                "missing section 'outputs'",
+            ),
+            (
+                "tampered_outputs",
+                {
+                    "edit_doc": lambda d: (
+                        _as_gpu_run(d),
+                        d["outputs"]["prompts"][0]["token_ids"].append(7),
+                    ),
+                    "edit_manifest": _clean,
+                },
+                "sha256 or n_tokens does not match",
+            ),
+            (
+                "short_outputs",
+                {
+                    "edit_doc": lambda d: (_as_gpu_run(d), d["outputs"]["prompts"].pop()),
+                    "edit_manifest": _clean,
+                },
+                "outputs for n_samples",
+            ),
         ],
     )
     def test_rejections(
@@ -319,3 +346,41 @@ def test_render_status_needs_compiled_results() -> None:
 
     assert render_status([]) is None
     assert render_status([{"method": "flashspec_ucb"}]) is None
+
+
+def test_render_status_shows_both_greedy_matches() -> None:
+    """Compiled-vs-compiled and compiled-vs-eager matches get their own columns."""
+    from scripts.ingest_gpu_bundle import render_status
+
+    doc = {
+        "method": "flashspec_compiled",
+        "git_commit": "abc1234",
+        "timestamp": "t",
+        "dataset": "humaneval",
+        "decoding": {"mode": "greedy", "temperature": 0.0, "max_new_tokens": 8},
+        "metrics": {},
+        "greedy_token_match_compiled": {"prompts_matched": 3, "n_prompts": 3},
+        "greedy_token_match": {"prompts_matched": 2, "n_prompts": 3},
+    }
+    table = render_status([doc])
+    assert table is not None
+    header, _rule, row = table.splitlines()[2:5]
+    assert "greedy match vs compiled HF | greedy match vs eager HF" in header
+    assert row.endswith("| 3/3 | 2/3 |")
+    older = {key: value for key, value in doc.items() if key != "greedy_token_match_compiled"}
+    assert render_status([older]).splitlines()[4].endswith("| n/a | 2/3 |")  # type: ignore[union-attr]
+
+
+def test_greedy_compiled_needs_the_compiled_match() -> None:
+    """A greedy flashspec_compiled run next to hf_greedy_compiled must say if they match."""
+    from scripts.ingest_gpu_bundle import _check_document
+
+    doc = {
+        "method": "flashspec_compiled",
+        "decoding": {"mode": "greedy"},
+        "metrics": {"speedup_vs_hf_greedy_compiled_median": 1.0},
+        "greedy_token_match": {},
+    }
+    assert any("greedy_token_match_compiled" in e for e in _check_document("r", doc, "c"))
+    doc["greedy_token_match_compiled"] = {}
+    assert not any("greedy_token_match_compiled" in e for e in _check_document("r", doc, "c"))

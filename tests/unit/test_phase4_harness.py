@@ -384,6 +384,11 @@ class TestPhase5Methods:
             assert isinstance(metrics, dict)
             assert "speedup_vs_hf_greedy_compiled_median" in metrics
         compiled = paired["flashspec_compiled"]
+        match_compiled = compiled["greedy_token_match_compiled"]
+        assert isinstance(match_compiled, dict)
+        assert match_compiled["reference"] == "hf_greedy_compiled"
+        assert match_compiled["prompts_matched"] == match_compiled["n_prompts"] == 3
+        assert "greedy_token_match_compiled" not in paired["flashspec_ucb"]
         expected = {"requested": True, "effective": False, "fallback_reason": None}
         assert compiled["compile"] == expected
         assert "speedup_vs_flashspec_ucb_median" in compiled["metrics"]  # type: ignore[operator]
@@ -401,6 +406,32 @@ class TestPhase5Methods:
             assert isinstance(eager, dict)
             assert eager["c"] is not None and eager["c"] > 0
             assert forward_cost["compiled"] is None
+
+    def test_every_document_stores_per_prompt_outputs(self) -> None:
+        """Token ids and their sha256 per prompt, in prompt order, for every method."""
+        methods = ["flashspec_ucb", "flashspec_compiled", "hf_greedy", "hf_greedy_compiled"]
+        paired = run_paired_generations(_toy_config(temperature=0.0, methods=methods))
+        hashes = {}
+        for name, doc in paired.items():
+            outputs = doc["outputs"]
+            assert isinstance(outputs, dict)
+            prompts = outputs["prompts"]
+            assert isinstance(prompts, list)
+            assert len(prompts) == doc["n_samples"] == 3
+            for entry in prompts:
+                assert entry["n_tokens"] == len(entry["token_ids"]) == 6
+                assert entry["sha256"] == harness.token_sha256(entry["token_ids"])
+            assert [entry["prompt_id"] for entry in prompts] == doc.get("prompt_ids", [None] * 3)
+            hashes[name] = [entry["sha256"] for entry in prompts]
+        # Greedy and lossless: every method produced the same tokens.
+        assert len({tuple(value) for value in hashes.values()}) == 1
+
+    def test_token_sha256_format(self) -> None:
+        """The hash is over the comma-joined decimal ids."""
+        import hashlib
+
+        assert harness.token_sha256([3, 14, 15]) == hashlib.sha256(b"3,14,15").hexdigest()
+        assert harness.token_sha256([]) == hashlib.sha256(b"").hexdigest()
 
     def test_sampled_mode_runs_hf_sample_compiled(self) -> None:
         """At T > 0 the compiled plain baseline is hf_sample_compiled."""

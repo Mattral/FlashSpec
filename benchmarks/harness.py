@@ -32,6 +32,7 @@ method on the first prompt), ``decoding``, ``drafter``,
 
 from __future__ import annotations
 
+import hashlib
 import json
 import platform
 import statistics
@@ -1309,6 +1310,42 @@ def _load_tokenizer(model_name: str) -> object:
         ) from exc
 
 
+def token_sha256(token_ids: list[int]) -> str:
+    """sha256 of the output token ids as decimal text joined by commas.
+
+    ``[3, 14, 15]`` hashes the ASCII bytes ``b"3,14,15"``; an empty output
+    hashes ``b""``. Two methods produced the same tokens for a prompt
+    exactly when their hashes are equal.
+    """
+    return hashlib.sha256(",".join(str(int(t)) for t in token_ids).encode("ascii")).hexdigest()
+
+
+def output_records(outputs: list[list[int]], prompt_ids: list[str] | None) -> dict[str, object]:
+    """Build the ``outputs`` section of a result: per-prompt token ids and their sha256.
+
+    Parameters
+    ----------
+    outputs : list of list of int
+        Generated token ids per timed prompt, in prompt order. A stop
+        token, when generation stops at EOS, is included.
+    prompt_ids : list of str or None
+        Prompt identifiers in the same order, when the prompt set has them.
+    """
+    ids: list[str | None] = list(prompt_ids) if prompt_ids else [None] * len(outputs)
+    return {
+        "hash": "sha256 of the token ids as decimal text joined by ','",
+        "prompts": [
+            {
+                "prompt_id": prompt_id,
+                "n_tokens": len(tokens),
+                "sha256": token_sha256(tokens),
+                "token_ids": list(tokens),
+            }
+            for prompt_id, tokens in zip(ids, outputs, strict=True)
+        ],
+    }
+
+
 @dataclass
 class _MethodRuns:
     """Measured generations of one method over the prompt set."""
@@ -1811,6 +1848,13 @@ def _run_loaded_pair(
             }
         if greedy and reference_name is not None:
             spec_extra["greedy_token_match"] = _match(spec, runs[reference_name], reference_name)
+        if greedy and spec_name == "flashspec_compiled" and "hf_greedy_compiled" in runs:
+            # Same compiled numerics on both sides: this is the lossless check
+            # for the compiled path (eager HF can differ in the last bits).
+            spec_extra["greedy_token_match_compiled"] = _match(
+                spec, runs["hf_greedy_compiled"], "hf_greedy_compiled"
+            )
+        spec_extra["outputs"] = output_records(spec.outputs, prompt_ids)
         notes = spec_notes
         if spec_name == "flashspec_compiled":
             notes += (
@@ -1856,6 +1900,7 @@ def _run_loaded_pair(
             **common_extra,
             "forward_counts": _forward_counts(name),
             **probes[name],
+            "outputs": output_records(runs[name].outputs, prompt_ids),
         }
         if name.endswith("_compiled"):
             extra["compile"] = {"requested": True, "effective": device.type == "cuda"}

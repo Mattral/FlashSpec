@@ -149,7 +149,13 @@ def render_profile(documents: list[dict[str, Any]]) -> str:
             for key in sorted(counts):
                 if "lengths" not in key:
                     lines.append(f"  forward_counts.{key} = {_fmt(counts[key])}")
-            for section in ("step_profile", "host_syncs", "nonfinite_logits", "greedy_token_match"):
+            for section in (
+                "step_profile",
+                "host_syncs",
+                "nonfinite_logits",
+                "greedy_token_match",
+                "greedy_token_match_compiled",
+            ):
                 payload = doc.get(section)
                 if isinstance(payload, dict):
                     for key in sorted(payload):

@@ -18,7 +18,10 @@ only when:
   relaxes the last);
 - every result passes ``scripts/update_benchmark_results.py`` validation,
   records the manifest commit, is an ``end_to_end`` run on a GPU with real
-  prompts, carries the phase 4 sections, and its ``hardware`` has only the
+  prompts, carries the phase 4 sections and per-prompt ``outputs`` (token
+  ids whose sha256 matches the stored hash), a greedy ``flashspec_compiled``
+  run next to ``hf_greedy_compiled`` carries ``greedy_token_match_compiled``,
+  and its ``hardware`` has only the
   harness fields (platform, machine, python, torch, avx2, gpu, cuda,
   gpu_count).
 
@@ -126,9 +129,11 @@ def _check_document(name: str, doc: dict[str, Any], commit: str) -> list[str]:
         "forward_counts",
         "host_syncs",
         "nonfinite_logits",
+        "outputs",
     ):
         if section not in doc:
             errors.append(f"{name}: missing section {section!r}")
+    errors.extend(_check_outputs(name, doc))
     method = doc.get("method")
     if method in SPECS and "step_profile" not in doc:
         errors.append(f"{name}: FlashSpec result without step_profile")
@@ -136,6 +141,36 @@ def _check_document(name: str, doc: dict[str, Any], commit: str) -> list[str]:
     if decoding.get("mode") == "greedy" and method in (*SPECS, "hf_assisted"):
         if "greedy_token_match" not in doc:
             errors.append(f"{name}: greedy {method} result without greedy_token_match")
+    metrics = doc.get("metrics") or {}
+    if (
+        decoding.get("mode") == "greedy"
+        and method == "flashspec_compiled"
+        and "speedup_vs_hf_greedy_compiled_median" in metrics
+        and "greedy_token_match_compiled" not in doc
+    ):
+        errors.append(f"{name}: greedy flashspec_compiled without greedy_token_match_compiled")
+    return errors
+
+
+def _check_outputs(name: str, doc: dict[str, Any]) -> list[str]:
+    """Per-prompt outputs: one entry per sample, and each sha256 matches its token ids."""
+    outputs = doc.get("outputs")
+    if outputs is None:
+        return []
+    prompts = outputs.get("prompts") if isinstance(outputs, dict) else None
+    if not isinstance(prompts, list):
+        return [f"{name}: outputs.prompts is not a list"]
+    errors: list[str] = []
+    if len(prompts) != doc.get("n_samples"):
+        errors.append(f"{name}: {len(prompts)} outputs for n_samples={doc.get('n_samples')!r}")
+    for index, entry in enumerate(prompts):
+        tokens = entry.get("token_ids") if isinstance(entry, dict) else None
+        if not isinstance(tokens, list):
+            errors.append(f"{name}: outputs.prompts[{index}] has no token_ids")
+            continue
+        digest = hashlib.sha256(",".join(str(int(t)) for t in tokens).encode("ascii")).hexdigest()
+        if entry.get("sha256") != digest or entry.get("n_tokens") != len(tokens):
+            errors.append(f"{name}: outputs.prompts[{index}] sha256 or n_tokens does not match")
     return errors
 
 
@@ -270,10 +305,7 @@ def render_tables(documents: list[dict[str, Any]], *, sig: int | None = None) ->
             )
             counts = doc.get("forward_counts") or {}
             plain = "hf_greedy" if decoding.get("mode") == "greedy" else "hf_sample"
-            match = doc.get("greedy_token_match")
-            match_cell = "n/a"
-            if isinstance(match, dict):
-                match_cell = f"{match['prompts_matched']}/{match['n_prompts']}"
+            match_cell = _fraction(doc.get("greedy_token_match"))
             nonfinite = doc.get("nonfinite_logits") or {}
             bad = None
             if "target_entries" in nonfinite:
@@ -359,8 +391,8 @@ def render_status(documents: list[dict[str, Any]], *, sig: int | None = None) ->
         "",
         "| dataset | mode | FlashSpec tok/s | compiled HF tok/s | **vs compiled HF** "
         "| eager HF tok/s | vs eager HF | vs HF assisted | acceptance | c (compiled) "
-        "| greedy match vs eager HF |",
-        "|" + "---|" * 11,
+        "| greedy match vs compiled HF | greedy match vs eager HF |",
+        "|" + "---|" * 12,
     ]
     for doc in sorted(
         docs, key=lambda d: (str(d.get("dataset")), str((d.get("decoding") or {}).get("mode")))
@@ -377,6 +409,7 @@ def render_status(documents: list[dict[str, Any]], *, sig: int | None = None) ->
 
         cost = (doc.get("forward_cost") or {}).get("compiled") or {}
         match = doc.get("greedy_token_match")
+        match_compiled = doc.get("greedy_token_match_compiled")
         lines.append(
             "| "
             + " | ".join(
@@ -391,14 +424,20 @@ def render_status(documents: list[dict[str, Any]], *, sig: int | None = None) ->
                     _cell(metrics.get("speedup_vs_hf_assisted_median"), sig),
                     _cell(metrics.get("acceptance_rate_mean"), sig),
                     _cell(cost.get("c"), sig),
-                    f"{match['prompts_matched']}/{match['n_prompts']}"
-                    if isinstance(match, dict)
-                    else "n/a",
+                    _fraction(match_compiled),
+                    _fraction(match),
                 ]
             )
             + " |"
         )
     return "\n".join(lines) + "\n"
+
+
+def _fraction(match: object) -> str:
+    """``matched/n`` from a greedy_token_match section; ``n/a`` when absent."""
+    if isinstance(match, dict):
+        return f"{match['prompts_matched']}/{match['n_prompts']}"
+    return "n/a"
 
 
 def _replace_block(readme: str, body: str, begin: str = BEGIN, end: str = END) -> str:
