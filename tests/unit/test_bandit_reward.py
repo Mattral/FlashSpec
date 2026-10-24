@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
+import pytest
 import torch
 
 from flashspec.bandit.thompson import ThompsonSelector
@@ -89,8 +92,12 @@ def test_omitted_reward_still_uses_the_accept_count() -> None:
     assert selector._arms[0].mean_accept_rate == 1.0
 
 
-def test_engine_rewards_accepted_tokens_per_step_second() -> None:
-    """The engine pays tokens per step-second and does not count the bonus."""
+def test_engine_rewards_emitted_tokens_per_step_second(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Reward is emitted tokens (drafts + bonus) per step-second; the accept count is not."""
+    import flashspec.engine.speculative as speculative
+
+    ticks = iter(float(index) * 0.5 for index in range(1000))
+    monkeypatch.setattr(speculative, "time", SimpleNamespace(perf_counter=lambda: next(ticks)))
     bandit = _RecordingUCB()
     config = FlashSpecConfig(
         device="cpu",
@@ -110,6 +117,7 @@ def test_engine_rewards_accepted_tokens_per_step_second() -> None:
     assert result.n_tokens_generated == 5
     assert len(bandit.calls) == 1
     accepted, reward = bandit.calls[0]
+    # Four draft tokens accepted; the step emitted those plus the bonus.
     assert accepted == 4
-    assert reward is not None
-    assert reward > 0.0
+    # The fake clock advances 0.5 s per read, and the step spans one read.
+    assert reward == pytest.approx(5 / 0.5)

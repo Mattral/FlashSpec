@@ -25,6 +25,7 @@ __all__ = [
     "ASM_NAN_CLAMP_TO_ZERO",
     "active_residual_backend",
     "rejection_sample",
+    "rejection_step",
     "residual_backend_status",
     "residual_distribution",
 ]
@@ -290,6 +291,8 @@ def rejection_sample(
     target_logprobs: torch.Tensor,
     draft_token_ids: torch.Tensor,
     gamma: int,
+    *,
+    generator: torch.Generator | None = None,
 ) -> tuple[torch.Tensor, torch.Tensor, float]:
     """Speculative sampling via token-level acceptance/rejection (Algorithm 1).
 
@@ -318,6 +321,9 @@ def rejection_sample(
         Shape: ``(batch_size, gamma)``, dtype int64.
     gamma : int
         Speculation length.  Must equal ``draft_logprobs.shape[1]``.
+    generator : torch.Generator or None
+        Source of the uniforms and the residual draw. ``None`` uses the
+        global RNG, exactly as before this argument existed.
 
     Returns
     -------
@@ -387,7 +393,10 @@ def rejection_sample(
     lp_p = tlp.gather(-1, ids).squeeze(-1)  # (B, γ)
 
     # Sample uniform variates.
-    u = torch.rand_like(lp_q)  # (B, γ)
+    if generator is None:
+        u = torch.rand_like(lp_q)  # (B, γ)
+    else:
+        u = torch.rand(lp_q.shape, generator=generator, dtype=lp_q.dtype, device=lp_q.device)
 
     # Acceptance test.
     log_ratio = lp_p - lp_q
@@ -426,7 +435,7 @@ def rejection_sample(
     rejected_rows = rejection_index < gamma
     if bool(rejected_rows.any().item()):
         residual_token_ids = _sample_residual(
-            tlp, dlp, first_rejection, batch_size, gamma, vocab_size, device
+            tlp, dlp, first_rejection, batch_size, gamma, vocab_size, device, generator
         )
         row_index = torch.arange(batch_size, device=device)[rejected_rows]
         accepted_ids[row_index, rejection_index[rejected_rows]] = residual_token_ids[
@@ -448,6 +457,7 @@ def _sample_residual(
     gamma: int,
     vocab_size: int,
     device: torch.device,
+    generator: torch.Generator | None = None,
 ) -> torch.Tensor:
     """Sample the residual token at the first rejection position.
 
@@ -469,6 +479,8 @@ def _sample_residual(
         Vocabulary size.
     device : torch.device
         Target device.
+    generator : torch.Generator or None
+        Source of the residual draw. ``None`` uses the global RNG.
 
     Returns
     -------
@@ -485,6 +497,30 @@ def _sample_residual(
     p_at_rej = p.gather(1, idx).squeeze(1)  # (B, V)
     q_at_rej = q.gather(1, idx).squeeze(1)  # (B, V)
 
+    probs = _residual_probs(p_at_rej, q_at_rej)
+
+    # Sample from the residual distribution (always on torch).
+    residual_token_ids = torch.multinomial(probs, num_samples=1, generator=generator).squeeze(-1)
+    if residual_token_ids.device != device:
+        residual_token_ids = residual_token_ids.to(device)
+    return residual_token_ids
+
+
+def _residual_probs(p_at_rej: torch.Tensor, q_at_rej: torch.Tensor) -> torch.Tensor:
+    """Algorithm 1 residual at the rejection row, ready for ``multinomial``.
+
+    Parameters
+    ----------
+    p_at_rej : torch.Tensor
+        Target probabilities at the rejected position. Shape ``(B, V)``.
+    q_at_rej : torch.Tensor
+        Draft probabilities at the same position. Shape ``(B, V)``.
+
+    Returns
+    -------
+    torch.Tensor
+        Normalised sampling weights. Shape ``(B, V)``.
+    """
     # Residual distribution: max(0, p-q) / sum(max(0, p-q)) — Algorithm 1.
     # CPU + AVX2 + a matching flashspec-asm-kernel build uses the assembly
     # kernel inside residual_distribution. GPU tensors and every other case
@@ -499,10 +535,94 @@ def _sample_residual(
     target = target / target.sum(dim=-1, keepdim=True).clamp(min=_MIN_PROB)
     probs = torch.where(usable, residual, target)
     probs = torch.nan_to_num(probs, nan=0.0, posinf=0.0, neginf=0.0).clamp(min=0)
-    probs = probs / probs.sum(dim=-1, keepdim=True).clamp(min=_MIN_PROB)
+    return probs / probs.sum(dim=-1, keepdim=True).clamp(min=_MIN_PROB)
 
-    # Sample from the residual distribution (always on torch).
-    residual_token_ids = torch.multinomial(probs, num_samples=1).squeeze(-1)
-    if residual_token_ids.device != device:
-        residual_token_ids = residual_token_ids.to(device)
-    return residual_token_ids
+
+def rejection_step(
+    draft_token_ids: torch.Tensor,
+    draft_logprobs: torch.Tensor,
+    target_logprobs: torch.Tensor,
+    *,
+    generator: torch.Generator | None = None,
+) -> torch.Tensor:
+    """One Algorithm 1 step, with no host sync, returning ``[n_accepted, next_token]``.
+
+    The acceptance test and the residual formula are those of
+    :func:`rejection_sample`. What differs is the bookkeeping:
+
+    - ``exp()`` runs only on the one row each sequence needs: the rejected
+      position for the residual, or the bonus row after a full accept.
+    - The residual and the bonus are one ``multinomial`` draw from a
+      distribution picked with ``torch.where``, so nothing branches on
+      device data. A step draws ``gamma`` uniforms and then exactly one
+      token, which is what :func:`rejection_sample` plus the engine's bonus
+      draw consumed.
+    - The result stays on the device. The caller reads it with one
+      ``tolist()``.
+
+    Parameters
+    ----------
+    draft_token_ids : torch.Tensor
+        Shape ``(B, gamma)``, int64.
+    draft_logprobs : torch.Tensor
+        Temperature-scaled draft log-probs. Shape ``(B, gamma, V)``.
+    target_logprobs : torch.Tensor
+        Temperature-scaled target log-probs for the draft positions and the
+        bonus position. Shape ``(B, gamma + 1, V)``. With only ``gamma``
+        rows there is no bonus, and a full accept returns ``-1`` as the
+        next token.
+    generator : torch.Generator or None
+        Source of all randomness. ``None`` uses the global RNG.
+
+    Returns
+    -------
+    torch.Tensor
+        Shape ``(B, 2)``, int64: accepted draft count in ``[0, gamma]``,
+        then the residual token (after a rejection) or the bonus token
+        (after a full accept).
+
+    Raises
+    ------
+    ValueError
+        If the shapes do not line up.
+    """
+    batch, gamma = draft_token_ids.shape
+    if draft_logprobs.shape[:2] != (batch, gamma):
+        raise ValueError(
+            f"draft_logprobs must be ({batch}, {gamma}, V); got {tuple(draft_logprobs.shape)}."
+        )
+    rows = int(target_logprobs.shape[1])
+    if target_logprobs.shape[0] != batch or rows not in (gamma, gamma + 1):
+        raise ValueError(
+            f"target_logprobs must be ({batch}, {gamma} or {gamma + 1}, V); "
+            f"got {tuple(target_logprobs.shape)}."
+        )
+    vocab = int(draft_logprobs.shape[-1])
+    device = draft_logprobs.device
+    ids = draft_token_ids.to(device).unsqueeze(-1)
+    lp_q = draft_logprobs.gather(-1, ids).squeeze(-1).float()
+    lp_p = target_logprobs[:, :gamma].gather(-1, ids).squeeze(-1).float()
+    if generator is None:
+        u = torch.rand_like(lp_q)
+    else:
+        u = torch.rand(lp_q.shape, generator=generator, dtype=lp_q.dtype, device=device)
+    # Acceptance test, as in rejection_sample.
+    accept_prob = (lp_p - lp_q).exp().clamp(max=1.0)
+    rejected = ~(u < accept_prob)
+    first = torch.where(
+        rejected.any(dim=-1),
+        rejected.int().argmax(dim=-1),
+        torch.full((batch,), gamma, dtype=torch.long, device=device),
+    )
+    row = first.clamp(max=gamma - 1)[:, None, None].expand(batch, 1, vocab)
+    p_at_rej = target_logprobs.gather(1, row).squeeze(1).float().exp()
+    q_at_rej = draft_logprobs.gather(1, row).squeeze(1).float().exp()
+    probs = _residual_probs(p_at_rej, q_at_rej)
+    if rows == gamma + 1:
+        bonus = target_logprobs[:, gamma].float().exp()
+        bonus = bonus / bonus.sum(dim=-1, keepdim=True).clamp(min=_MIN_PROB)
+        probs = torch.where((first < gamma).unsqueeze(-1), probs, bonus)
+    next_token = torch.multinomial(probs, num_samples=1, generator=generator).squeeze(-1)
+    if rows == gamma:
+        next_token = torch.where(first < gamma, next_token, torch.full_like(next_token, -1))
+    return torch.stack([first, next_token], dim=-1)

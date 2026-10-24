@@ -6,7 +6,10 @@ and metrics trackers into a single generation loop.
 
 from __future__ import annotations
 
+import functools
+import inspect
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -20,8 +23,8 @@ from flashspec.metrics.acceptance import AcceptanceTracker
 from flashspec.metrics.latency import LatencyTracker
 from flashspec.metrics.step_profile import StepProfiler, StepRecord
 from flashspec.metrics.throughput import ThroughputTracker
-from flashspec.sampling.greedy import greedy_verify
-from flashspec.sampling.rejection import rejection_sample
+from flashspec.sampling.greedy import greedy_step, greedy_verify
+from flashspec.sampling.rejection import rejection_sample, rejection_step
 from flashspec.sampling.typical import typical_sample
 from flashspec.utils.config import FlashSpecConfig
 from flashspec.utils.device import get_device
@@ -68,6 +71,31 @@ def _offers(owner: object, names: tuple[str, ...]) -> bool:
     return all(callable(getattr(owner, name, None)) for name in names)
 
 
+@functools.lru_cache(maxsize=128)
+def _takes_generator(method: Any) -> bool:  # noqa: ANN401
+    """Whether ``method`` accepts a ``generator`` keyword."""
+    try:
+        parameters = inspect.signature(method).parameters
+    except (TypeError, ValueError):
+        return False
+    return "generator" in parameters
+
+
+def _draft_with_context(
+    drafter: Any,  # noqa: ANN401
+    context: torch.Tensor,
+    gamma: int,
+    generator: torch.Generator | None,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """``generate_draft``, passing the seeded generator when the drafter takes one."""
+    method = drafter.generate_draft
+    if generator is not None and _takes_generator(method):
+        ids, logprobs = method(context, gamma, generator=generator)
+    else:
+        ids, logprobs = method(context, gamma)
+    return ids, logprobs
+
+
 @dataclass(slots=True)
 class _Incremental:
     """Which batch-1 components run on the incremental cache this call.
@@ -103,20 +131,23 @@ class _Incremental:
         context: torch.Tensor,
         gamma: int,
         greedy: bool = False,
+        generator: torch.Generator | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor | None]:
         if self.drafter_capable[arm] and not self.drafter_live[arm]:
             self.drafter_live[arm] = bool(drafter.begin(context))
             self.drafter_capable[arm] = self.drafter_live[arm]
         if self.drafter_live[arm]:
             try:
-                ids, logprobs = drafter.draft(gamma, greedy=greedy)
+                if generator is not None and _takes_generator(drafter.draft):
+                    ids, logprobs = drafter.draft(gamma, greedy=greedy, generator=generator)
+                else:
+                    ids, logprobs = drafter.draft(gamma, greedy=greedy)
             except CacheUnavailableError:
                 self.drafter_live[arm] = False
                 self.drafter_capable[arm] = False
             else:
                 return ids, logprobs
-        ids, logprobs = drafter.generate_draft(context, gamma)
-        return ids, logprobs
+        return _draft_with_context(drafter, context, gamma, generator)
 
     def verify(
         self,
@@ -230,10 +261,20 @@ class SpeculativeEngine:
        that is the only target forward of the step and the drafter runs
        exactly ``gamma`` forwards.
     4. Sampling algorithm accepts/rejects draft tokens and samples residual.
-    5. Bandit is updated with accepted tokens per second of step time.
-       The raw accept count is still recorded. The bonus token is not
-       part of that count.
+    5. Bandit is updated with emitted tokens (accepted drafts plus the
+       residual or bonus token) per second of step time. The raw accept
+       count is still recorded separately.
     6. Metrics are updated.
+
+    Batch 1 with ``variant`` ``"rejection"`` or ``"greedy"`` runs a
+    dedicated loop that reads the device once per step: one small
+    ``tolist()`` of ``[n_accepted, next_token, *draft_ids]``. Everything
+    else (sampling, cache crops, the output buffer) stays on the device.
+    Other batches and ``variant="typical"`` use the context-based loop.
+
+    ``config.sampling.seed`` seeds a ``torch.Generator`` per
+    :meth:`generate` call, so the global RNG is not touched and one seed
+    reproduces one output. ``seed=None`` uses the global RNG.
 
     Parameters
     ----------
@@ -306,6 +347,7 @@ class SpeculativeEngine:
         self,
         input_ids: torch.Tensor,
         max_new_tokens: int | None = None,
+        eos_token_ids: Sequence[int] | None = None,
     ) -> GenerationResult:
         """Run the speculative decoding generation loop.
 
@@ -315,6 +357,10 @@ class SpeculativeEngine:
             Prompt token IDs.  Shape: ``(batch_size, seq_len)``, dtype int64.
         max_new_tokens : int or None
             Maximum tokens to generate.  Defaults to ``config.max_new_tokens``.
+        eos_token_ids : sequence of int or None
+            Stop tokens for this call. ``None`` uses ``config.eos_token_ids``.
+            A row stops right after it emits one; the stop token is kept and
+            the rest of the row is ``-1``.
 
         Returns
         -------
@@ -346,9 +392,8 @@ class SpeculativeEngine:
            the drafter and verifier crop their KV caches by the number of
            rejected tokens and queue the residual or bonus token for their
            next forward. No model runs during this step.
-        6. The bandit records accepted draft tokens per second of the step.
-           The raw accept count is still recorded. The bonus token is not
-           part of that count.
+        6. The bandit records emitted tokens per second of the step. The
+           raw accept count is still recorded separately.
         7. Metrics are updated.
 
         Examples
@@ -365,6 +410,34 @@ class SpeculativeEngine:
             raise ValueError("input_ids batch size must be >= 1.")
 
         max_tokens = max_new_tokens if max_new_tokens is not None else self._config.max_new_tokens
+        stop_ids = self._config.eos_token_ids if eos_token_ids is None else eos_token_ids
+        eos = frozenset(int(token) for token in stop_ids)
+        generator = self._make_generator()
+        fast = self._config.sampling.variant in ("rejection", "greedy")
+        if int(input_ids.shape[0]) == 1 and fast:
+            return self._generate_single(input_ids, max_tokens, eos, generator)
+        return self._generate_generic(input_ids, max_tokens, eos, generator)
+
+    def _make_generator(self) -> torch.Generator | None:
+        """Return a generator seeded with ``config.sampling.seed``, or ``None``."""
+        seed = self._config.sampling.seed
+        if seed is None:
+            return None
+        return torch.Generator(device=self._device).manual_seed(int(seed))
+
+    def _generate_generic(
+        self,
+        input_ids: torch.Tensor,
+        max_tokens: int,
+        eos: frozenset[int],
+        generator: torch.Generator | None,
+    ) -> GenerationResult:
+        """Context-based loop: batches > 1 and ``variant="typical"``.
+
+        Rows that share a context length are scored together. This loop
+        reads the device several times per step; the batch-1 fast path is
+        :meth:`_generate_single`.
+        """
         gamma = self._config.sampling.gamma
         config_sampling = self._config.sampling
         batch_size = int(input_ids.shape[0])
@@ -378,6 +451,11 @@ class SpeculativeEngine:
         def _row_count(index: int) -> int:
             return sum(piece.shape[1] for piece in generated_rows[index])
 
+        finished: set[int] = set()
+
+        def _open(index: int) -> bool:
+            return index not in finished and _row_count(index) < max_tokens
+
         incremental = (
             _Incremental.for_call(self._target, self._drafters) if batch_size == 1 else None
         )
@@ -387,12 +465,12 @@ class SpeculativeEngine:
             profiler.reset()
         self._throughput_tracker.start()
 
-        while any(_row_count(i) < max_tokens for i in range(batch_size)):
+        while any(_open(i) for i in range(batch_size)):
             self._latency_tracker.start()
             if profiler is not None:
                 profiler.start_step()
             step_started = time.perf_counter()
-            active = [i for i in range(batch_size) if _row_count(i) < max_tokens]
+            active = [i for i in range(batch_size) if _open(i)]
             groups: dict[int, list[int]] = {}
             for index in active:
                 groups.setdefault(int(contexts[index].shape[1]), []).append(index)
@@ -411,10 +489,10 @@ class SpeculativeEngine:
                 # first mismatch. No softmax and no random draws.
                 if incremental is not None:
                     draft_token_ids, _ = incremental.draft(
-                        arm, drafter, context, gamma, greedy=True
+                        arm, drafter, context, gamma, greedy=True, generator=generator
                     )
                 else:
-                    draft_token_ids, _ = drafter.generate_draft(context, gamma)
+                    draft_token_ids, _ = _draft_with_context(drafter, context, gamma, generator)
                 if profiler is not None:
                     profiler.mark("draft")
                 if incremental is not None:
@@ -435,13 +513,15 @@ class SpeculativeEngine:
                 # 2. Draft model proposes gamma tokens.
                 if incremental is not None:
                     draft_token_ids, maybe_logprobs = incremental.draft(
-                        arm, drafter, context, gamma
+                        arm, drafter, context, gamma, generator=generator
                     )
                     if maybe_logprobs is None:
                         raise RuntimeError("Drafter returned no log-probs for a sampling step.")
                     draft_logprobs = maybe_logprobs
                 else:
-                    draft_token_ids, draft_logprobs = drafter.generate_draft(context, gamma)
+                    draft_token_ids, draft_logprobs = _draft_with_context(
+                        drafter, context, gamma, generator
+                    )
                 if profiler is not None:
                     profiler.mark("draft")
 
@@ -480,6 +560,7 @@ class SpeculativeEngine:
                         target_logprobs=target_logprobs,
                         draft_token_ids=draft_token_ids,
                         gamma=gamma,
+                        generator=generator,
                     )
                 else:
                     accepted_ids, first_rejection, _alpha = typical_sample(
@@ -522,8 +603,15 @@ class SpeculativeEngine:
                         assert bonus_logprobs is not None
                         probs = bonus_logprobs[local].exp()
                         probs = probs / probs.sum().clamp(min=1e-9)
-                        bonus_id = torch.multinomial(probs, num_samples=1).to(take.dtype)
+                        bonus_id = torch.multinomial(probs, num_samples=1, generator=generator).to(
+                            take.dtype
+                        )
                     take = torch.cat([take, bonus_id.view(-1)])
+                if eos:
+                    stop_at = _first_stop(take.tolist(), eos)
+                    if stop_at is not None:
+                        take = take[: stop_at + 1]
+                        finished.add(index)
                 piece = take.view(1, -1)
                 generated_rows[index].append(piece)
                 contexts[index] = torch.cat([contexts[index], piece], dim=1)
@@ -558,7 +646,8 @@ class SpeculativeEngine:
                         roll(accepted_prefix)
 
             elapsed = time.perf_counter() - step_started
-            reward = (n_accepted / elapsed) if elapsed > 0.0 else 0.0
+            # Emitted tokens: accepted drafts plus the residual or bonus.
+            reward = (emitted / elapsed) if elapsed > 0.0 else 0.0
             self._bandit.update(arm, accepted=n_accepted, reward=reward)
             self._acceptance_tracker.record(n_accepted)
             self._latency_tracker.stop()
@@ -607,3 +696,157 @@ class SpeculativeEngine:
             tokens_per_second=tokens_per_second,
             step_profile=tuple(profiler.records()) if profiler is not None else None,
         )
+
+    def _generate_single(
+        self,
+        input_ids: torch.Tensor,
+        max_tokens: int,
+        eos: frozenset[int],
+        generator: torch.Generator | None,
+    ) -> GenerationResult:
+        """Batch-1 loop with one device-to-host read per step.
+
+        Per step: draft, verify, then :func:`rejection_step` or
+        :func:`greedy_step` give ``[n_accepted, next_token]`` on the
+        device. One ``tolist()`` of that pair plus the draft ids is the
+        only read. The accepted tokens are written into a preallocated
+        sequence buffer by index, and the caches commit by count.
+        """
+        gamma = self._config.sampling.gamma
+        sampling = self._config.sampling
+        greedy = sampling.greedy
+        device = self._device
+        prompt = input_ids.to(device=device, dtype=torch.long)
+        prompt_len = int(prompt.shape[1])
+        capacity = prompt_len + max_tokens + gamma + 1
+        buffer = torch.empty((1, capacity), dtype=torch.long, device=device)
+        buffer[:, :prompt_len] = prompt
+        length = prompt_len
+        produced: list[int] = []
+        incremental = _Incremental.for_call(self._target, self._drafters)
+
+        profiler = self._profiler
+        if profiler is not None:
+            profiler.reset()
+        self._throughput_tracker.start()
+        # The step clock is read after the step's single device read, which
+        # already waits for the device, so no extra synchronize is needed.
+        step_clock = time.perf_counter()
+
+        while len(produced) < max_tokens:
+            if profiler is not None:
+                profiler.start_step()
+            context = buffer[:, :length]
+            arm = self._bandit.select()
+            drafter = self._drafters[arm]
+
+            if greedy:
+                draft_ids, _ = incremental.draft(
+                    arm, drafter, context, gamma, greedy=True, generator=generator
+                )
+                if profiler is not None:
+                    profiler.mark("draft")
+                target_argmax = incremental.verify(
+                    self._target, context, draft_ids, gamma, 1.0, greedy=True
+                )
+                if profiler is not None:
+                    profiler.mark("verify")
+                step = greedy_step(draft_ids, target_argmax)
+            else:
+                draft_ids, draft_logprobs = incremental.draft(
+                    arm, drafter, context, gamma, generator=generator
+                )
+                if draft_logprobs is None:
+                    raise RuntimeError("Drafter returned no log-probs for a sampling step.")
+                if profiler is not None:
+                    profiler.mark("draft")
+                target_logprobs = incremental.verify(
+                    self._target, context, draft_ids, gamma, sampling.temperature
+                )
+                if profiler is not None:
+                    profiler.mark("verify")
+                step = rejection_step(
+                    draft_ids, draft_logprobs, target_logprobs, generator=generator
+                )
+
+            # The one device-to-host read of the step.
+            host = torch.cat([step.view(-1), draft_ids.view(-1).to(step.device)]).tolist()
+            n_accepted, next_token = int(host[0]), int(host[1])
+            new_tokens = host[2 : 2 + n_accepted]
+            if next_token >= 0:
+                new_tokens.append(next_token)
+            take = new_tokens[: max_tokens - len(produced)]
+            stopped = False
+            if eos:
+                stop_at = _first_stop(take, eos)
+                if stop_at is not None:
+                    take = take[: stop_at + 1]
+                    stopped = True
+            if profiler is not None:
+                profiler.mark("sample")
+
+            emitted = len(take)
+            if next_token >= 0:
+                full = torch.cat([draft_ids[:, :n_accepted], step[:, 1:2]], dim=1)
+            else:
+                full = draft_ids[:, :n_accepted]
+            piece = full[:, :emitted]
+            buffer[:, length : length + emitted] = piece
+            length += emitted
+            produced.extend(take)
+            accepted_prefix = buffer[:, :length]
+            if emitted:
+                incremental.commit(
+                    arm, self._drafters, self._target, n_accepted, piece, accepted_prefix
+                )
+            for owner in (drafter, self._target):
+                if incremental.uses_cache(owner, arm, drafter):
+                    continue
+                roll = getattr(owner, "roll_cache_to", None)
+                if callable(roll):
+                    roll(accepted_prefix)
+
+            now = time.perf_counter()
+            elapsed = now - step_clock
+            step_clock = now
+            # Emitted tokens: accepted drafts plus the residual or bonus.
+            reward = (emitted / elapsed) if elapsed > 0.0 else 0.0
+            self._bandit.update(arm, accepted=n_accepted, reward=reward)
+            self._acceptance_tracker.record(n_accepted)
+            self._latency_tracker.record(elapsed * 1000.0)
+            if profiler is not None:
+                profiler.mark("bookkeeping")
+                profiler.end_step(emitted)
+            if stopped:
+                break
+            if emitted == 0:
+                logger.warning("Speculative step accepted no tokens; stopping early.")
+                break
+
+        n_new = len(produced)
+        padded = produced + [-1] * (max_tokens - n_new)
+        output_ids = torch.tensor([padded], dtype=input_ids.dtype, device=device)
+        tokens_per_second = self._throughput_tracker.stop(n_tokens=n_new)
+        logger.debug(
+            "Generation complete",
+            extra={
+                "n_tokens": n_new,
+                "tokens_per_second": tokens_per_second,
+                "alpha": self._acceptance_tracker.mean_acceptance_rate,
+            },
+        )
+        return GenerationResult(
+            output_ids=output_ids,
+            n_tokens_generated=n_new,
+            acceptance_rate=self._acceptance_tracker.mean_acceptance_rate,
+            tokens_per_second=tokens_per_second,
+            step_profile=tuple(profiler.records()) if profiler is not None else None,
+        )
+
+
+def _first_stop(tokens: list[int], eos: frozenset[int]) -> int | None:
+    """Index of the first stop token in ``tokens``, or ``None``."""
+    for index, token in enumerate(tokens):
+        if token in eos:
+            return index
+    return None

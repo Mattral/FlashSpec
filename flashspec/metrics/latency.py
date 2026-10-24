@@ -101,6 +101,27 @@ class LatencyTracker:
         self._latencies_ms.append(elapsed_ms)
         return elapsed_ms
 
+    def record(self, latency_ms: float) -> None:
+        """Record a step latency measured by the caller.
+
+        Use this when the caller already has a synchronised clock reading,
+        for example right after the single device-to-host read of a step,
+        so the tracker does not add ``torch.cuda.synchronize()`` calls.
+
+        Parameters
+        ----------
+        latency_ms : float
+            Step latency in milliseconds. Must be non-negative.
+
+        Raises
+        ------
+        ValueError
+            If ``latency_ms`` is negative.
+        """
+        if latency_ms < 0.0:
+            raise ValueError(f"latency_ms must be >= 0; got {latency_ms}.")
+        self._latencies_ms.append(float(latency_ms))
+
     def _percentile(self, pct: float) -> float:
         """Compute a percentile over the current window.
 

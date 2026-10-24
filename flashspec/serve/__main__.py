@@ -123,12 +123,22 @@ def main(argv: list[str] | None = None) -> None:
         temperature=args.temperature,
     )
     target = TargetModel(args.target, device, dtype)
+
+    from transformers import AutoTokenizer
+
+    tokenizer = AutoTokenizer.from_pretrained(args.target)
+    if tokenizer.pad_token is None and tokenizer.eos_token is not None:
+        tokenizer.pad_token = tokenizer.eos_token
+    # Stop each completion at the tokenizer's end-of-sequence token.
+    eos_id = getattr(tokenizer, "eos_token_id", None)
+    eos_ids = () if eos_id is None else (int(eos_id),)
     config = FlashSpecConfig(
         drafter_name=drafter_names[0],
         target_name=args.target,
         device=str(device),
         dtype=args.dtype,
         max_new_tokens=args.max_new_tokens,
+        eos_token_ids=eos_ids,
         bandit=BanditConfig(n_arms=len(drafters), strategy=args.strategy, window_size=100),
         sampling=SamplingConfig(gamma=args.gamma, temperature=args.temperature),
     )
@@ -137,12 +147,6 @@ def main(argv: list[str] | None = None) -> None:
     else:
         bandit = UCB1Selector(n_arms=len(drafters), window_size=100)
     engine = SpeculativeEngine(config, drafters, target, bandit)
-
-    from transformers import AutoTokenizer
-
-    tokenizer = AutoTokenizer.from_pretrained(args.target)
-    if tokenizer.pad_token is None and tokenizer.eos_token is not None:
-        tokenizer.pad_token = tokenizer.eos_token
 
     def encode(text: str) -> list[int]:
         encoded = tokenizer.encode(text, add_special_tokens=False)

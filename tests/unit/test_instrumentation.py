@@ -165,12 +165,12 @@ class TestHostSyncCounter:
         assert after == before
         assert values.sum().item() == 3.0
 
-    def test_engine_step_sync_count_is_recorded(self) -> None:
-        """Record host reads per step. Phase 3 bounds this; here it is only measured."""
+    def test_engine_step_sync_count_is_bounded(self) -> None:
+        """The batch-1 loop reads the device at most twice per step (once, in fact)."""
         engine = _engine(profile=True)
         prompt = torch.randint(0, 64, (1, 5))
         with count_host_syncs("cpu") as counter:
             result = engine.generate(prompt)
         assert result.step_profile is not None
         assert counter.count > 0
-        assert counter.count / len(result.step_profile) > 0.0
+        assert counter.count / len(result.step_profile) <= 2.0
