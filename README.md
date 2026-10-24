@@ -1,8 +1,8 @@
 <h1 align="center">⚡ FlashSpec</h1>
 
 <p align="center">
-  <strong>Adaptive speculative-decoding inference engine for large language models</strong><br>
-  Verification kernel and a pure-PyTorch reference · bandit draft selection · chi-squared output check
+  <strong>Lossless speculative decoding for HuggingFace causal language models</strong><br>
+  Algorithm 1 rejection sampling and exact greedy · static KV cache + CUDA graphs on CUDA · experimental bandit and kernels
 </p>
 
 <p align="center">
@@ -29,17 +29,35 @@
 
 ---
 
-**Project status: alpha 0.1.5.** Correctness tests, including a
-chi-squared check that emitted tokens follow the target when the draft and
-target differ and a token-for-token greedy check against
-`generate(do_sample=False)`, are in the suite. With
-`FlashSpecConfig.compile` (static KV cache and CUDA graphs) FlashSpec is
-faster than HuggingFace `generate` compiled the same way on this one
-setup. The speedup over compiled HF meets 1.3x on HumanEval greedy and
-not on MT-Bench. Without compile, the Phase 4 run on the same pair was
-slower than plain HuggingFace decoding (see the GPU results below). Every
-H100 number in this README is a design target. This is a single-device
-library plus a small HTTP server, not a production serving stack.
+**Project status: alpha.** PyPI ships 0.1.5. `main` holds the unreleased
+0.2.0 work this README describes.
+
+**What was measured, and only this:** one model pair
+(`Qwen/Qwen2.5-1.5B-Instruct` verified by `Qwen/Qwen2.5-0.5B-Instruct`),
+one Tesla T4, fp16, batch 1, 10 MT-Bench and 10 HumanEval prompts, with
+the compiled path on (`FlashSpecConfig.compile`: static KV cache and CUDA
+graphs). On that setup FlashSpec was faster than HuggingFace `generate`
+compiled the same way in every cell of the table below. With the eager
+path (compile off), it was slower than plain HuggingFace `generate` in 7
+of the 8 cells of the earlier GPU run (two model pairs, greedy and
+T = 0.7; generated table further down). No other GPU, model pair or batch
+size has been measured. Every H100 number in the docs is a design target.
+
+- **Correctness** is checked in CI on CPU: a chi-squared test that emitted
+  tokens follow the target when draft and target differ, and a
+  token-for-token comparison of greedy output with
+  `generate(do_sample=False)`. On the GPU in fp16, kernels for different
+  shapes can round differently, so each greedy GPU run reports how many
+  prompts matched (last columns of the table).
+- **The bandit is experimental.** Every measured run used one drafter, so
+  the selector has never been measured choosing between drafters.
+- **The Triton and assembly kernels are experimental** and not on the
+  generation critical path; see [Experimental kernels](#experimental-kernels-not-on-the-critical-path).
+- `sampling.variant="typical"` is **lossy**; `"rejection"` and `"greedy"`
+  are the lossless variants.
+
+This is a single-device library plus a small HTTP server, not a
+production serving stack.
 
 <!-- BEGIN GENERATED: status (scripts/ingest_gpu_bundle.py) -->
 Measured at git `52993e4`: `Qwen/Qwen2.5-1.5B-Instruct` verified by `Qwen/Qwen2.5-0.5B-Instruct`, Tesla T4, fp16, batch 1, gamma 4, 10 prompts per set (chat template), 128 new tokens. One model pair, one GPU. Speedups are medians of per-prompt ratios within the same run. The headline baseline is HuggingFace `generate` with a static cache compiled the same way (CUDA graphs); eager HuggingFace and assisted generation are context. Cells are the stored JSON values.
@@ -56,35 +74,28 @@ Measured at git `52993e4`: `Qwen/Qwen2.5-1.5B-Instruct` verified by `Qwen/Qwen2.
 
 ## What is FlashSpec?
 
-Standard speculative decoding uses a small "draft" model to propose tokens
-that a large "target" model verifies in one forward pass. This repository
-is built around two choices, and the measurements below are the limit of
-what it currently shows:
+Speculative decoding lets a small "draft" model propose γ tokens that a
+larger "target" model checks in one forward pass. FlashSpec's batch-1
+step is:
 
-1. **Where the accept/reject test runs.** The test has a Triton kernel and
-   a pure-PyTorch reference. They match numerically. The measured Tesla T4
-   comparison at batch 1 found the Triton kernel slower than the reference.
+1. the drafter proposes γ tokens (γ incremental forwards on its KV cache);
+2. the target runs **one** forward over the pending token(s) plus the γ
+   drafts;
+3. the accept/reject test runs on the device in PyTorch: Leviathan et al.
+   Algorithm 1 rejection sampling at temperature > 0, or the longest
+   prefix that matches the target's argmax at temperature 0 (greedy);
+4. one device-to-host read per step returns the accept count and the next
+   token, and both caches are cropped by integer bookkeeping.
 
-2. **Which drafter is used.** A drafter tuned for chat can be a poor fit
-   for code or long context. The bandit chooses among drafters that have
-   been registered. With one drafter it cannot adapt.
+On CUDA with Triton available, `FlashSpecConfig.compile` runs that loop on
+static KV caches and replays the fixed-shape drafter decode and target
+verify calls as CUDA graphs (`torch.compile(mode="reduce-overhead")`).
 
-What the measurements show:
-
-- The accept/reject test has a Triton kernel and a pure-PyTorch reference.
-  They match numerically. SRAM use of the Triton kernel is O(1) in
-  vocabulary size. On a Tesla T4 at batch 1 the Triton kernel was slower
-  than the reference (0.2× at B=1, γ=4, V=32k). No H100 profile exists.
-  Those Triton paths are not tested in CI. This repository has no GPU
-  runner. `notebooks/colab_triton_tests.py` runs the `@pytest.mark.gpu`
-  parity tests and writes `colab_triton_tests.log`. Download that log.
-  Colab does not write this repository.
-- A **K-armed bandit** (UCB1 or Thompson sampling) selects which draft model
-  to use at each step. The O(√(KT log T)) regret bound is a guarantee on
-  cumulative regret, not a promise that a short conversation is faster.
-  With one drafter the bandit cannot adapt. Register two or more real
-  drafters before expecting a gain. `scripts/demo_bandit_mixed.py` is a
-  controlled two-drafter simulation, not a language-model benchmark.
+Two parts are experimental. The UCB1/Thompson selector can choose between
+registered drafters, but it has only been measured with one. The Triton
+verification kernels and the optional assembly residual are not called on
+the generation path (see
+[Experimental kernels](#experimental-kernels-not-on-the-critical-path)).
 
 On finite probabilities the output distribution follows Leviathan et al.,
 2023, Theorem 1. The CI check is a chi-squared test on discrete token ids.
@@ -190,8 +201,9 @@ Both checkpoints are public. `benchmarks/harness.py` refuses a drafter and a tar
 
 ## Results
 
-Tables below use three significant figures. The JSON and CSV files keep
-full precision. Each figure is classified in
+The generated GPU blocks show the stored JSON values. The hand-written
+tables below them use three significant figures; the JSON and CSV files
+keep full precision. Each figure is classified in
 [`benchmarks/results/PROVENANCE.md`](benchmarks/results/PROVENANCE.md).
 Commands and file names are in
 [`benchmarks/results/README.md`](benchmarks/results/README.md).
@@ -268,7 +280,7 @@ GPU Tesla T4 · torch 2.11.0+cu130 · gamma 4 · 12 result files · git `36134c0
 Speedups are medians of per-prompt ratios against the method in the same run. NaN/inf counts come from one untimed probe generation per method on the first prompt.
 <!-- END GENERATED: gpu-results -->
 
-### Measured — TinyLlama-1.1B-Chat float32 · CPU · γ=4 · git `f59b5b4`
+### Measured, 0.1.5 engine — TinyLlama-1.1B-Chat float32 · CPU · γ=4 · git `f59b5b4`
 
 One HumanEval prompt, 16 new tokens, one drafter. Speedup is below 1.
 
@@ -279,7 +291,7 @@ One HumanEval prompt, 16 new tokens, one drafter. Speedup is below 1.
 | acceptance | 0.114 | unmeasured |
 | speedup vs AR | 0.407 | unmeasured |
 
-### Measured — TinyLlama-1.1B-Chat float16 · Tesla T4 · γ=4 · git `cb02ca1`
+### Measured, 0.1.5 engine — TinyLlama-1.1B-Chat float16 · Tesla T4 · γ=4 · git `cb02ca1`
 
 Eight synthetic prompts, one drafter. Speedup is below 1.
 
@@ -294,7 +306,7 @@ Eight synthetic prompts, one drafter. Speedup is below 1.
 
 ## Microbenchmarks and historical
 
-These rows are a random network, a sampling kernel, a synthetic bandit, or the historical NF4 prompt. They sit below the paired end-to-end runs.
+These rows are a random network, a sampling kernel, or the historical NF4 prompt. They sit below the paired end-to-end runs. The kernel and bandit measurements are under [Experimental components](#experimental-components).
 
 ### CPU toy and residual — git `da8182b`
 
@@ -320,37 +332,7 @@ speedup is below 1. The bandit row is a synthetic sampler, not that network.
 | Fixed B | 0.200 | 3220 |
 | Single-drafter control | 0.200 | 2880 |
 
-### Linux residual — git `4e48c55`, then git `1b0cda3`
-
-Milliseconds, backend `asm`. Compare backends inside one run. The two runs do not repeat the same ordering.
-
-| Vocab | PyTorch residual | C baseline | ASM residual | PyTorch verify | ASM verify |
-|---:|---:|---:|---:|---:|---:|
-| 1024 | 0.0118 ± 0.00599 | 0.0109 ± 0.00177 | 0.0151 ± 0.00971 | 0.366 ± 0.0209 | 0.422 ± 0.0438 |
-| 4096 | 0.0116 ± 0.000285 | 0.0140 ± 0.00214 | 0.0140 ± 0.00430 | 0.495 ± 0.0218 | 0.537 ± 0.0159 |
-| 32000 | 0.0302 ± 0.00818 | 0.0430 ± 0.00268 | 0.0248 ± 0.0230 | 1.28 ± 0.638 | 1.32 ± 0.658 |
-
-| Vocab | PyTorch residual | C baseline | ASM residual | PyTorch verify | ASM verify |
-|---:|---:|---:|---:|---:|---:|
-| 1024 | 0.00686 ± 0.00312 | 0.00609 ± 0.000588 | 0.00806 ± 0.00108 | 0.158 ± 0.0421 | 0.164 ± 0.0305 |
-| 4096 | 0.00685 ± 0.000109 | 0.00785 ± 0.000559 | 0.00872 ± 0.000941 | 0.231 ± 0.0339 | 0.250 ± 0.0390 |
-| 32000 | 0.0124 ± 0.00209 | 0.0235 ± 0.00266 | 0.0151 ± 0.0187 | 0.747 ± 0.393 | 0.730 ± 0.376 |
-
 An older notebook cell assigns 44.2 tok/s, acceptance 0.75, p50 22.1 ms; no timing log exists, so it is not used as a result.
-
-### Bandit regret — measured (T=10,000, K=3 arms)
-
-UCB1 and Thompson sampling empirically verified to satisfy the
-O(√(KT log T)) bound over 10,000 rounds.
-UCB1 cumulative regret at T=10,000: **100.2** (theory bound: ~526).
-Thompson cumulative regret at T=10,000: **18.9**.
-
-![Bandit Regret](paper/figures/bandit_regret.jpg)
-
-The figure is `paper/figures/bandit_regret.jpg`. The saved output is
-`notebooks/02_bandit_analysis.ipynb` cell 3 (0-based index, execution
-count 4): UCB1 100.2, Thompson 18.9, Oracle 0.0. This is a synthetic
-K=3 arm experiment, not a throughput gain on a language model.
 
 ### Gamma sweep — measured (toy logprobs, synthetic)
 
@@ -369,7 +351,51 @@ Data in [`benchmarks/results/gamma_sweep.csv`](benchmarks/results/gamma_sweep.cs
 > column `measurement_kind` is `sampling_kernel_only_random_logprobs`.
 > It is not end-to-end inference and it is not an H100 result.
 
-### Reference kernel profiling — measured (Tesla T4)
+No H100 comparison exists, and Medusa and EAGLE are not implemented here, so no comparison with them exists.
+
+---
+
+## Experimental components
+
+### Bandit (experimental, single-arm measured only)
+
+Every language-model run in this README used one drafter, so the
+selector has not been measured choosing between drafters. The regret
+numbers below come from a synthetic K=3 simulation.
+
+#### Bandit regret — measured, synthetic (T=10,000, K=3 arms)
+
+In this simulation UCB1 and Thompson sampling stay inside the
+O(√(KT log T)) bound over 10,000 rounds.
+UCB1 cumulative regret at T=10,000: **100.2** (theory bound: ~526).
+Thompson cumulative regret at T=10,000: **18.9**.
+
+![Bandit Regret](paper/figures/bandit_regret.jpg)
+
+The figure is `paper/figures/bandit_regret.jpg`. The saved output is
+`notebooks/02_bandit_analysis.ipynb` cell 3 (0-based index, execution
+count 4): UCB1 100.2, Thompson 18.9, Oracle 0.0. This is a synthetic
+K=3 arm experiment, not a throughput gain on a language model.
+
+### Experimental kernels (not on the critical path)
+
+The engine does not call these kernels. A speculative step's time is the
+drafter and target forwards (milliseconds); the accept/reject test and
+the residual are microseconds and run in PyTorch on the device.
+
+- **Triton `verify_tokens` / `gather_accepted`** (`flashspec.kernels`).
+  `verify_tokens` tiles over `(batch × γ)` positions; each thread reads
+  two scalars (`log p`, `log q` at the draft token index) and writes one
+  bool and one int32, so SRAM use does not grow with the vocabulary. It
+  matches the pure-PyTorch reference numerically. There is no GPU CI
+  runner: `notebooks/colab_triton_tests.py` runs the `@pytest.mark.gpu`
+  parity tests on Colab and writes `colab_triton_tests.log`.
+- **Assembly residual** (`flashspec-asm-kernel`, the `[asm]` extra,
+  Linux x86-64). A residual evaluation is microseconds against
+  millisecond model forwards, so it does not change end-to-end
+  throughput.
+
+#### Triton verification kernel vs the PyTorch reference — measured (Tesla T4)
 
 Saved output of `notebooks/03_kernel_profiling.ipynb` cell 3 (0-based
 index, execution count 4), printed there as a Tesla T4 run. At batch 1
@@ -386,45 +412,64 @@ the Triton kernel is slower than the PyTorch reference.
 > on this T4 measurement. A faster H100 result has not been measured.
 > Do not treat the H100 roofline in `docs/kernels.md` as a profile.
 
-No H100 comparison exists, and Medusa and EAGLE are not implemented here, so no comparison with them exists.
+#### Assembly residual (`[asm]` extra) — Linux, git `4e48c55`, then git `1b0cda3`
+
+Milliseconds, backend `asm`. Compare backends inside one run. The two runs do not repeat the same ordering.
+
+| Vocab | PyTorch residual | C baseline | ASM residual | PyTorch verify | ASM verify |
+|---:|---:|---:|---:|---:|---:|
+| 1024 | 0.0118 ± 0.00599 | 0.0109 ± 0.00177 | 0.0151 ± 0.00971 | 0.366 ± 0.0209 | 0.422 ± 0.0438 |
+| 4096 | 0.0116 ± 0.000285 | 0.0140 ± 0.00214 | 0.0140 ± 0.00430 | 0.495 ± 0.0218 | 0.537 ± 0.0159 |
+| 32000 | 0.0302 ± 0.00818 | 0.0430 ± 0.00268 | 0.0248 ± 0.0230 | 1.28 ± 0.638 | 1.32 ± 0.658 |
+
+| Vocab | PyTorch residual | C baseline | ASM residual | PyTorch verify | ASM verify |
+|---:|---:|---:|---:|---:|---:|
+| 1024 | 0.00686 ± 0.00312 | 0.00609 ± 0.000588 | 0.00806 ± 0.00108 | 0.158 ± 0.0421 | 0.164 ± 0.0305 |
+| 4096 | 0.00685 ± 0.000109 | 0.00785 ± 0.000559 | 0.00872 ± 0.000941 | 0.231 ± 0.0339 | 0.250 ± 0.0390 |
+| 32000 | 0.0124 ± 0.00209 | 0.0235 ± 0.00266 | 0.0151 ± 0.0187 | 0.747 ± 0.393 | 0.730 ± 0.376 |
 
 ---
 
 ## How it works
 
+Batch-1 fast path (`variant` `"rejection"` or `"greedy"`):
+
 ```mermaid
 sequenceDiagram
     participant E as SpeculativeEngine
-    participant B as Bandit (UCB1/Thompson)
-    participant D as DraftModel
-    participant T as TargetModel
-    participant K as verify_tokens (Triton)
+    participant B as Bandit (experimental)
+    participant D as Drafter
+    participant T as Target
 
     loop every decoding step
         E->>B: select() → arm index
-        E->>D: generate_draft(ctx, γ) → draft_ids, draft_logprobs
-        E->>T: score_draft(ctx, draft_ids) → target_logprobs  [1 fwd pass]
-        E->>K: verify_tokens(draft_lp, target_lp, u) → accepted, first_rejection
-        E->>B: update(arm, n_accepted)
-        E->>E: append accepted tokens to context
+        E->>D: draft γ tokens (γ forwards on its KV cache)
+        E->>T: verify pending + γ tokens [one forward]
+        E->>E: rejection_step or greedy_step on the device (PyTorch)
+        E->>E: one host read: n_accepted, next token
+        E->>D: commit: crop the cache, set the pending token
+        E->>T: commit: crop the cache, set the pending token
+        E->>B: update(arm, emitted tokens / step seconds)
     end
 ```
 
-**Batching.** Rows that accept different numbers of tokens finish the step at different context lengths. Each loop forwards only the largest group of rows that still share a length. Other lengths wait for a later loop. The KV cache is rolled only when that group has a single row. A larger group full-forwards. The returned tensor fills a shorter row with `-1` so the tensor is rectangular. That fill is not an attention mask. The engine does not pad unequal prompts into one masked batch.
+**Batching.** A batch of more than one row uses the generic loop. Rows that accept different numbers of tokens finish the step at different context lengths. Each loop forwards only the largest group of rows that still share a length. Other lengths wait for a later loop. The KV cache is rolled only when that group has a single row. A larger group full-forwards. The returned tensor fills a shorter row with `-1` so the tensor is rectangular. That fill is not an attention mask. The engine does not pad unequal prompts into one masked batch.
 
 **Correctness.** The accept/reject criterion is `u_i < min(1, p(xᵢ)/q(xᵢ))`
 computed in log-space to avoid underflow. Rejected positions sample a residual
 token from `max(0, p−q) / ‖max(0, p−q)‖₁` (Algorithm 1, Leviathan et al. 2023).
 Together these preserve the target distribution exactly.
 
-**Kernel.** `verify_tokens` tiles over `(batch × γ)` positions. Each thread
-reads two scalars (`log p`, `log q` at the draft token index) and writes one
-bool + one int32 — no vocab-dimension sweep, no VRAM growth with vocab size.
+**Compiled path.** With `FlashSpecConfig.compile` on a CUDA device, the
+drafter and target run on preallocated static KV caches; a crop moves the
+write position instead of slicing tensors, and the fixed-shape decode and
+verify calls replay as CUDA graphs. The prompt prefill stays eager.
 
-**Bandit.** UCB1 score for arm k at round t:
-`μ̂ₖ + c · √(2 log t / nₖ)`. Unpulled arms always selected first.
-Verified empirically: UCB1 regret at T=10,000 is 100.2 (theory bound ≈ 526).
-Thompson sampling achieves 18.9 cumulative regret in the same setup.
+**Bandit (experimental).** UCB1 score for arm k at round t:
+`μ̂ₖ + c · √(2 log t / nₖ)`. Unpulled arms are selected first. The reward
+is emitted tokens per step second. In a synthetic K=3 simulation UCB1
+regret at T=10,000 is 100.2 (theory bound ≈ 526) and Thompson's is 18.9.
+No language-model run has used more than one drafter.
 
 See [`docs/architecture.md`](docs/architecture.md) for the full component
 diagram and proof sketch.
@@ -434,10 +479,12 @@ diagram and proof sketch.
 ## Installation
 
 ```bash
-# PyPI — cross-platform, pure-PyTorch reference kernels (Windows/macOS/Linux):
+# PyPI — cross-platform (Windows/macOS/Linux):
 pip install flashspec
 
-# PyPI — GPU-accelerated Triton kernels (Linux + CUDA only):
+# PyPI — adds Triton (Linux only): the experimental Triton kernels.
+# Linux CUDA builds of PyTorch already ship Triton, which torch.compile
+# needs for the compiled path.
 pip install flashspec[gpu]
 
 # Optional AVX2 residual kernel. The wheel is a Linux x86-64 ELF library.
@@ -451,16 +498,17 @@ pip install flashspec[serve]
 git clone https://github.com/Mattral/FlashSpec && cd FlashSpec
 pip install -e ".[dev,gpu]"   # omit ",gpu" on Windows/macOS
 
-# Docker (Linux + CUDA, Triton included):
-docker pull ghcr.io/mattral/flashspec:latest
-docker run --gpus all ghcr.io/mattral/flashspec:latest make test
+# Docker (Linux + CUDA). No image is published; build it locally:
+docker build -f deploy/Dockerfile -t flashspec .
+docker run --gpus all flashspec make test
 ```
 
 > **Windows / macOS:** `pip install flashspec` works out of the box.
-> Triton has no official PyPI wheels outside Linux. The pure-PyTorch
-> reference in `flashspec.kernels._reference` is numerically identical and
-> runs everywhere PyTorch does. Check availability at runtime:
-> `from flashspec import TRITON_AVAILABLE`.
+> Triton has no official PyPI wheels outside Linux, so the compiled path
+> and the experimental Triton kernels are Linux + CUDA only. The engine's
+> accept/reject test is PyTorch and runs everywhere PyTorch does. The
+> kernels' pure-PyTorch reference is `flashspec.kernels._reference`.
+> Check availability at runtime: `from flashspec import TRITON_AVAILABLE`.
 
 ### Requirements
 
@@ -468,7 +516,7 @@ docker run --gpus all ghcr.io/mattral/flashspec:latest make test
 |---|---|---|
 | Python | ≥ 3.11 | |
 | PyTorch | ≥ 2.2 | CPU or CUDA |
-| Triton | ≥ 3.0 | Optional · Linux + CUDA · `pip install flashspec[gpu]` |
+| Triton | ≥ 3.0 | Optional · Linux + CUDA · needed by the compiled path (Linux CUDA PyTorch ships it) and the experimental kernels |
 | flashspec-asm-kernel | ≥ 0.1.2, < 2 | Optional · Linux x86-64 · `pip install flashspec[asm]`. 0.1.2 ships a manylinux wheel with `libflashspec_asm.so`. |
 | FastAPI, uvicorn, httpx | see `serve` extra | Optional · `pip install flashspec[serve]` |
 | CUDA | ≥ 12.0 | GPU path only |
@@ -522,7 +570,6 @@ paper/joss/         JOSS-format draft, not under review
 paper/figures/      Vector and raster figures (bandit_regret.jpg generated)
 scripts/            CLI tools (export draft, download models, profile kernels)
 deploy/             Dockerfile · docker-compose.yml · k8s manifests
-social/             X thread and LinkedIn post drafts for project launch
 ```
 
 ---

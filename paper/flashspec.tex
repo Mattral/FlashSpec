@@ -1,8 +1,9 @@
 % ============================================================================
-% FlashSpec: Adaptive Speculative Decoding with Online Bandit Draft Selection
-%            and Triton-Optimised Verification
+% FlashSpec: Lossless Speculative Decoding with a Static-Cache CUDA-Graph
+%            Fast Path
 %
-% Draft preprint for a new Zenodo version. October 2026. Software 0.1.5.
+% Draft preprint for a new Zenodo version. October 2026. Software: main
+% after 0.1.5 (0.2.0 in preparation).
 % Not peer reviewed. Not an arXiv submission.
 % The published record remains 10.5281/zenodo.20766119 (2026-06-19)
 % until the maintainer deposits this draft.
@@ -63,8 +64,8 @@
 % ─────────────────────────────────────────────────────────────────────────────
 
 \title{%
-  \textbf{\flashspec}: Adaptive Speculative Decoding with Online Bandit
-  Draft Selection and Triton-Optimised Verification%
+  \textbf{\flashspec}: Lossless Speculative Decoding with a Static-Cache
+  CUDA-Graph Fast Path%
 }
 
 \author{%
@@ -75,7 +76,7 @@
 
 \date{October 2026\\[4pt]
   Draft preprint for a new Zenodo version\\
-  Software 0.1.5. Not peer reviewed.
+  Software: main after 0.1.5 (0.2.0 in preparation). Not peer reviewed.
 }
 
 % =============================================================================
@@ -89,16 +90,32 @@ Speculative decoding lets a small draft model propose $\gamma$ tokens that a
 larger target model verifies in one forward pass.
 Under the Leviathan et al.\ acceptance rule, the tokens that are kept follow
 the target distribution.
-\flashspec{} is an open-source engine for that rule.
-It provides a Triton verification kernel, a pure-PyTorch reference, and an
-optional UCB1 or Thompson selector over drafters that have been registered.
-This text is a draft preprint for a later Zenodo version of software 0.1.5.
+\flashspec{} is an open-source engine for that rule on HuggingFace causal
+language models.
+Each batch-1 step runs one target forward, decides acceptance on the device
+in PyTorch, and reads one small tensor back to the host.
+On CUDA an optional compiled path runs on static KV caches and replays the
+fixed-shape drafter decode and target verify calls as CUDA graphs.
+A UCB1 or Thompson selector over registered drafters, a Triton
+verification kernel and an assembly residual are experimental: the
+selector has only been measured with one drafter, and the engine does not
+call the kernels.
+This text is a draft preprint for a later Zenodo version of the software.
 It is not peer reviewed and it is not an arXiv submission.
 The citable archive remains the June 2026 record
 \href{https://doi.org/10.5281/zenodo.20766119}{10.5281/zenodo.20766119}
 until the maintainer deposits this draft.
 
-The committed end-to-end pairs are slower than autoregressive decoding.
+What was measured is narrow: one model pair (Qwen2.5-1.5B-Instruct
+verified by Qwen2.5-0.5B-Instruct), one Tesla T4, fp16, batch 1, with the
+compiled path on.
+There \flashspec{} was faster than HuggingFace \texttt{generate} compiled
+the same way in all four dataset and decoding-mode cells
+(Section~\ref{sec:t4compiled}).
+With the eager path it was slower than plain \texttt{generate} in 7 of 8
+cells of the earlier run on two pairs.
+Earlier pairs from the 0.1.5 engine were slower than autoregressive
+decoding.
 On CPU in float32, TinyLlama-1.1B-Chat with one 160M drafter, HumanEval/23,
 16 new tokens, and no warmup measured 1.75 tok/s against 4.30 tok/s
 (acceptance 0.114, speedup 0.407).
@@ -109,9 +126,10 @@ regret 18.9 over $T{=}10{,}000$ rounds, inside a theory bound near 526.
 That simulation is not language-model throughput.
 
 Theorem~\ref{thm:correctness} states distribution equivalence for the
-acceptance process used here.
-The suite checks emitted token ids with a chi-squared test.
-That check is not a Kolmogorov--Smirnov gate.
+rejection-sampling variant; greedy decoding emits the target's argmax.
+The optional typical-acceptance variant is lossy.
+CI checks emitted token ids with a chi-squared test and compares greedy
+output with \texttt{generate(do\_sample=False)} token for token, on CPU.
 Medusa and EAGLE are not implemented.
 No H100 generation result is committed.
 The code is released under Apache~2.0 at
@@ -144,12 +162,12 @@ Despite widespread adoption~\citep{cai2024medusa,li2024eagle}, two practical
 gaps remain in open-source implementations:
 
 \begin{enumerate}
-  \item \textbf{Where verification runs.}
-  The per-token acceptance test (Equation~\ref{eq:accept}) is implemented
-  here as a Triton kernel and as a pure-PyTorch reference.
-  A Tesla T4 measurement at batch 1 found the Triton kernel slower than
-  the reference.
-  That timing is a kernel comparison, separate from end-to-end generation.
+  \item \textbf{Step cost, not only acceptance.}
+  At batch 1 a GPU forward is launch- and bandwidth-bound, so a step that
+  runs the target twice, or pays several host synchronisations, can lose
+  to plain decoding at any acceptance rate.
+  \flashspec{} runs one target forward and one host read per step and
+  reports forward counts, host reads and a per-step time breakdown.
 
   \item \textbf{Static draft selection.}
   The draft model is chosen once, offline, and held fixed throughout a
@@ -159,30 +177,34 @@ gaps remain in open-source implementations:
   source code or long-context summarization, leaving throughput on the table.
 \end{enumerate}
 
-\flashspec{} puts both choices in one open-source library.
+\flashspec{} addresses the first gap and has an experimental selector for
+the second.
 Theorem~\ref{thm:correctness} states distribution equivalence for the
-acceptance process.
-The implementation check is the chi-squared test in Section~\ref{sec:testing},
-and it is not a continuous-integration gate in this revision.
+rejection-sampling acceptance process.
+The implementation check is the chi-squared test in
+Section~\ref{sec:testing}, which runs in the CPU test job of CI.
 
 \paragraph{Contributions.}
 \begin{itemize}
-  \item A Triton GPU verification kernel with $O(1)$ SRAM usage in
-        vocabulary size (Section~\ref{sec:kernel}).
-        On the measured Tesla T4 batch-1 case it was slower than the
-        pure-PyTorch reference.
-  \item An online UCB1/Thompson bandit for adaptive draft-model selection
-        with provable $O(\sqrt{KT\log T})$ regret, requiring no manual
-        retuning (Section~\ref{sec:bandit}).
-  \item A formal proof of output distribution equivalence to the target
-        model for both the rejection sampling and typical-acceptance variants
-        (Section~\ref{sec:correctness}).
+  \item A batch-1 engine with one target forward per step, one host read
+        per step, and an optional static-cache CUDA-graph path, measured on
+        one model pair on a Tesla T4 against compiled and eager HuggingFace
+        \texttt{generate} and HuggingFace assisted generation
+        (Section~\ref{sec:t4compiled}).
+  \item A proof sketch of output distribution equivalence to the target
+        model for the rejection-sampling variant
+        (Section~\ref{sec:correctness}); the typical-acceptance variant is
+        lossy and is not covered.
   \item An open-source implementation with unit tests, a chi-squared
-        distribution check (not a CI gate in this revision), property-based
-        tests via Hypothesis, Triton kernel parity tests (float32 and
-        bfloat16), and adversarial bandit tests.
-        One adversarial swap test fails deterministically at seed 55, so
-        the chaos category is not uniformly passing.
+        distribution check and a token-for-token greedy check (both in
+        CI), property-based tests via Hypothesis, and adversarial bandit
+        tests.
+  \item Experimental components: an online UCB1/Thompson selector with an
+        $O(\sqrt{KT\log T})$ regret bound (Section~\ref{sec:bandit}),
+        measured only with one drafter, and a Triton verification kernel
+        with $O(1)$ SRAM usage in vocabulary size
+        (Section~\ref{sec:kernel}), which the engine does not call and
+        which was slower than the PyTorch reference at batch 1 on a T4.
 \end{itemize}
 
 % ── 2. Background ────────────────────────────────────────────────────────────
@@ -270,34 +292,43 @@ constants~\citep{chapelle2011thompson}.
 
 Figure~\ref{fig:pipeline} shows the \flashspec{} generation loop.
 At each decoding step, the bandit selects a draft model arm; the selected
-drafter generates $\gamma$ candidate tokens autoregressively; the target
-model scores all positions in one forward pass; the Triton kernel performs
-the accept/reject test on-device; the bandit is updated with the acceptance
-count; and the accepted tokens are appended to the context.
+drafter generates $\gamma$ candidate tokens on its KV cache; the target
+model scores the pending token and all draft positions in one forward pass;
+the accept/reject test runs on the device in PyTorch; one small tensor
+(the accept count and the next token) is read back to the host; both
+caches are cropped by integer bookkeeping; and the bandit is updated with
+emitted tokens per step second.
 
 \begin{figure}[t]
 \centering
 \begin{verbatim}
 for each decoding step:
-  arm   = Bandit.select()
-  ids, lp_q = DraftModel[arm].generate(ctx, gamma)
-  lp_p       = TargetModel.score(ctx, ids, gamma)   # 1 fwd pass
-  accepted, first_rej = verify_tokens(lp_q, lp_p, u)  # Triton
-  Bandit.update(arm, n_accepted=first_rej)
-  ctx = append(ctx, accepted)
+  arm        = Bandit.select()
+  ids, lp_q  = Drafter[arm].draft(gamma)          # gamma forwards
+  lp_p       = Target.verify(ids)                 # 1 forward
+  step       = rejection_step(lp_q, lp_p, ids)    # PyTorch, on device
+  n, tok     = step.tolist()                      # 1 host read
+  Drafter[arm].commit(n, tok); Target.commit(n, tok)
+  Bandit.update(arm, reward=(n + 1) / step_seconds)
 \end{verbatim}
 \caption{%
-  \flashspec{} generation loop.
-  \texttt{verify\_tokens} is the on-device Triton kernel
-  (Section~\ref{sec:kernel}).
-  The bandit adapts arm selection online without any manual tuning
-  (Section~\ref{sec:bandit}).
+  \flashspec{} batch-1 generation loop.
+  At temperature 0, \texttt{greedy\_step} replaces
+  \texttt{rejection\_step}.
+  The experimental Triton kernel (Section~\ref{sec:kernel}) is not
+  called here.
+  The bandit (Section~\ref{sec:bandit}) is experimental.
 }
 \label{fig:pipeline}
 \end{figure}
 
-\subsection{On-Device Verification Kernel}
+\subsection{Experimental Verification Kernel}
 \label{sec:kernel}
+
+This kernel is experimental and is not on the generation critical path:
+\texttt{SpeculativeEngine} does not call it.
+A step's time is dominated by the drafter and target forwards
+(milliseconds), and the accept/reject test is microseconds next to them.
 
 \paragraph{Motivation.}
 The accept/reject test in Equation~\ref{eq:accept} is
@@ -387,10 +418,12 @@ generation sessions.
 \begin{theorem}
 \label{thm:correctness}
 The joint distribution over the sequence of tokens accepted by
-\flashspec{} (Algorithm~\ref{alg:spec} with either the UCB1 or Thompson
-bandit selecting the draft model at each step) is identical to the joint
+\flashspec{} with the rejection-sampling variant
+(Algorithm~\ref{alg:spec}, with either the UCB1 or Thompson bandit
+selecting the draft model at each step) is identical to the joint
 distribution produced by standard autoregressive sampling from the target
 model $p$.
+The typical-acceptance variant does not satisfy this and is lossy.
 \end{theorem}
 
 \begin{proof}[Proof sketch]
@@ -432,14 +465,16 @@ The CPU test job runs that check.
         and raises a clear actionable error only when the kernel is
         \emph{called} on an unsupported platform.
   \item \textbf{\texttt{flashspec.sampling}}:
-        \texttt{rejection\_sample} (Algorithm~\ref{alg:spec}) and
+        \texttt{rejection\_sample} and \texttt{rejection\_step}
+        (Algorithm~\ref{alg:spec}), \texttt{greedy\_step}, and the lossy
         \texttt{typical\_sample} variant.
   \item \textbf{\texttt{flashspec.bandit}}:
         \texttt{UCB1Selector}, \texttt{ThompsonSelector},
         \texttt{OracleSelector} (experiments only).
   \item \textbf{\texttt{flashspec.engine}}:
         \texttt{DraftModel} protocol with entry-point registry,
-        \texttt{TargetModel} wrapper, \texttt{SpeculativeEngine}.
+        \texttt{TargetModel} wrapper, \texttt{SpeculativeEngine}, and the
+        static-cache session behind \texttt{FlashSpecConfig.compile}.
   \item \textbf{\texttt{flashspec.metrics}}:
         \texttt{AcceptanceTracker}, \texttt{ThroughputTracker}
         (with MFU), \texttt{LatencyTracker} (p50/p95/p99).
@@ -461,24 +496,23 @@ The test suite comprises four categories:
         ONNX export parity at \texttt{atol}=$10^{-5}$ for batch sizes 1--32.
   \item \textbf{Chaos tests}: adversarial bandit scenarios (0\% acceptance,
         100\% acceptance, sudden arm swap, $K=20$ arms).
-        \texttt{test\_adversarial\_swap\_recovery\_within\_200\_rounds}
-        is an expected failure at seed 55
+        The swap-recovery test now checks arm selections rather than
+        stale windowed means and passes
         (\url{https://github.com/Mattral/FlashSpec/issues/27}).
-        The mark is strict, so a future pass fails the job until that
-        issue is closed. This draft does not treat the failure as a
-        passing result.
-  \item \textbf{GPU tests} (\texttt{@pytest.mark.gpu}):
+  \item \textbf{Greedy gold test}: greedy \flashspec{} output equals
+        \texttt{generate(do\_sample=False)} token for token on CPU.
+  \item \textbf{GPU tests} (\texttt{@pytest.mark.gpu}, run by hand on
+        Colab; there is no GPU CI runner):
         Triton kernel parity against the PyTorch reference in float32
         (\texttt{atol}=$10^{-5}$) and bfloat16 (\texttt{atol}=$10^{-3}$)
         at canonical shapes.
 \end{itemize}
 
-The GitHub Actions workflow runs lint, the CPU tests, the chaos tests,
-ONNX parity, the docs build, and a LaTeX build of this draft.
+The GitHub Actions workflow runs lint (including \texttt{mypy --strict}),
+the CPU tests, the chaos tests, ONNX parity, the docs build, and a LaTeX
+build of this draft.
 The CPU suite's coverage gate is the measured unit-and-integration
 coverage, rounded down, not a 95 percent target.
-One chaos test is an expected failure at seed 55.
-\texttt{mypy --strict} is not part of the green lint job.
 
 \subsection{Installation}
 
@@ -486,7 +520,8 @@ One chaos test is an expected failure at seed 55.
 # Cross-platform (Windows, macOS, Linux) -- PyTorch reference kernels
 pip install flashspec
 
-# Linux + CUDA -- GPU-accelerated Triton kernels
+# Linux -- adds Triton for the experimental kernels; Linux CUDA
+# builds of PyTorch already ship Triton for the compiled path
 pip install flashspec[gpu]
 \end{lstlisting}
 
@@ -504,11 +539,35 @@ Prose uses three significant figures.
 Full precision is in the JSON files named below and in
 \texttt{benchmarks/results/PROVENANCE.md}.
 
-\subsection{Measured end-to-end pairs}
+\subsection{Compiled path on a Tesla T4}
+\label{sec:t4compiled}
+
+One model pair was measured with the compiled path:
+Qwen2.5-1.5B-Instruct verified by Qwen2.5-0.5B-Instruct, fp16, batch 1,
+$\gamma=4$, 10 MT-Bench and 10 HumanEval prompts through the target's
+chat template, 128 new tokens, 2 warmup prompts, greedy and $T=0.7$.
+Every method ran interleaved in one run on one Tesla T4: \flashspec{}
+eager and compiled, HuggingFace \texttt{generate} eager and on a compiled
+static cache, and HuggingFace assisted generation with the same drafter.
+\flashspec{} compiled was faster than compiled \texttt{generate} in all
+four dataset and mode cells, and faster than eager \texttt{generate} and
+assisted generation as well.
+In an earlier run of the eager engine on this pair and on
+TinyLlama-1.1B-Chat with Llama-160M-Chat, \flashspec{} was slower than
+plain \texttt{generate} in 7 of 8 cells and faster than assisted
+generation in all 8.
+Each run used one drafter.
+The values are in the result files under
+\texttt{benchmarks/results/gpu/<commit>/} and in the tables the
+repository README generates from them; this draft does not restate them.
+No other GPU, model pair or batch size has been measured.
+
+\subsection{Earlier end-to-end pairs (0.1.5 engine)}
 \label{sec:measured}
 
-Two committed pairs compare \flashspec{} with autoregressive decoding on
-the same prompts.
+Two committed pairs compare the 0.1.5 engine with autoregressive decoding
+on the same prompts.
+That engine ran the target twice per step.
 Both pairs are slower than the autoregressive baseline.
 Each used one drafter, so the bandit could not switch models.
 
@@ -556,7 +615,7 @@ $(1 - \bar{\alpha}^{\gamma+1}) / (1 - \bar{\alpha}) \approx 3.05$.
 That figure is the expectation under the constant rate.
 It is not a measured speedup, and it is not taken from an end-to-end run.
 
-\subsection{Verification Kernel: Latency on Tesla T4}
+\subsection{Experimental Verification Kernel: Latency on Tesla T4}
 \label{sec:kernelbench}
 
 \begin{table}[t]
@@ -598,7 +657,7 @@ An earlier draft compared a 1.0~ms T4 time with an H100 bound near
 The recorded batch-1 Triton time is 0.785~ms, so that comparison is not
 used here.
 
-\subsection{Bandit Regret: Empirical Verification}
+\subsection{Bandit Regret: Synthetic Simulation (Experimental Selector)}
 \label{sec:banditbench}
 
 \begin{table}[t]
@@ -709,17 +768,16 @@ The fix required identifying the correct architectural layer for temperature
 scaling (the verifier's \texttt{score\_draft()}) and removing the parameter
 from the sampling function entirely.
 
-\paragraph{The distribution check is a chi-squared test, and it is not a CI gate.}
+\paragraph{The distribution check is a chi-squared test.}
 An earlier specification called for a Kolmogorov--Smirnov test at
 $N=10{,}000$ as a continuous-integration gate.
 The suite uses a chi-squared test on discrete token ids in
 \texttt{tests/integration/test\_output\_distribution.py}:
 $N=30{,}000$, vocabulary 6, five degrees of freedom, and critical value
 15.086 at $\alpha=0.01$.
-The CPU test job runs that check.
+The CPU test job runs that check, and a failure fails the job.
 The coverage gate is the measured unit-and-integration coverage,
 rounded down, not a 95 percent target.
-\texttt{mypy --strict} is not part of the green lint job.
 
 \paragraph{Platform-specific dependencies break the install silently.}
 Releases v0.1.0 and v0.1.1 listed \texttt{triton>=3.0.0} as
@@ -761,30 +819,37 @@ penultimate-layer features.
 Neither adapts the draft strategy online.
 
 \paragraph{Online learning for inference.}
-To our knowledge, \flashspec{} is the first system to apply online bandit
-algorithms to adaptive draft-model selection.
+\flashspec{} applies standard bandit algorithms to draft-model selection
+as an experimental feature; we make no novelty claim.
 \citet{auer2002finite} established the UCB1 regret bound used here.
 Thompson sampling~\citep{thompson1933} has been widely applied to
-recommendation systems~\citep{chapelle2011thompson}; its application to
-draft selection is novel.
+recommendation systems~\citep{chapelle2011thompson}.
 
 \paragraph{GPU kernel optimisation for transformers.}
 FlashAttention~\citep{dao2022flashattention} demonstrated that
 IO-aware Triton kernels~\citep{triton2019} can match or exceed cuBLAS on
 attention computation.
-\flashspec{} applies the same principle---minimising HBM traffic by
-operating on the minimum necessary data---to the verification step.
+\flashspec{}'s experimental verification kernel applies the same
+principle---minimising HBM traffic by operating on the minimum necessary
+data---to the accept/reject test, but that test is not where batch-1
+decoding time goes.
 
 % ── 8. Conclusion ────────────────────────────────────────────────────────────
 \section{Conclusion}
 \label{sec:conclusion}
 
-We presented \flashspec{}, an adaptive speculative-decoding engine with a
-verification kernel and an optional online draft selector.
-On the measured Tesla~T4 batch-1 comparison the Triton path was slower
-than the pure-PyTorch reference, and a single registered drafter does not
-let the bandit adapt.
-The committed end-to-end pairs in Table~\ref{tab:measured} are slower than
+We presented \flashspec{}, a speculative-decoding engine whose sampling
+path keeps the target distribution and whose greedy path emits the
+target's argmax.
+On one model pair, one Tesla~T4 and batch 1, its compiled path was faster
+than HuggingFace \texttt{generate} compiled the same way
+(Section~\ref{sec:t4compiled}); its eager path was mostly slower than
+plain \texttt{generate}.
+The draft selector is experimental: a single registered drafter does not
+let the bandit adapt, and every measured run used one.
+The Triton kernel is experimental, not on the critical path, and was
+slower than the pure-PyTorch reference at batch 1 on a T4.
+The 0.1.5-engine pairs in Table~\ref{tab:measured} are slower than
 autoregressive decoding on the same prompts.
 The UCB1 regret bound is $O(\sqrt{KT\ln T})$.
 The synthetic three-arm run sits inside that bound.
@@ -792,7 +857,7 @@ It is not a hardware generation result.
 Medusa and EAGLE are not implemented, and no H100 generation result is
 committed.
 
-\flashspec{} 0.1.5 is released under Apache~2.0.
+\flashspec{} is released under Apache~2.0; PyPI ships 0.1.5.
 The software, tests, documentation, and committed benchmark files are at
 \url{https://github.com/Mattral/FlashSpec}.
 This draft is the source for a later Zenodo version.
@@ -803,7 +868,8 @@ The JOSS-format note in \texttt{paper/joss/} is not under review.
 \label{sec:repro}
 
 \begin{itemize}
-  \item \textbf{Software version in this draft:} \flashspec{} 0.1.5.
+  \item \textbf{Software version in this draft:} \texttt{main} after
+        \flashspec{} 0.1.5 (0.2.0 in preparation).
         Install the current release with \texttt{pip install flashspec}.
         Do not install \texttt{flashspec==0.1.2}; that package release was
         yanked.
@@ -811,7 +877,11 @@ The JOSS-format note in \texttt{paper/joss/} is not under review.
         The CPU pair used Python 3.14.8 and PyTorch 2.14.1+cpu.
         The float16 T4 pair records its own stack.
         This draft does not collapse those runs onto one stack.
-  \item \textbf{End-to-end pairs:} the JSON files named in
+  \item \textbf{Tesla T4 runs:} the validated bundles under
+        \texttt{benchmarks/results/gpu/<commit>/} (Section~\ref{sec:t4compiled}),
+        produced with \texttt{notebooks/04\_gpu\_measurement.ipynb} and
+        checked by \texttt{scripts/ingest\_gpu\_bundle.py}.
+  \item \textbf{End-to-end pairs (0.1.5 engine):} the JSON files named in
         Section~\ref{sec:measured}.
         The CPU pair is HumanEval/23 at git \texttt{f59b5b4}.
         The float16 T4 pair is eight synthetic samples at git

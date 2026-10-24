@@ -1,15 +1,21 @@
 # FlashSpec
 
-**Adaptive speculative-decoding inference engine with Triton-optimised
-verification and online bandit draft selection.**
+**Lossless speculative decoding for HuggingFace causal language models,
+with a static-cache CUDA-graph fast path.**
+
+Measured on one model pair, one Tesla T4, batch 1, with compile on; see
+[Benchmarks](benchmarks.md) and the README tables. The bandit draft
+selector is experimental (every measured run used one drafter), and the
+Triton and assembly kernels are experimental and not on the generation
+critical path.
 
 ---
 
 ## Navigation
 
 - **[Architecture](architecture.md)** — system design, sequence diagram, correctness guarantee
-- **[Kernels](kernels.md)** — Triton kernel tiling, SRAM analysis, H100 roofline arithmetic (not a profile)
-- **[Bandit](bandit.md)** — UCB1/Thompson, regret bound, windowed statistics
+- **[Kernels](kernels.md)** — experimental Triton kernels (not called by the engine): tiling, SRAM analysis, H100 roofline arithmetic (not a profile)
+- **[Bandit](bandit.md)** — experimental UCB1/Thompson selector, regret bound, windowed statistics
 - **[Benchmarks](benchmarks.md)** — committed results, targets, and how a run is recorded
 - **[Postponed](postponed.md)** — packaging and GPU measurements that are not blockers
 - **[API Reference](api/index.md)** — auto-generated from docstrings

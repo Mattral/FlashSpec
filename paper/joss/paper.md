@@ -1,14 +1,13 @@
 ---
-title: 'FlashSpec: An Adaptive Speculative Decoding Engine with GPU-Native
-  Verification and Online Bandit Draft Selection'
+title: 'FlashSpec: Lossless Speculative Decoding with a Static-Cache
+  CUDA-Graph Fast Path'
 tags:
   - Python
   - machine learning
   - large language models
   - GPU computing
-  - Triton
+  - speculative decoding
   - inference optimization
-  - multi-armed bandits
 authors:
   - name: Min Htet Myet
     orcid: 0009-0005-0853-8301
@@ -18,26 +17,28 @@ bibliography: paper.bib
 
 # Summary
 
-`FlashSpec` is an open-source Python library implementing adaptive
-speculative decoding for large language model (LLM) inference. Speculative
+`FlashSpec` is an open-source Python library implementing speculative
+decoding for HuggingFace causal language models (LLMs). Speculative
 decoding accelerates autoregressive generation by having a small "draft"
 model propose several candidate tokens, which a larger "target" model then
 verifies in a single forward pass, accepting or rejecting each candidate
 according to a probabilistic criterion that preserves the target model's
 output distribution exactly [@leviathan2023fast].
 
-`FlashSpec` provides two components. First, the token-level verification step —
-the comparison of draft and target log-probabilities that decides
-acceptance — is implemented as a Triton GPU kernel and as a pure-PyTorch
-reference. The kernel reads only the two scalar log-probabilities relevant
-to each candidate token, giving it a memory footprint that is independent of
-vocabulary size. A Tesla T4 measurement at batch 1 found the Triton kernel
-slower than the reference. Second, `FlashSpec` frames
-the choice of *which* draft model to use at each decoding step as a
-K-armed bandit problem, solved online with either UCB1 [@auer2002finite] or
-Thompson sampling [@thompson1933; @chapelle2011thompson]. This allows the
-system to adapt to shifting acceptance rates across prompt types (e.g.,
-conversational text versus source code) without manual retuning.
+Each batch-1 step runs one target forward over the pending token and the
+draft tokens, decides acceptance on the device in PyTorch (rejection
+sampling at temperature > 0, the longest argmax-matching prefix at
+temperature 0), and reads one small tensor back to the host. On CUDA, an
+optional compiled path keeps the drafter and target on static KV caches
+and replays the fixed-shape decode and verify calls as CUDA graphs.
+
+Two further components are experimental. A UCB1 [@auer2002finite] or
+Thompson-sampling [@thompson1933; @chapelle2011thompson] selector can
+choose between registered drafters, but every measured run used one
+drafter. A Triton verification kernel and an optional assembly residual
+exist with parity tests; the engine does not call them, and they are not
+on the generation critical path. A Tesla T4 measurement at batch 1 found
+the Triton kernel slower than the PyTorch reference.
 
 The library is implemented as a typed Python package (`flashspec`) with
 Pydantic-based configuration, a structured logging layer, and a modular
@@ -54,54 +55,55 @@ part of the green lint job.
 Speculative decoding has become a standard technique for reducing LLM
 inference latency, with production systems and research frameworks such as
 Medusa [@cai2024medusa] and EAGLE [@li2024eagle] building on the original
-formulation [@leviathan2023fast]. This repository studies two design choices.
+formulation [@leviathan2023fast]. Whether speculative decoding is faster
+than plain decoding depends on the step structure (how many target and
+drafter forwards a step costs), on host synchronisation, and on kernel
+launch overhead at batch 1, as much as on the acceptance rate.
 
-First, the acceptance/rejection test is implemented here as a Triton kernel
-and as a pure-PyTorch reference. The measured Tesla T4 batch-1 comparison
-found the Triton kernel slower than the reference. That timing is a kernel
-comparison, separate from end-to-end generation. Second, the choice
-of draft model is treated as a static, offline hyperparameter, despite
-empirical evidence that token acceptance rates vary substantially with
-prompt domain and context length — meaning a drafter tuned for one workload
-may be suboptimal for another within the same deployment.
-
-`FlashSpec` puts both choices in one testable codebase. The GPU-resident
-verification kernel keeps the accept/reject test on device. The measured
-batch-1 comparison did not show it to be faster than the PyTorch reference.
-The bandit-based selector removes the need for manual
-drafter selection and provides a formal regret guarantee
-(O(√(KT log T)) for UCB1) governing how quickly the system converges to the
-best-performing drafter for a given workload. Researchers studying
-speculative decoding, practitioners deploying LLM inference services, and
-students learning GPU kernel programming with Triton may find `FlashSpec`
-useful as a readable implementation of those two choices. The project
-status is alpha. The committed generation pairs are slower than
-autoregressive decoding. The coverage floor is the measured
-unit-and-integration coverage, rounded down.
+`FlashSpec` is a small, tested implementation in which those costs are
+visible: the benchmark harness records forward counts per step, host
+reads per step, a per-step time breakdown, and the drafter-to-target cost
+ratio, next to HuggingFace `generate`, `generate` on a compiled static
+cache, and HuggingFace assisted generation on the same prompts. Researchers
+and students studying speculative decoding may find it useful as a
+readable implementation with lossless-output tests. The project status is
+alpha. The coverage floor is the measured unit-and-integration coverage,
+rounded down.
 
 # Implementation and correctness
 
-A central design goal of `FlashSpec` is that adaptive draft selection and
-GPU-resident verification must not alter the statistical distribution of
-generated tokens relative to standard autoregressive sampling from the
-target model. This is checked by a chi-squared test on discrete token
+A central design goal of `FlashSpec` is that speculative decoding must not
+alter the statistical distribution of generated tokens relative to
+standard autoregressive sampling from the target model. This holds for the
+`rejection` and `greedy` variants; the optional `typical` variant is
+lossy and labelled as such. This is checked by a chi-squared test on discrete token
 ids (α = 0.01, df = 5, N = 30,000, vocabulary 6) for fixed draft and
 target distributions that differ, at gamma 1 and gamma 4, including the
 second emitted token. A separate test uses a toy target whose next token
 depends on the previous token. The gamma 1 case with identical draft and
-target only checks that every draft token is accepted. Numerical parity
-between the Triton kernel and
-a pure-PyTorch reference implementation is verified separately for both
-float32 (tolerance 1e-5) and bfloat16 (tolerance 1e-3) inputs.
+target only checks that every draft token is accepted. Greedy output is
+compared token-for-token with `generate(do_sample=False)` on CPU. Numerical
+parity between the experimental Triton kernel and a pure-PyTorch reference
+is checked separately (float32 tolerance 1e-5, bfloat16 1e-3) by GPU tests
+that run by hand on Colab.
 
-The bandit selectors (UCB1, Thompson sampling, and an oracle baseline used
-only for regret-bound experiments) support JSON serialization for
+The experimental bandit selectors (UCB1, Thompson sampling, and an oracle
+baseline used only for regret-bound experiments) support JSON serialization for
 checkpointing, windowed statistics for tracking non-stationary acceptance
 rates, and thread-safe updates. New draft models can be registered via a
 Python entry-point mechanism without modifying library internals.
 
-Committed end-to-end pairs are slower than autoregressive decoding on the
-same prompts. A CPU float32 HumanEval/23 run measured 1.75 tok/s against
+What has been measured is narrow. On one model pair
+(Qwen2.5-1.5B-Instruct verified by Qwen2.5-0.5B-Instruct), one Tesla T4,
+fp16, batch 1, 10 MT-Bench and 10 HumanEval prompts, with the compiled path
+on, `FlashSpec` was faster than HuggingFace `generate` compiled the same
+way in all four dataset and decoding-mode cells; the values are generated
+from the result files into the repository README. With the eager path, it
+was slower than plain `generate` in 7 of 8 cells of the earlier run on
+two pairs. Every run used one drafter, so the bandit was not exercised.
+
+Earlier pairs from the 0.1.5 engine were slower than autoregressive
+decoding on the same prompts. A CPU float32 HumanEval/23 run measured 1.75 tok/s against
 4.30 tok/s (acceptance 0.114, speedup 0.407). A Colab Tesla T4 float16
 run of eight synthetic samples measured 17.6 tok/s against 29.0 tok/s
 (speedup 0.606). An older notebook cell assigns

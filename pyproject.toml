@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "flashspec"
 version = "0.1.5"
-description = "Adaptive speculative-decoding inference engine with Triton-optimised verification and online bandit draft selection"
+description = "Lossless speculative decoding for HuggingFace causal LMs, with a static-cache CUDA-graph fast path; bandit draft selection and Triton kernels are experimental"
 readme = "README.md"
 license = { file = "LICENSE" }
 authors = [{ name = "Min Htet Myet (Mattral)" }]

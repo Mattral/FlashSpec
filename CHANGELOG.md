@@ -10,6 +10,26 @@ Versioning follows [Semantic Versioning 2.0.0](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed (public claims)
+- Truth pass on the README, `pyproject.toml` description, `docs/index.md`,
+  `docs/bandit.md`, `docs/kernels.md`, `paper/joss/paper.md`,
+  `paper/flashspec.tex`, `CITATION.cff` and `.zenodo.json`. They now say
+  what was measured and nothing more: one model pair
+  (Qwen2.5-1.5B-Instruct verified by Qwen2.5-0.5B-Instruct), one Tesla
+  T4, fp16, batch 1, with the compiled path on; the eager path was slower
+  than plain HuggingFace `generate` in 7 of 8 cells of the earlier run.
+  The bandit is "experimental, single-arm measured only". The Triton and
+  assembly kernels moved under "Experimental kernels (not on the critical
+  path)": the engine does not call them. The README decode-loop diagram
+  no longer shows the Triton kernel, the install notes no longer call it
+  GPU-accelerated, and the Docker lines build the image locally (none is
+  published). The draft preprint no longer claims a distribution proof
+  for the lossy `typical` variant, an expected chaos-test failure (fixed
+  by #29), or novelty for bandit draft selection. Measured tables were
+  moved, not edited; the software title in `CITATION.cff` and
+  `.zenodo.json` changed, and the deposited preprint's title and DOI did
+  not.
+
 ### Added
 - Phase 5 (no GPU numbers yet): `FlashSpecConfig.compile` runs the
   batch-1 path on a preallocated static KV cache
