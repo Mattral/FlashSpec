@@ -38,7 +38,10 @@ Versioning follows [Semantic Versioning 2.0.0](https://semver.org/).
   (2026-10-24; GPU: Tesla T4, torch 2.11.0+cu130, CUDA 13.0):
   `test_tinyllama_greedy_matches_generate_fp32` PASSED,
   `test_tinyllama_greedy_matches_generate_fp16` XPASS (fp16 also matched
-  token for token); 1 passed, 1 xpassed in 126.04s.
+  token for token); 1 passed, 1 xpassed in 126.04s. That run covered
+  4 HumanEval prompts, not the 5 the test asks for: only 4 were vendored
+  and the test sliced `[:5]` without checking. The test now asserts the
+  prompt count.
 - The harness runs greedy configs (`temperature: 0`,
   `benchmarks/configs/tiny_llama_cpu_greedy.yaml`): `vanilla_ar` decodes
   greedily, `hf_sample` is skipped, every result records `decoding`, and
