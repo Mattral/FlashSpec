@@ -10,6 +10,20 @@ Versioning follows [Semantic Versioning 2.0.0](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- Per-step profiling: `MetricsConfig(profile_steps=True)` records
+  draft, verify, sample and bookkeeping time for every step
+  (`flashspec/metrics/step_profile.py`, CUDA events on GPU), returned as
+  `GenerationResult.step_profile`. Off by default.
+- `flashspec/metrics/instrument.py`: `ForwardRecorder` (forward calls and
+  their input lengths) and `count_host_syncs` (CUDA sync debug mode, or a
+  CPU proxy that counts tensor reads).
+- Benchmark baselines `hf_greedy`, `hf_sample` and `hf_assisted`
+  (HuggingFace assisted generation with the drafter), a `model: toy_llama`
+  random tiny Llama pair, and `benchmarks/configs/tiny_llama_cpu.yaml`.
+  FlashSpec result files now carry `step_profile`, `forward_counts` and
+  `host_syncs`.
+
 ### Fixed
 - `test_adversarial_swap_recovery_within_200_rounds` checked the wrong
   quantity ([issue 27](https://github.com/Mattral/FlashSpec/issues/27)).

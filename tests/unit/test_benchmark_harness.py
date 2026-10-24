@@ -156,3 +156,76 @@ def test_assemble_result_round_trip_keys() -> None:
     )
     assert document["status"] == "measured"
     assert document["hardware"] == {"platform": "test", "avx2": False}
+
+
+def test_toy_llama_records_profile_forward_counts_and_hf_baselines() -> None:
+    """A random tiny Llama run writes the step profile, forward counts and HF baselines."""
+    config = load_benchmark_config(Path("benchmarks/configs/tiny_llama_cpu.yaml"))
+    config.update({"max_new_tokens": 12, "n_warmup": 0, "n_samples": 2, "prompt_length": 6})
+    paired = run_paired_generations(config)
+    assert set(paired) == {"flashspec_ucb", "vanilla_ar", "hf_greedy", "hf_sample", "hf_assisted"}
+    spec = paired["flashspec_ucb"]
+    assert spec["measurement_kind"] == "toy_random_init_llama"
+    profile = spec["step_profile"]
+    assert isinstance(profile, dict)
+    assert profile["n_steps"] >= 1
+    assert profile["tokens_emitted"] == 24
+    counts = spec["forward_counts"]
+    assert isinstance(counts, dict)
+    assert counts["n_generations"] == 2
+    lengths = counts["target_input_lengths_first_generation"]
+    assert isinstance(lengths, list)
+    assert lengths[0] == 6
+    syncs = spec["host_syncs"]
+    assert isinstance(syncs, dict)
+    assert syncs["counter"] == "cpu_tensor_read_proxy"
+    metrics = spec["metrics"]
+    assert isinstance(metrics, dict)
+    for name in ("hf_greedy", "hf_sample", "hf_assisted"):
+        assert metrics[f"speedup_vs_{name}_mean"] > 0
+        baseline = paired[name]
+        assert baseline["method"] == name
+        assert "acceptance_rate_mean" in baseline["unmeasured"]
+    assert "assistant_confidence_threshold" in str(paired["hf_assisted"]["notes"])
+
+
+def test_hf_baselines_skip_on_modules_without_generate(capsys: pytest.CaptureFixture[str]) -> None:
+    """``model: toy`` has no generate(), so HF baselines are skipped and write nothing."""
+    config = {
+        "model": "toy",
+        "device": "cpu",
+        "gamma": 2,
+        "max_new_tokens": 2,
+        "n_warmup": 0,
+        "n_samples": 1,
+        "prompt_length": 4,
+        "vocab_size": 32,
+        "target_hidden": 32,
+        "target_layers": 1,
+        "drafter_hidden": 32,
+        "drafter_layers": 1,
+        "seed": 0,
+        "dataset": "unit",
+        "methods": ["flashspec_ucb", "vanilla_ar", "hf_greedy"],
+    }
+    paired = run_paired_generations(config)
+    assert set(paired) == {"flashspec_ucb", "vanilla_ar"}
+    assert "Skipping hf_greedy" in capsys.readouterr().out
+
+
+def test_assemble_result_rejects_extra_that_overwrites_fields() -> None:
+    """Extra sections cannot replace the fixed result fields."""
+    with pytest.raises(ValueError, match="overwrite"):
+        assemble_result(
+            model="toy",
+            method="flashspec_ucb",
+            gamma=2,
+            dataset="unit",
+            n_samples=1,
+            metrics={},
+            measurement_kind="unit",
+            notes="unit",
+            unmeasured=[],
+            hardware={},
+            extra={"metrics": {}},
+        )

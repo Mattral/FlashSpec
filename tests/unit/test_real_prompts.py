@@ -205,7 +205,8 @@ def test_toy_tokenizer_records_the_encoding(monkeypatch: pytest.MonkeyPatch) -> 
     assert spec["prompt_ids"] == ["HumanEval/23"]
     assert paired["vanilla_ar"]["prompt_ids"] == ["HumanEval/23"]
     text = load_prompt_set("humaneval")[0]["text"]
-    assert seen == [tokenizer.encode(text)[:8]]
+    # The timed generation plus one untimed host-sync count, same prompt.
+    assert seen == [tokenizer.encode(text)[:8]] * 2
     acceptance = spec["metrics"]["acceptance_rate_mean"]
     assert isinstance(acceptance, float)
     assert 0.0 <= acceptance <= 1.0
