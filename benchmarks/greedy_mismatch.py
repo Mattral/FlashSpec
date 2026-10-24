@@ -115,6 +115,7 @@ def _flashspec_greedy(
     target._verify_rows = _capture  # type: ignore[method-assign]
     config = FlashSpecConfig(
         device=str(device),
+        compile=False,  # eager diagnostic: compared with eager generate()
         dtype=str(dtype).removeprefix("torch."),  # type: ignore[arg-type]
         max_new_tokens=_NEW_TOKENS,
         bandit=BanditConfig(n_arms=1, strategy="ucb1", window_size=0),

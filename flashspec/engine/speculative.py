@@ -27,7 +27,7 @@ from flashspec.sampling.greedy import greedy_step, greedy_verify
 from flashspec.sampling.rejection import rejection_sample, rejection_step
 from flashspec.sampling.typical import typical_sample
 from flashspec.utils.config import FlashSpecConfig
-from flashspec.utils.device import get_device
+from flashspec.utils.device import CompileDecision, get_device, resolve_compile
 from flashspec.utils.logging import get_logger
 
 __all__ = ["SpeculativeEngine", "GenerationResult"]
@@ -342,18 +342,29 @@ class SpeculativeEngine:
         self._profiler: StepProfiler | None = (
             StepProfiler(self._device) if config.metrics.profile_steps else None
         )
-        self._compiled = False
-        if config.compile:
-            self._compiled = self._enable_compile()
+        decision = resolve_compile(config.compile, self._device)
+        if decision.enabled and not self._enable_compile():
+            decision = CompileDecision(
+                decision.requested,
+                False,
+                decision.reason + ", but no model wrapper supports a static cache",
+            )
+        self._compile_decision = decision
+        self._compiled = decision.enabled
+        # One line, always: which path runs and why.
+        forced_but_degraded = decision.requested is True and (
+            not decision.enabled or "may fail" in decision.reason
+        )
+        log = logger.warning if forced_but_degraded else logger.info
+        log(
+            "Compiled fast path %s (%s).",
+            "on" if decision.enabled else "off",
+            decision.reason,
+            extra={"compile_requested": decision.requested, "compile_enabled": decision.enabled},
+        )
 
     def _enable_compile(self) -> bool:
         """Move capable wrappers onto a static cache with CUDA-graph capture."""
-        if self._device.type != "cuda":
-            logger.warning(
-                "FlashSpecConfig.compile needs a CUDA device; it is a no-op on %s.",
-                self._device.type,
-            )
-            return False
         switched = False
         for owner in (self._target, *self._drafters):
             use_static = getattr(owner, "use_static_cache", None)
@@ -366,6 +377,11 @@ class SpeculativeEngine:
     def compiled(self) -> bool:
         """Whether the batch-1 path runs on static caches with CUDA graphs."""
         return self._compiled
+
+    @property
+    def compile_decision(self) -> CompileDecision:
+        """The resolved ``FlashSpecConfig.compile`` decision and its reason."""
+        return self._compile_decision
 
     def generate(
         self,

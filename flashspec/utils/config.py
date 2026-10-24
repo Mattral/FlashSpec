@@ -159,11 +159,16 @@ class FlashSpecConfig(BaseModel):
         Compute dtype for model forward passes.
     max_new_tokens : int
         Maximum tokens to generate per call.
-    compile : bool
+    compile : bool or "auto"
         Batch-1 fast path on a static KV cache with CUDA-graph capture
         (``torch.compile(mode="reduce-overhead")``) of the fixed-shape
-        drafter decode and target verify calls. CUDA only; elsewhere it is
-        a no-op that logs a warning.
+        drafter decode and target verify calls. ``"auto"`` (the default)
+        turns it on when the device is CUDA and Triton is installed, and
+        off otherwise. ``True`` forces it on any CUDA device; on other
+        devices it is a no-op that logs a warning. ``False`` keeps the
+        eager dynamic-cache path. The engine logs one line with the
+        decision and the reason (see
+        :func:`flashspec.utils.device.resolve_compile`).
     compile_max_cache_len : int
         Initial static cache capacity in tokens. A longer call grows it
         once (and recaptures the graphs).
@@ -190,7 +195,7 @@ class FlashSpecConfig(BaseModel):
     dtype: Literal["float32", "bfloat16", "float16"] = "bfloat16"
     max_new_tokens: int = Field(default=512, ge=1)
     eos_token_ids: tuple[int, ...] = ()
-    compile: bool = False
+    compile: bool | Literal["auto"] = "auto"
     compile_max_cache_len: int = Field(default=1024, ge=16)
     bandit: BanditConfig = Field(default_factory=BanditConfig)
     sampling: SamplingConfig = Field(default_factory=SamplingConfig)

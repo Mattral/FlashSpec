@@ -94,6 +94,8 @@ def _check(dtype: torch.dtype) -> None:
         target = TargetModel(_TARGET, torch.device(_DEVICE), dtype, model=target_module)
         config = FlashSpecConfig(
             device=_DEVICE,
+            # The gold reference is eager generate(); keep FlashSpec eager too.
+            compile=False,
             dtype=str(dtype).removeprefix("torch."),  # type: ignore[arg-type]
             max_new_tokens=_NEW_TOKENS,
             bandit=BanditConfig(n_arms=1, strategy="ucb1", window_size=0),
