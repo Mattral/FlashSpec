@@ -16,7 +16,7 @@ from pathlib import Path
 # Allow running from the repo root.
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-# ── Constants (AGENTS.md §6) ──────────────────────────────────────────────────
+# ── Constants ──────────────────────────────────────────────────
 N_WARMUP_STEPS: int = 50
 N_MEASUREMENT_STEPS: int = 200
 
@@ -27,7 +27,7 @@ N_MEASUREMENT_STEPS: int = 200
 def run_toy_benchmark() -> None:
     """Run a fast smoke-test benchmark using random data (no real model weights).
 
-    Pins CPU threads to 1 (§6), times N_MEASUREMENT_STEPS speculative steps
+    Pins CPU threads to 1, times N_MEASUREMENT_STEPS speculative steps
     using random logprobs, and logs mean latency.
 
     Returns
@@ -38,7 +38,7 @@ def run_toy_benchmark() -> None:
 
     from flashspec.sampling.rejection import rejection_sample
 
-    # §6: pin CPU threads for single-batch experiments.
+    # Pin CPU threads for single-batch experiments.
     torch.set_num_threads(1)
 
     sys.stdout.write(
@@ -51,7 +51,7 @@ def run_toy_benchmark() -> None:
     vocab: int = 1000
     seq_len: int = 32
 
-    # Warm-up (§6: 50 warm-up steps).
+    # Warm-up: 50 steps.
     for _ in range(N_WARMUP_STEPS):
         dlp = torch.randn(batch_size, gamma, vocab).log_softmax(-1)
         tlp = torch.randn(batch_size, gamma, vocab).log_softmax(-1)
@@ -59,7 +59,7 @@ def run_toy_benchmark() -> None:
         ctx = torch.randint(0, vocab, (batch_size, seq_len))
         rejection_sample(ctx, dlp, tlp, ids, gamma=gamma)
 
-    # Measurement (§6: 200 steps, mean ± std, synchronize around timed region).
+    # Measurement (200 steps, mean ± std, synchronize around timed region).
     latencies_ms: list[float] = []
     for _ in range(N_MEASUREMENT_STEPS):
         dlp = torch.randn(batch_size, gamma, vocab).log_softmax(-1)
@@ -67,7 +67,7 @@ def run_toy_benchmark() -> None:
         ids = torch.randint(0, vocab, (batch_size, gamma))
         ctx = torch.randint(0, vocab, (batch_size, seq_len))
 
-        # §6: synchronize before AND after timed region.
+        # Synchronize before AND after timed region.
         if torch.cuda.is_available():
             torch.cuda.synchronize()
         t0 = time.perf_counter()
@@ -80,7 +80,7 @@ def run_toy_benchmark() -> None:
     variance = sum((x - mean_ms) ** 2 for x in latencies_ms) / len(latencies_ms)
     std_ms = variance**0.5
 
-    # §6: log GPU memory (0 on CPU).
+    # Log GPU memory (0 on CPU).
     gpu_mem_gb = 0.0
     if torch.cuda.is_available():
         gpu_mem_gb = torch.cuda.max_memory_allocated() / (1024**3)
@@ -144,7 +144,7 @@ def torch_threads() -> None:
 def main() -> None:
     """Parse CLI arguments and dispatch to the appropriate benchmark routine."""
     parser = argparse.ArgumentParser(
-        description="FlashSpec benchmark runner (AGENTS.md §14)",
+        description="FlashSpec benchmark runner",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(

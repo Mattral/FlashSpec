@@ -2,7 +2,7 @@
 
 Sweeps over draft model sizes (parameter counts) and records the mean
 token acceptance rate α for each.  Produces a CSV result for inclusion
-in the paper's ablation section (§8.4 §6 Ablation).
+in the paper's ablation section.
 
 Usage
 -----

@@ -142,7 +142,7 @@ class ThroughputTracker:
         -----
         Computed as ``total_tokens / total_wall_seconds``.  This is the
         primary throughput metric reported in benchmark result JSON files
-        (§14) and compared against regression thresholds in §6.
+        and compared against the thresholds in ``scripts/check_regression.py``.
 
         Examples
         --------
@@ -211,8 +211,8 @@ class ThroughputTracker:
 
         Notes
         -----
-        Called at the start of the measurement window (after the 50 warm-up
-        steps in §6) so that warm-up overhead is excluded from the reported
+        Called at the start of the measurement window (after the warm-up
+        steps) so that warm-up overhead is excluded from the reported
         throughput.  The ``model_flops_per_token`` and ``_peak_flops``
         values are preserved across resets.
 

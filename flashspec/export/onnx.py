@@ -3,7 +3,7 @@
 Exports a draft model's ``generate_draft`` forward pass to ONNX format,
 enabling deployment with ONNX Runtime.
 
-The ONNX export must satisfy the parity contract (AGENTS.md §2.4):
+The ONNX export must satisfy the parity contract:
 
     max(|onnx_logits - pytorch_logits|) < 1e-5   (all batch sizes 1..32)
 
@@ -85,7 +85,7 @@ def export_draft_to_onnx(
 
     drafter.eval()
     try:
-        import onnx  # type: ignore[import]  # onnx is an optional dep; not in core requirements
+        import onnx  # optional dependency (the [onnx] extra)
 
         torch.onnx.export(
             drafter,

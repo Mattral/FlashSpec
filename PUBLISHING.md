@@ -33,11 +33,22 @@ Do not edit a published release in order to mint a paper DOI.
 ## PyPI
 
 Uploads go through `.github/workflows/publish.yml`. The workflow is
-manual (`workflow_dispatch`), builds the sdist and wheel, and publishes
-with PyPI Trusted Publishing. The job uses the GitHub environment `pypi`,
-which must have a required reviewer. There is no API token and no
-repository secret in that workflow. Do not upload with a token or a
-`.pypirc` file.
+manual (`workflow_dispatch`) and must be started on a tag, not a branch:
+
+1. Merge the version bump (`pyproject.toml` `version`, `CHANGELOG.md`)
+   into `main`.
+2. Tag that `main` commit `v<version>` and push the tag.
+3. Actions → Publish → Run workflow, choosing the tag under "Use
+   workflow from".
+
+The `verify` job stops unless the ref is a tag, the tag equals `"v"` +
+the `pyproject.toml` version, the tagged commit is on `main`, and
+`pytest tests/unit tests/integration -m "not gpu"` passes; it then builds
+the sdist and wheel and checks their file names carry that version. The
+`publish` job uploads them with PyPI Trusted Publishing under the GitHub
+environment `pypi`, which requires a reviewer. Every action is pinned to
+a commit SHA. There is no API token and no repository secret in that
+workflow. Do not upload with a token or a `.pypirc` file.
 
 ## Not this release
 
@@ -45,5 +56,4 @@ repository secret in that workflow. Do not upload with a token or a
   Do not tag 0.2.0.
 - No H100 generation result is committed. Medusa and EAGLE are not
   implemented.
-- `mypy --strict` has not been shown to pass. Do not describe it as a
-  green gate.
+- `mypy --strict flashspec` passes and runs in the CI lint job.

@@ -80,7 +80,7 @@ class DraftModel(Protocol):
         Notes
         -----
         Temperature scaling must be applied to the raw logits **before**
-        ``log_softmax`` (§7 of AGENTS.md).  The returned ``draft_logprobs``
+        ``log_softmax``.  The returned ``draft_logprobs``
         are already temperature-scaled log-probs, not raw logits.
 
         Examples
@@ -115,7 +115,7 @@ class DraftModel(Protocol):
         -----
         Used when the drafter needs to re-score previously generated tokens,
         for example after the context has been updated.  Temperature must be
-        applied before ``log_softmax`` (§7 of AGENTS.md).
+        applied before ``log_softmax``.
 
         Examples
         --------
@@ -157,7 +157,7 @@ def register(name: str, *, replace: bool = False) -> Any:  # noqa: ANN401
     The registry is a module-level dict ``_REGISTRY``.  Names are
     case-sensitive.  External packages can also register drafters via Python
     entry points under the ``flashspec.drafters`` group without modifying
-    this module (see §4.4 of AGENTS.md).
+    this module.
 
     A bandit with one registered drafter cannot adapt. Register two or
     more realistically different drafters before expecting a gain over a

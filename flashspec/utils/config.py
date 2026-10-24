@@ -71,10 +71,15 @@ class SamplingConfig(BaseModel):
     seed : int or None
         Random seed for reproducibility.  ``None`` means non-deterministic.
     variant : {"rejection", "typical", "greedy"}
-        Sampling algorithm variant. ``"greedy"`` accepts draft tokens up to
+        Sampling algorithm variant. ``"rejection"`` (Algorithm 1) and
+        ``"greedy"`` are lossless. ``"greedy"`` accepts draft tokens up to
         the first one that differs from the target's argmax, so the output
         equals the target's own greedy decode. It requires
         ``temperature == 0`` and is chosen automatically for it.
+        ``"typical"`` (Medusa-style typical acceptance) is **lossy**: its
+        output distribution differs from the target's, and the engine logs
+        a warning when it is selected. It also runs on the generic loop,
+        not the batch-1 fast path.
 
     Raises
     ------

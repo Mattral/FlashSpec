@@ -7,7 +7,8 @@ matches, and the processor supports AVX2, the residual is evaluated by
 that assembly kernel. Every other case uses the pure-PyTorch reference
 below. The Triton GPU acceptance test is unchanged.
 
-The acceptance criterion and residual distribution are immutable by AGENTS.md §2.1.
+The acceptance criterion and residual distribution must not change: they make the
+output distribution exactly the target model's.
 Do NOT alter the residual formula without a corresponding paper revision.
 """
 
@@ -310,12 +311,12 @@ def rejection_sample(
         Log-probabilities under the draft model for each draft step.
         Shape: ``(batch_size, gamma, vocab_size)``, dtype float32 or bfloat16.
         Temperature **must** be applied to the raw logits by the caller before
-        computing log-softmax (§7).  This function operates on the already-scaled
+        computing log-softmax.  This function operates on the already-scaled
         log-probs and does not apply any further temperature rescaling.
     target_logprobs : torch.Tensor
         Log-probabilities under the target model at each draft position.
         Shape: ``(batch_size, gamma, vocab_size)``, dtype float32 or bfloat16.
-        Temperature **must** be applied before log-softmax by the caller (§7).
+        Temperature **must** be applied before log-softmax by the caller.
     draft_token_ids : torch.Tensor
         Token indices proposed by the draft model.
         Shape: ``(batch_size, gamma)``, dtype int64.
@@ -352,7 +353,6 @@ def rejection_sample(
 
     Temperature scaling must be applied **before** log-softmax in the caller
     (``TargetModel.score_draft`` and the draft model's ``generate_draft``).
-    See §7 of AGENTS.md.
 
     References
     ----------

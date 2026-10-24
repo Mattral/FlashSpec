@@ -1,6 +1,6 @@
-"""Integration tests: ONNX export parity (§2.4 contract).
+"""Integration tests: ONNX export parity contract.
 
-The spec states (§2.4):
+The parity contract:
   max(|onnx_logits - pytorch_logits|) < 1e-5   (all batch sizes 1..32)
 
 All tests are skipped if ``onnx`` or ``onnxruntime`` are not installed.
@@ -58,10 +58,10 @@ def _onnx_available() -> bool:
 
 @pytest.mark.skipif(not _onnx_available(), reason="onnx / onnxruntime not installed")
 class TestOnnxParity:
-    """§2.4 ONNX parity: max |onnx_logits - pytorch_logits| < 1e-5."""
+    """ONNX parity: max |onnx_logits - pytorch_logits| < 1e-5."""
 
     def test_onnx_parity_batch_sizes_1_to_8(self, toy_model_cpu: torch.nn.Module) -> None:
-        """ONNX export matches PyTorch logits within 1e-5 for batch_size 1..8 (§2.4)."""
+        """ONNX export matches PyTorch logits within 1e-5 for batch_size 1..8."""
         import onnxruntime as ort
 
         from flashspec.export.onnx import export_draft_to_onnx
@@ -88,12 +88,11 @@ class TestOnnxParity:
                 ort_logits = ort_out[0]
                 max_diff = float(abs(pt_logits - ort_logits).max())
                 assert max_diff < 1e-5, (
-                    f"§2.4 ONNX parity FAILED at batch_size={batch_size}: "
-                    f"max_diff={max_diff:.2e} ≥ 1e-5"
+                    f"ONNX parity FAILED at batch_size={batch_size}: max_diff={max_diff:.2e} ≥ 1e-5"
                 )
 
     def test_onnx_parity_batch_sizes_9_to_32(self, toy_model_cpu: torch.nn.Module) -> None:
-        """Edge case: ONNX parity holds for larger batch sizes 9..32 (§2.4)."""
+        """Edge case: ONNX parity holds for larger batch sizes 9..32."""
         import onnxruntime as ort
 
         from flashspec.export.onnx import export_draft_to_onnx
@@ -120,8 +119,7 @@ class TestOnnxParity:
                 ort_logits = ort_out[0]
                 max_diff = float(abs(pt_logits - ort_logits).max())
                 assert max_diff < 1e-5, (
-                    f"§2.4 ONNX parity FAILED at batch_size={batch_size}: "
-                    f"max_diff={max_diff:.2e} ≥ 1e-5"
+                    f"ONNX parity FAILED at batch_size={batch_size}: max_diff={max_diff:.2e} ≥ 1e-5"
                 )
 
     def test_onnx_export_different_sequence_lengths(self) -> None:
@@ -159,7 +157,7 @@ class TestOnnxParity:
                 ort_logits = ort_out[0]
                 max_diff = float(abs(pt_logits - ort_logits).max())
                 assert max_diff < 1e-5, (
-                    f"§2.4 ONNX parity FAILED at seq_len={seq_len}: max_diff={max_diff:.2e} ≥ 1e-5"
+                    f"ONNX parity FAILED at seq_len={seq_len}: max_diff={max_diff:.2e} ≥ 1e-5"
                 )
 
     def test_onnx_invalid_opset_raises_value_error(self, toy_model_cpu: torch.nn.Module) -> None:

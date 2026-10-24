@@ -110,7 +110,7 @@ class TestFlashSpecConfig:
             cfg.device = "cpu"  # type: ignore[misc]
 
 
-# ── Hypothesis property-based tests (§5.1) ───────────────────────────────────
+# ── Hypothesis property-based tests ───────────────────────────────────
 
 
 @given(gamma=st.integers(min_value=1, max_value=32))

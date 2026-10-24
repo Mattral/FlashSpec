@@ -1,6 +1,6 @@
 """Compare FlashSpec against Medusa, EAGLE, and vanilla AR baselines.
 
-Produces a JSON result file per method that conforms to the §14 schema,
+Produces a JSON result file per method that conforms to the result schema,
 enabling the paper's results table to be populated from committed artifacts.
 
 Usage

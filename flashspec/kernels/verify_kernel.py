@@ -22,8 +22,8 @@ flashspec.kernels._reference : Pure-PyTorch reference (ground truth for tests).
 from __future__ import annotations
 
 import torch
-import triton  # type: ignore[import]  # triton ships no py.typed; stubs unavailable
-import triton.language as tl  # type: ignore[import]  # same as above
+import triton  # untyped; see [tool.mypy.overrides] in pyproject.toml
+import triton.language as tl
 
 __all__ = ["verify_tokens"]
 
@@ -60,7 +60,7 @@ def _verify_acceptance_kernel(
     draft-position index determined by ``tl.program_id(1)``.  The SRAM footprint
     per program is O(BLOCK_B) scalars — constant in VOCAB_SIZE.
 
-    See docs/kernels.md §2.1 for the tiling strategy and SRAM usage analysis.
+    See docs/kernels.md for the tiling strategy and SRAM usage analysis.
     """
     batch_block_id = tl.program_id(0)
     gamma_idx = tl.program_id(1)

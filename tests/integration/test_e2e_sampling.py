@@ -16,7 +16,7 @@ import torch
 from flashspec.sampling.rejection import rejection_sample
 from flashspec.utils.device import set_seed
 
-# §2.1 hard gate: 10,000 samples, significance α=0.01.
+# Hard gate: 10,000 samples, significance α=0.01.
 _N_SAMPLES: int = 10_000
 _ALPHA_KS: float = 0.01
 # Critical value for D_n at α=0.01: c(α) / √n where c(0.01) ≈ 1.628.
@@ -146,7 +146,7 @@ class TestDistributionEquivalence:
         ks_stat = _empirical_ks_statistic(samples, target_probs)
         critical = _ks_critical_value(_N_SAMPLES)
         assert ks_stat < critical, (
-            f"§2.1 KS gate FAILED: D_n={ks_stat:.5f} ≥ critical={critical:.5f} "
+            f"KS gate FAILED: D_n={ks_stat:.5f} ≥ critical={critical:.5f} "
             f"(α={_ALPHA_KS}, N={_N_SAMPLES}). "
             "Output distribution does not match the target model."
         )

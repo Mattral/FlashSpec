@@ -1,4 +1,11 @@
-"""Typical-acceptance speculative sampling variant.
+"""Typical-acceptance speculative sampling variant (lossy).
+
+Unlike :func:`flashspec.sampling.rejection.rejection_sample` (Algorithm 1),
+this variant does not preserve the target model's output distribution:
+it accepts any draft token in the target's typical set, so the generated
+text is distributed differently from sampling the target alone. Use it
+only when that trade is acceptable; FlashSpec's lossless claims and the
+distribution tests cover ``"rejection"`` and ``"greedy"`` only.
 
 This module implements a variant of speculative sampling based on
 *typical acceptance*, where the acceptance decision is based on whether
@@ -31,7 +38,7 @@ def typical_sample(
     gamma: int,
     typical_p: float = 0.9,
 ) -> tuple[torch.Tensor, torch.Tensor, float]:
-    r"""Apply typical-acceptance speculative sampling.
+    r"""Apply typical-acceptance speculative sampling (lossy).
 
     Accepts a draft token if its (negative) log-probability under the target
     model is within the typical set defined by the target entropy.

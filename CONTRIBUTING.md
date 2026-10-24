@@ -1,9 +1,9 @@
 # Contributing to FlashSpec
 
 Thank you for contributing.  This document describes how to open a pull
-request. The lint job runs `ruff check`, `ruff format --check`, and
-import-linter. `mypy --strict` is `make typecheck` and is not part of
-that job.
+request. The lint job runs `ruff check`, `ruff format --check`,
+import-linter, and `mypy --strict` (`make typecheck`). CI runs on every
+pull request, including stacked ones whose base is another branch.
 
 ---
 
@@ -13,18 +13,22 @@ Before opening a PR, run:
 
 ```bash
 make lint          # ruff check, ruff format --check, and import-linter
-make typecheck     # mypy --strict. Not part of the green lint job.
+make typecheck     # mypy --strict flashspec. Part of the CI lint job.
 make test          # unit + integration on CPU. Fails under 83% line coverage.
 make test-chaos    # adversarial bandit tests. One test is an expected failure.
 make bench-quick   # toy benchmark smoke-test
 ```
 
 The coverage floor is the measured unit-and-integration coverage, rounded
-down. `mypy --strict` has not been shown to pass.
+down.
+
+GPU checks have no CI runner. They run by hand on a Colab T4 through
+`notebooks/04_gpu_measurement.ipynb`, which writes a results bundle that
+`scripts/ingest_gpu_bundle.py` validates.
 
 ---
 
-## Commit message format (§9.1)
+## Commit message format
 
 Follow [Conventional Commits 1.0.0](https://www.conventionalcommits.org) **strictly**.
 
@@ -60,7 +64,7 @@ docs(kernels): add SRAM usage analysis for verify_kernel
 
 ---
 
-## Branching strategy (§9.2)
+## Branching strategy
 
 | Branch | Purpose | Rules |
 |--------|---------|-------|
@@ -72,7 +76,7 @@ docs(kernels): add SRAM usage analysis for verify_kernel
 
 ---
 
-## PR requirements (§9.3)
+## PR requirements
 
 Every PR must include:
 
@@ -85,18 +89,17 @@ Every PR must include:
 
 ---
 
-## What you may change autonomously (§13.1)
+## What you may change autonomously
 
 - New Python functions and classes that follow the style rules in this file.
 - New Triton kernels that keep the numerical contract in `docs/kernels.md`.
 - New tests under `tests/unit/`, `tests/integration/`, or `tests/chaos/`.
-  `AGENTS.md` is not in this checkout.
 - Refactoring that does **not** change the public API.
 - Docstring updates.
 - `CHANGELOG.md` entries.
 - Linter-flagged fixes.
 
-## What requires explicit human approval (§13.2)
+## What requires explicit human approval
 
 - Any change to `flashspec/kernels/` that has a corresponding test in
   `tests/unit/test_verify_kernel.py` (correctness-critical).
@@ -110,7 +113,8 @@ Every PR must include:
 
 ## Code style
 
-All style rules are enforced by `make lint` (ruff + mypy + import-linter).
+All style rules are enforced by `make lint` (ruff + import-linter) and
+`make typecheck` (mypy).
 
 Key rules:
 
@@ -163,7 +167,7 @@ Key rules:
 
 ---
 
-## Versioning and releases (§9.4)
+## Versioning and releases
 
 Tags follow semver: `v{MAJOR}.{MINOR}.{PATCH}`.
 Every tag must have a corresponding GitHub Release with the relevant

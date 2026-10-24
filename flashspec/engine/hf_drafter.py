@@ -22,8 +22,8 @@ logger = get_logger(__name__)
 def scaled_log_softmax(logits: torch.Tensor, temperature: float) -> torch.Tensor:
     """Apply temperature, then log-softmax.
 
-    Temperature is applied to the raw logits **before** ``log_softmax``
-    (AGENTS.md §7). Dividing log-probabilities by temperature is not
+    Temperature is applied to the raw logits **before** ``log_softmax``.
+    Dividing log-probabilities by temperature is not
     the same operation and is not used here.
 
     Parameters
@@ -140,9 +140,10 @@ class HuggingFaceDrafter:
             )
         except Exception as exc:
             raise RuntimeError(f"Failed to load draft model '{model_name_or_path}': {exc}") from exc
-        loaded = loaded.to(self._device)
-        loaded.eval()
-        return loaded
+        module: torch.nn.Module = loaded
+        module = module.to(self._device)
+        module.eval()
+        return module
 
     @property
     def model_name(self) -> str:
@@ -503,5 +504,5 @@ class HuggingFaceDrafter:
             Float32 logits. Shape ``(batch, vocab)``.
         """
         with torch.no_grad():
-            logits = self._model(context).logits[:, -1, :]
+            logits: torch.Tensor = self._model(context).logits[:, -1, :]
         return logits.float()

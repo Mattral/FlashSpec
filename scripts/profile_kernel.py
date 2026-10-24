@@ -201,8 +201,7 @@ def main() -> None:
 
     sys.stdout.write(sep + "\n")
     sys.stdout.write(
-        f"\nTarget: ≤ 0.5 ms per step on H100 (AGENTS.md §6)\n"
-        f"Trace: {args.output} (not written in stub mode)\n"
+        f"\nTarget: ≤ 0.5 ms per step on H100\nTrace: {args.output} (not written in stub mode)\n"
     )
 
 

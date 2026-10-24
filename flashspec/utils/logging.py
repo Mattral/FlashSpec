@@ -1,7 +1,7 @@
 """Structured JSON logger for FlashSpec.
 
 All library code must obtain a logger via ``get_logger(__name__)``.
-``print()`` is banned in library code (see AGENTS.md §3.1 and §13.6).
+``print()`` is not used in library code.
 
 Usage
 -----

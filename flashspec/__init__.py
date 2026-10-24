@@ -3,7 +3,7 @@
 Adaptive speculative-decoding inference engine with Triton-optimised
 verification and online bandit draft selection.
 
-Public API surface (AGENTS.md §13.2 — do not modify without explicit approval):
+Public API surface (changes need maintainer approval):
 
     flashspec.SpeculativeEngine
     flashspec.GenerationResult

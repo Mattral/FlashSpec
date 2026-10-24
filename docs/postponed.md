@@ -38,10 +38,7 @@ move without them.
   the committed pairs are already slower than plain decoding. Do not
   tag 0.2.0.
 
-This repository has no self-hosted GPU runner. GPU Tests and the H100
-benchmark start only from `workflow_dispatch` after a runner exists.
-Neither is part of the current plan.
-
-## Local checks
-
-- `mypy --strict` has not been shown to pass. That check stays postponed.
+This repository has no self-hosted GPU runner, so it has no GPU
+workflow. The former GPU Tests and H100 benchmark workflows were removed.
+GPU measurements run by hand on a Colab T4 with
+`notebooks/04_gpu_measurement.ipynb`.

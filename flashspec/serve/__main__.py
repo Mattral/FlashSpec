@@ -12,6 +12,7 @@ from typing import Literal
 
 import torch
 
+from flashspec.bandit.base import DraftSelector
 from flashspec.bandit.thompson import ThompsonSelector
 from flashspec.bandit.ucb import UCB1Selector
 from flashspec.engine.drafter import load_drafters
@@ -154,6 +155,7 @@ def main(argv: list[str] | None = None) -> None:
         bandit=BanditConfig(n_arms=len(drafters), strategy=args.strategy, window_size=100),
         sampling=SamplingConfig(gamma=args.gamma, temperature=args.temperature),
     )
+    bandit: DraftSelector
     if args.strategy == "thompson":
         bandit = ThompsonSelector(n_arms=len(drafters), window_size=100)
     else:
