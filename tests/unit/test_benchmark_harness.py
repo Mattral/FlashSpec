@@ -175,7 +175,11 @@ def test_toy_llama_records_profile_forward_counts_and_hf_baselines() -> None:
     assert counts["n_generations"] == 2
     lengths = counts["target_input_lengths_first_generation"]
     assert isinstance(lengths, list)
-    assert lengths[0] == 6
+    # Prefill is the prompt minus its last token, which the first verify carries.
+    assert lengths[0] == 5
+    assert lengths[1:] == [1 + 4] * (len(lengths) - 1)
+    assert counts["target_forwards_per_step"] == 1.0
+    assert counts["drafter_forwards_per_step"] == 4.0
     syncs = spec["host_syncs"]
     assert isinstance(syncs, dict)
     assert syncs["counter"] == "cpu_tensor_read_proxy"
