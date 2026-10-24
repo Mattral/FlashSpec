@@ -1,0 +1,48 @@
+# Phase 5 on a Colab Tesla T4: qwen_t4.yaml plus CUDA graphs.
+#
+# Same pair, prompts (10 MT-Bench + 10 HumanEval through the target's chat
+# template), modes, lengths and warmups as qwen_t4.yaml. Methods:
+#
+# - flashspec_ucb       eager FlashSpec (the Phase 4 engine), the "before"
+# - flashspec_compiled  FlashSpecConfig.compile: static KV caches and
+#                       torch.compile(mode="reduce-overhead") CUDA graphs for
+#                       the drafter decode and the target verify, the "after"
+# - hf_greedy / hf_sample                     plain HuggingFace generate
+# - hf_greedy_compiled / hf_sample_compiled   generate on a reused StaticCache,
+#                       which HuggingFace compiles with the same CompileConfig()
+# - hf_assisted          HuggingFace assisted generation, same drafter
+#
+# Both FlashSpec variants and both HF variants run interleaved in one run,
+# so the compile before/after is the same machine and the same command.
+# The first two prompts of each block are warmups; they also absorb the
+# torch.compile time. Run it through notebooks/04_gpu_measurement.ipynb.
+
+model: Qwen/Qwen2.5-1.5B-Instruct
+drafter: Qwen/Qwen2.5-0.5B-Instruct
+device: cuda:0
+dtype: float16
+gamma: 4
+batch_size: 1
+max_new_tokens: 128
+n_warmup: 2
+n_samples: 10
+seed: 0
+chat_template: true
+compile_max_cache_len: 1024
+
+datasets:
+  - mt_bench
+  - humaneval
+
+temperatures:
+  - 0.0
+  - 0.7
+
+methods:
+  - flashspec_ucb
+  - flashspec_compiled
+  - hf_greedy
+  - hf_greedy_compiled
+  - hf_sample
+  - hf_sample_compiled
+  - hf_assisted

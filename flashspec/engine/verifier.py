@@ -97,6 +97,8 @@ class TargetModel:
                 ) from exc
             logger.debug("Target model loaded", extra={"model": model_name_or_path})
         self._kv = KvSession(self._model)
+        # Incremental path; the static-cache session replaces it under compile.
+        self._inc: Any = self._kv
         self._verified = 0
         self._prefill_logits: torch.Tensor | None = None
 
@@ -207,6 +209,27 @@ class TargetModel:
 
     # ── Incremental batch-1 path (one forward per step) ─────────────────
 
+    def use_static_cache(self, max_cache_len: int, *, compile_forward: bool) -> None:
+        """Run the incremental path on a preallocated static cache.
+
+        Parameters
+        ----------
+        max_cache_len : int
+            Initial capacity in tokens; :meth:`reserve_cache` grows it.
+        compile_forward : bool
+            Capture fixed-shape calls with CUDA graphs
+            (``torch.compile(mode="reduce-overhead")``). CUDA only.
+        """
+        from flashspec.engine.static_cache import StaticKvSession
+
+        self._inc = StaticKvSession(self._model, max_cache_len, compile_forward=compile_forward)
+
+    def reserve_cache(self, n_tokens: int) -> None:
+        """Grow a static cache to ``n_tokens`` before a call. No-op for the dynamic cache."""
+        reserve = getattr(self._inc, "reserve", None)
+        if callable(reserve):
+            reserve(n_tokens)
+
     def begin(self, prompt: torch.Tensor) -> bool:
         """Prefill ``prompt`` for incremental verification.
 
@@ -223,14 +246,14 @@ class TargetModel:
             the caller then uses :meth:`score_draft`.
         """
         prompt = prompt.to(self._device)
-        if not self._kv.supports(prompt):
+        if not self._inc.supports(prompt):
             return False
         try:
             # The whole prompt is prefilled, as HuggingFace generate does, so
             # the first token's logits come from the same computation.
-            self._prefill_logits = self._kv.start(prompt, hold_last=False)
+            self._prefill_logits = self._inc.start(prompt, hold_last=False)
         except CacheUnavailableError:
-            self._kv.disable()
+            self._inc.disable()
             return False
         self._verified = 0
         return True
@@ -247,10 +270,10 @@ class TargetModel:
         first = self._prefill_logits
         if first is not None:
             self._prefill_logits = None
-            rest = self._kv.advance(draft_token_ids, keep=gamma)
+            rest = self._inc.advance(draft_token_ids, keep=gamma)
             rows = torch.cat([first.unsqueeze(1), rest], dim=1)
         else:
-            rows = self._kv.advance(draft_token_ids, keep=gamma + 1)
+            rows = self._inc.advance(draft_token_ids, keep=gamma + 1)
         self._verified = gamma
         return rows
 
@@ -333,13 +356,13 @@ class TargetModel:
         """
         if not 0 <= n_accepted <= self._verified:
             raise ValueError(f"n_accepted must be in [0, {self._verified}]; got {n_accepted}.")
-        self._kv.crop(self._verified - n_accepted)
-        self._kv.push_pending(next_token.to(self._device).view(1, -1))
+        self._inc.crop(self._verified - n_accepted)
+        self._inc.push_pending(next_token.to(self._device).view(1, -1))
         self._verified = 0
 
     def check_cache(self, context: torch.Tensor) -> None:
         """Assert the incremental cache matches ``context`` (``FLASHSPEC_DEBUG_CACHE=1`` only)."""
-        self._kv.check(context.to(self._device))
+        self._inc.check(context.to(self._device))
 
     def roll_cache_to(self, token_ids: torch.Tensor) -> None:
         """Crop or extend the cache until it matches ``token_ids``.

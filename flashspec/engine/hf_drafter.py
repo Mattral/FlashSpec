@@ -100,6 +100,8 @@ class HuggingFaceDrafter:
         else:
             self._model = self._load_pretrained(model_name_or_path)
         self._kv = KvSession(self._model)
+        # Incremental path; the static-cache session replaces it under compile.
+        self._inc: Any = self._kv
         # Incremental mode: draft tokens forwarded by the last draft() (all
         # but the last), and the last one, which was not forwarded.
         self._forwarded_drafts = 0
@@ -223,6 +225,27 @@ class HuggingFaceDrafter:
 
     # ── Incremental batch-1 path (gamma forwards per step) ──────────────
 
+    def use_static_cache(self, max_cache_len: int, *, compile_forward: bool) -> None:
+        """Run the incremental path on a preallocated static cache.
+
+        Parameters
+        ----------
+        max_cache_len : int
+            Initial capacity in tokens; :meth:`reserve_cache` grows it.
+        compile_forward : bool
+            Capture fixed-shape calls with CUDA graphs
+            (``torch.compile(mode="reduce-overhead")``). CUDA only.
+        """
+        from flashspec.engine.static_cache import StaticKvSession
+
+        self._inc = StaticKvSession(self._model, max_cache_len, compile_forward=compile_forward)
+
+    def reserve_cache(self, n_tokens: int) -> None:
+        """Grow a static cache to ``n_tokens`` before a call. No-op for the dynamic cache."""
+        reserve = getattr(self._inc, "reserve", None)
+        if callable(reserve):
+            reserve(n_tokens)
+
     def begin(self, prompt: torch.Tensor) -> bool:
         """Prefill ``prompt`` for incremental drafting.
 
@@ -240,12 +263,12 @@ class HuggingFaceDrafter:
             :meth:`generate_draft`.
         """
         prompt = prompt.to(self._device)
-        if not self._kv.supports(prompt):
+        if not self._inc.supports(prompt):
             return False
         try:
-            self._kv.start(prompt)
+            self._inc.start(prompt)
         except CacheUnavailableError:
-            self._kv.disable()
+            self._inc.disable()
             return False
         self._forwarded_drafts = 0
         self._unforwarded = None
@@ -299,7 +322,7 @@ class HuggingFaceDrafter:
         logprob_steps: list[torch.Tensor] = []
         next_ids: torch.Tensor | None = None
         for _ in range(gamma):
-            next_logits = self._kv.advance(next_ids, keep=1)[:, -1, :]
+            next_logits = self._inc.advance(next_ids, keep=1)[:, -1, :]
             if greedy:
                 next_ids = next_logits.argmax(dim=-1, keepdim=True)
             else:
@@ -338,10 +361,10 @@ class HuggingFaceDrafter:
         if n_accepted == gamma:
             # Every draft token was accepted. The last one was never
             # forwarded, so it goes in front of the bonus token.
-            self._kv.push_pending(torch.cat([self._unforwarded, next_token], dim=1))
+            self._inc.push_pending(torch.cat([self._unforwarded, next_token], dim=1))
         else:
-            self._kv.crop(self._forwarded_drafts - n_accepted)
-            self._kv.push_pending(next_token)
+            self._inc.crop(self._forwarded_drafts - n_accepted)
+            self._inc.push_pending(next_token)
         self._forwarded_drafts = 0
         self._unforwarded = None
 
@@ -356,11 +379,11 @@ class HuggingFaceDrafter:
         token_ids : torch.Tensor
             Shape ``(1, n)``.
         """
-        self._kv.push_pending(token_ids.to(self._device).view(1, -1))
+        self._inc.push_pending(token_ids.to(self._device).view(1, -1))
 
     def check_cache(self, context: torch.Tensor) -> None:
         """Assert the incremental cache matches ``context`` (``FLASHSPEC_DEBUG_CACHE=1`` only)."""
-        self._kv.check(context.to(self._device))
+        self._inc.check(context.to(self._device))
 
     def roll_cache_to(self, token_ids: torch.Tensor) -> None:
         """Crop or extend the cache until it matches ``token_ids``.

@@ -84,7 +84,23 @@ __all__ = [
 
 #: Baselines that call HuggingFace ``generate``. Each needs a module with
 #: ``generate``; ``hf_assisted`` also needs a HuggingFace drafter.
-HF_BASELINES: tuple[str, ...] = ("hf_greedy", "hf_sample", "hf_assisted")
+HF_BASELINES: tuple[str, ...] = (
+    "hf_greedy",
+    "hf_greedy_compiled",
+    "hf_sample",
+    "hf_sample_compiled",
+    "hf_assisted",
+)
+
+#: FlashSpec methods. ``flashspec_compiled`` runs with ``FlashSpecConfig.compile``.
+SPEC_METHODS: tuple[str, ...] = ("flashspec_ucb", "flashspec_compiled")
+
+#: Methods whose target forward is ``torch.compile``d. They are timed
+#: without forward hooks: attaching a hook changes the module and forces
+#: the compiled forward to recompile.
+COMPILED_METHODS: frozenset[str] = frozenset(
+    {"flashspec_compiled", "hf_greedy_compiled", "hf_sample_compiled"}
+)
 
 #: ``model`` values that build randomly initialised in-process networks.
 TOY_MODELS: frozenset[str] = frozenset({"toy", "toy_llama"})
@@ -559,6 +575,7 @@ def _hf_generate(
     do_sample: bool = True,
     assistant_model: nn.Module | None = None,
     eos_token_ids: list[int] | None = None,
+    static_cache: Any = None,  # noqa: ANN401
 ) -> torch.Tensor:
     """Decode with ``model.generate`` and the model's own KV cache.
 
@@ -581,6 +598,10 @@ def _hf_generate(
     eos_token_ids : list of int or None
         Stop at these ids. ``None`` (the default) generates exactly
         ``max_new_tokens`` with no EOS handling at all.
+    static_cache : StaticCache or None
+        A preallocated ``StaticCache`` reused across calls (reset first).
+        HuggingFace then compiles the decode forward with
+        ``CompileConfig()`` on CUDA, the same settings FlashSpec uses.
 
     Returns
     -------
@@ -613,10 +634,18 @@ def _hf_generate(
         kwargs.update({"temperature": None, "top_p": None, "top_k": None})
     if assistant_model is not None:
         kwargs["assistant_model"] = assistant_model
+    if static_cache is not None:
+        from transformers.generation.configuration_utils import CompileConfig
+
+        static_cache.reset()
+        kwargs["past_key_values"] = static_cache
+        kwargs["compile_config"] = CompileConfig()
     if pad is not None:
         kwargs["pad_token_id"] = pad
     with torch.no_grad():
-        output = model.generate(input_ids, **kwargs)
+        # An explicit all-ones mask: generate would otherwise mask any prompt
+        # token equal to pad_token_id, which FlashSpec never does.
+        output = model.generate(input_ids, attention_mask=torch.ones_like(input_ids), **kwargs)
     new_tokens = output[:, prompt_len:]
     if eos_token_ids:
         return new_tokens
@@ -1280,9 +1309,6 @@ def _load_tokenizer(model_name: str) -> object:
         ) from exc
 
 
-_SPEC = "flashspec_ucb"
-
-
 @dataclass
 class _MethodRuns:
     """Measured generations of one method over the prompt set."""
@@ -1420,6 +1446,29 @@ def _run_loaded_pair(
         ar_notes = "Vanilla autoregressive loop on the same target and prompts. " + shared_notes
 
     requested = [str(name) for name in (config.get("methods") or [])]
+    engines: dict[str, SpeculativeEngine] = {"flashspec_ucb": engine}
+    if "flashspec_compiled" in requested:
+        compiled_name = f"{drafter_name}-compiled"
+        unregister(compiled_name)
+        compiled_drafters = load_drafters(
+            [compiled_name],
+            device=device,
+            dtype=weight_dtype,
+            temperature=temperature,
+            models={compiled_name: drafter_module},
+        )
+        unregister(compiled_name)
+        engines["flashspec_compiled"] = SpeculativeEngine(
+            engine_config.model_copy(
+                update={
+                    "compile": True,
+                    "compile_max_cache_len": int(config.get("compile_max_cache_len", 1024)),
+                }
+            ),
+            compiled_drafters,
+            TargetModel(model_name, device, weight_dtype, model=target_module),
+            UCB1Selector(n_arms=1, window_size=0),
+        )
     # vanilla_ar runs when listed, or when no methods are listed (older configs).
     run_ar = not requested or "vanilla_ar" in requested
     if run_ar and stop_at_eos:
@@ -1436,20 +1485,32 @@ def _run_loaded_pair(
                 "No numbers were written for it."
             )
             continue
-        if name == "hf_sample" and greedy:
+        if name.startswith("hf_sample") and greedy:
             print(
-                "Skipping hf_sample: temperature is 0, so it would be hf_greedy. "
+                f"Skipping {name}: temperature is 0, so it would be hf_greedy. "
                 "No numbers were written for it."
             )
             continue
-        if name == "hf_greedy" and not greedy:
+        if name.startswith("hf_greedy") and not greedy:
             print(
-                f"Skipping hf_greedy: this run samples at temperature {temperature}; "
+                f"Skipping {name}: this run samples at temperature {temperature}; "
                 "hf_sample is the matching baseline. No numbers were written for it."
             )
             continue
         runnable_hf.append(name)
-    methods = [_SPEC] + (["vanilla_ar"] if run_ar else []) + runnable_hf
+    spec_methods = [name for name in SPEC_METHODS if name in engines]
+    methods = spec_methods + (["vanilla_ar"] if run_ar else []) + runnable_hf
+    hf_static_cache: Any = None
+    if any(name.endswith("_compiled") for name in runnable_hf):
+        from transformers import StaticCache
+
+        longest = max(int(prompt.shape[1]) for prompt in prompts)
+        hf_static_cache = StaticCache(
+            config=target_module.config,
+            max_cache_len=max(
+                int(config.get("compile_max_cache_len", 1024)), longest + max_new_tokens + 8
+            ),
+        )
 
     target_forwards = ForwardRecorder(target_module)
     drafter_forwards = ForwardRecorder(drafter_module)
@@ -1457,8 +1518,8 @@ def _run_loaded_pair(
     first_lengths: dict[str, list[int]] = {}
 
     def _generate(name: str, prompt: torch.Tensor) -> tuple[torch.Tensor, float | None, Any]:
-        if name == _SPEC:
-            result = engine.generate(prompt, max_new_tokens=max_new_tokens)
+        if name in engines:
+            result = engines[name].generate(prompt, max_new_tokens=max_new_tokens)
             produced = result.output_ids[result.output_ids >= 0].view(1, -1)
             return produced, result.acceptance_rate, result.step_profile
         if name == "vanilla_ar":
@@ -1474,6 +1535,7 @@ def _run_loaded_pair(
             do_sample=not greedy,
             assistant_model=drafter_module if name == "hf_assisted" else None,
             eos_token_ids=eos_ids if stop_at_eos else None,
+            static_cache=hf_static_cache if name.endswith("_compiled") else None,
         )
         return tokens, None, None
 
@@ -1482,8 +1544,10 @@ def _run_loaded_pair(
             torch.cuda.reset_peak_memory_stats()
         target_forwards.clear()
         drafter_forwards.clear()
-        target_forwards.attach()
-        drafter_forwards.attach()
+        hooked = name not in COMPILED_METHODS
+        if hooked:
+            target_forwards.attach()
+            drafter_forwards.attach()
         try:
             if device.type == "cuda":
                 torch.cuda.synchronize()
@@ -1529,6 +1593,39 @@ def _run_loaded_pair(
     counter_kind = "cuda_sync_debug_mode" if device.type == "cuda" else "cpu_tensor_read_proxy"
     probes: dict[str, dict[str, object]] = {}
     for name in methods:
+        if name in COMPILED_METHODS:
+            # No hooks on a compiled forward (they force a recompile).
+            with count_host_syncs(device) as syncs:
+                probe_tokens, _alpha, probe_steps = _generate(name, prompts[0])
+            if probe_steps is not None:
+                after_prefill = len(probe_steps)
+            else:
+                after_prefill = max(int(probe_tokens.shape[1]) - 1, 0)
+            probes[name] = {
+                "host_syncs": {
+                    "counter": counter_kind,
+                    "prompt_id": prompt_ids[0] if prompt_ids else None,
+                    "total": syncs.count,
+                    "target_forwards_after_prefill": after_prefill,
+                    "target_forwards_source": "derived: one per step / per decoded token",
+                    "per_target_forward": syncs.count / after_prefill if after_prefill else 0.0,
+                    "by_kind": dict(syncs.by_kind),
+                    **(
+                        {
+                            "n_steps": len(probe_steps),
+                            "per_step": syncs.count / len(probe_steps) if probe_steps else 0.0,
+                        }
+                        if probe_steps is not None
+                        else {}
+                    ),
+                },
+                "nonfinite_logits": {
+                    "scope": "not checked: a forward hook would force the compiled forward "
+                    "to recompile",
+                    "prompt_id": prompt_ids[0] if prompt_ids else None,
+                },
+            }
+            continue
         with (
             NonFiniteLogits(target_module) as target_bad,
             NonFiniteLogits(drafter_module) as drafter_bad,
@@ -1560,9 +1657,7 @@ def _run_loaded_pair(
             },
         }
 
-    spec = runs[_SPEC]
-
-    def _paired(other: _MethodRuns) -> dict[str, float]:
+    def _paired(spec: _MethodRuns, other: _MethodRuns) -> dict[str, float]:
         ratios = [
             (s_n / (s_ms / 1000.0)) / (o_n / (o_ms / 1000.0))
             if s_ms > 0.0 and o_ms > 0.0 and o_n > 0
@@ -1596,6 +1691,15 @@ def _run_loaded_pair(
         stats = runs[name]
         n_runs = len(stats.tokens)
         emitted = sum(stats.tokens)
+        source = "measured with a forward hook"
+        if name in COMPILED_METHODS:
+            # Not hooked; one target forward per step (FlashSpec) or per
+            # decoded token after the prefill (HuggingFace).
+            source = "derived: a hook would force the compiled forward to recompile"
+            per_run = len(stats.steps) if name in SPEC_METHODS else emitted - n_runs
+            stats.target_forwards = n_runs + per_run
+            if name in SPEC_METHODS:
+                stats.drafter_forwards = n_runs + gamma * len(stats.steps)
         after_prefill = stats.target_forwards - n_runs
         counts: dict[str, object] = {
             "n_generations": n_runs,
@@ -1608,13 +1712,14 @@ def _run_loaded_pair(
                 emitted / after_prefill if after_prefill > 0 else 0.0
             ),
             "target_input_lengths_first_generation": first_lengths.get(name, []),
+            "source": source,
         }
-        if name in (_SPEC, "hf_assisted"):
+        if name in (*SPEC_METHODS, "hf_assisted"):
             counts["drafter_forwards"] = stats.drafter_forwards
             counts["drafter_input_lengths_first_generation"] = first_lengths.get(
                 f"{name}_drafter", []
             )
-        if name == _SPEC:
+        if name in SPEC_METHODS:
             n_steps = len(stats.steps)
             counts["n_steps"] = n_steps
             counts["target_forwards_per_step"] = (
@@ -1628,7 +1733,7 @@ def _run_loaded_pair(
     def _metrics(name: str) -> dict[str, float]:
         stats = runs[name]
         metrics = summarise_runs(
-            stats.latency_ms, stats.tokens, stats.alpha if name == _SPEC else None
+            stats.latency_ms, stats.tokens, stats.alpha if name in SPEC_METHODS else None
         )
         metrics.pop("gpu_memory_gb", None)
         if device.type == "cuda":
@@ -1646,60 +1751,114 @@ def _run_loaded_pair(
         baseline_unmeasured.append("gpu_memory_gb")
     unregister(drafter_name)
 
-    spec_metrics = _metrics(_SPEC)
-    if run_ar:
-        paired = _paired(runs["vanilla_ar"])
-        spec_metrics["speedup_vs_ar_mean"] = paired["mean"]
-        spec_metrics["speedup_vs_ar_std"] = paired["std"]
-    for name in runnable_hf:
-        paired = _paired(runs[name])
-        spec_metrics[f"speedup_vs_{name}_mean"] = paired["mean"]
-        spec_metrics[f"speedup_vs_{name}_std"] = paired["std"]
-        spec_metrics[f"speedup_vs_{name}_median"] = paired["median"]
-    spec_unmeasured = [] if device.type == "cuda" else ["gpu_memory_gb"]
-    if not run_ar:
-        spec_unmeasured += ["speedup_vs_ar_mean", "speedup_vs_ar_std"]
-    spec_extra: dict[str, object] = {
-        **common_extra,
-        "step_profile": summarise_steps(spec.steps),
-        "forward_counts": _forward_counts(_SPEC),
-        **probes[_SPEC],
-    }
-    if greedy and reference_name is not None:
-        spec_extra["greedy_token_match"] = _match(spec, runs[reference_name], reference_name)
-
-    documents: dict[str, dict[str, object]] = {
-        _SPEC: assemble_result(
+    forward_cost = _forward_cost(
+        target_module=target_module,
+        drafter_module=drafter_module,
+        prompt=prompts[0],
+        gamma=gamma,
+        device=device,
+        compiled_engine=engines.get("flashspec_compiled"),
+    )
+    common_extra["forward_cost"] = forward_cost
+    documents: dict[str, dict[str, object]] = {}
+    for spec_name in spec_methods:
+        spec = runs[spec_name]
+        spec_metrics = _metrics(spec_name)
+        if run_ar:
+            paired = _paired(spec, runs["vanilla_ar"])
+            spec_metrics["speedup_vs_ar_mean"] = paired["mean"]
+            spec_metrics["speedup_vs_ar_std"] = paired["std"]
+        for other in methods:
+            if other in (spec_name, "vanilla_ar"):
+                continue
+            paired = _paired(spec, runs[other])
+            spec_metrics[f"speedup_vs_{other}_mean"] = paired["mean"]
+            spec_metrics[f"speedup_vs_{other}_std"] = paired["std"]
+            spec_metrics[f"speedup_vs_{other}_median"] = paired["median"]
+        spec_unmeasured = [] if device.type == "cuda" else ["gpu_memory_gb"]
+        if not run_ar:
+            spec_unmeasured += ["speedup_vs_ar_mean", "speedup_vs_ar_std"]
+        profile = summarise_steps(spec.steps)
+        counts = _forward_counts(spec_name)
+        drafter_per_step = counts.get("drafter_forwards_per_step") or 0.0
+        drafter_ms = (
+            profile["draft_ms_mean"] / float(drafter_per_step)  # type: ignore[arg-type]
+            if profile and drafter_per_step
+            else None
+        )
+        verify_ms = profile.get("verify_ms_mean") if profile else None
+        spec_extra: dict[str, object] = {
+            **common_extra,
+            "step_profile": profile,
+            "step_cost": {
+                "drafter_forward_ms": drafter_ms,
+                "target_verify_ms": verify_ms,
+                "c": drafter_ms / verify_ms if drafter_ms and verify_ms else None,
+                "source": "step_profile: draft_ms_mean / drafter forwards per step, "
+                "verify_ms_mean (one target forward per step); draft time includes "
+                "draft sampling",
+            },
+            "forward_counts": counts,
+            **probes[spec_name],
+        }
+        engine_for = engines[spec_name]
+        if spec_name == "flashspec_compiled":
+            target_session = getattr(engine_for._target, "_inc", None)
+            spec_extra["compile"] = {
+                "requested": True,
+                "effective": engine_for.compiled,
+                "fallback_reason": getattr(target_session, "compile_fallback_reason", None),
+            }
+        if greedy and reference_name is not None:
+            spec_extra["greedy_token_match"] = _match(spec, runs[reference_name], reference_name)
+        notes = spec_notes
+        if spec_name == "flashspec_compiled":
+            notes += (
+                " FlashSpecConfig.compile: static KV caches and torch.compile(mode="
+                "'reduce-overhead') CUDA graphs for the drafter decode and target verify."
+            )
+        documents[spec_name] = assemble_result(
             model=model_name,
-            method=_SPEC,
+            method=spec_name,
             gamma=gamma,
             dataset=dataset,
             n_samples=len(prompts),
             metrics=spec_metrics,
             measurement_kind=kind,
-            notes=spec_notes,
+            notes=notes,
             unmeasured=spec_unmeasured,
             hardware=hardware,
             prompt_ids=prompt_ids,
             extra=spec_extra,
         )
-    }
     mode = "greedy" if greedy else f"sampled (temperature {temperature})"
+    compiled_note = (
+        "Preallocated StaticCache reused across calls; generate compiles the decode forward "
+        "with CompileConfig() (torch.compile, mode 'reduce-overhead') on CUDA. "
+    )
     method_notes = {
         "vanilla_ar": ar_notes,
         "hf_greedy": "HuggingFace generate(do_sample=False) with the KV cache. ",
+        "hf_greedy_compiled": "HuggingFace generate(do_sample=False). " + compiled_note,
         "hf_sample": f"HuggingFace generate(do_sample=True, temperature={temperature}). ",
+        "hf_sample_compiled": (
+            f"HuggingFace generate(do_sample=True, temperature={temperature}). " + compiled_note
+        ),
         "hf_assisted": (
             f"HuggingFace {mode} generate(assistant_model=drafter) with the "
             "assistant's default schedule: " + _assistant_schedule(drafter_module) + ". "
         ),
     }
-    for name in methods[1:]:
+    for name in methods:
+        if name in SPEC_METHODS:
+            continue
         extra: dict[str, object] = {
             **common_extra,
             "forward_counts": _forward_counts(name),
             **probes[name],
         }
+        if name.endswith("_compiled"):
+            extra["compile"] = {"requested": True, "effective": device.type == "cuda"}
         if greedy and reference_name is not None and name not in (reference_name, "vanilla_ar"):
             extra["greedy_token_match"] = _match(runs[name], runs[reference_name], reference_name)
         notes = method_notes[name]
@@ -1720,6 +1879,79 @@ def _run_loaded_pair(
             extra=extra,
         )
     return documents
+
+
+def _forward_cost(
+    *,
+    target_module: nn.Module,
+    drafter_module: nn.Module,
+    prompt: torch.Tensor,
+    gamma: int,
+    device: torch.device,
+    compiled_engine: SpeculativeEngine | None,
+    reps: int = 20,
+    warmup: int = 3,
+) -> dict[str, object]:
+    """Time single forwards to measure c = drafter forward ms / target forward ms.
+
+    After a prefill of ``prompt``, each sample forwards a fixed number of
+    tokens onto the cache and crops them off again, so every sample sees
+    the same context. ``eager`` uses the dynamic cache; ``compiled`` uses
+    the compiled engine's own static sessions (its CUDA graphs), when that
+    engine is compiled. The median of ``reps`` samples is reported, after
+    ``warmup`` untimed ones.
+    """
+
+    def _median_ms(session: Any, n_tokens: int) -> float:  # noqa: ANN401
+        ids = prompt[:, :1].repeat(1, n_tokens)
+        samples: list[float] = []
+        for index in range(warmup + reps):
+            if device.type == "cuda":
+                torch.cuda.synchronize()
+            started = time.perf_counter()
+            session.advance(ids, keep=n_tokens)
+            if device.type == "cuda":
+                torch.cuda.synchronize()
+            if index >= warmup:
+                samples.append((time.perf_counter() - started) * 1000.0)
+            session.crop(n_tokens)
+        return statistics.median(samples)
+
+    def _measure(drafter_session: Any, target_session: Any) -> dict[str, object]:  # noqa: ANN401
+        drafter_session.start(prompt, hold_last=False)
+        target_session.start(prompt, hold_last=False)
+        drafter_ms = _median_ms(drafter_session, 1)
+        verify_ms = _median_ms(target_session, gamma + 1)
+        decode_ms = _median_ms(target_session, 1)
+        return {
+            "drafter_decode_ms": drafter_ms,
+            "target_verify_ms": verify_ms,
+            "target_decode_ms": decode_ms,
+            "c": drafter_ms / verify_ms if verify_ms > 0.0 else None,
+        }
+
+    result: dict[str, object] = {
+        "definition": "c = drafter 1-token forward ms / target (gamma+1)-token verify forward ms",
+        "context_tokens": int(prompt.shape[1]),
+        "gamma": gamma,
+        "reps": reps,
+        "warmup": warmup,
+        "eager": None,
+        "compiled": None,
+    }
+    if model_accepts_past_key_values(target_module) and model_accepts_past_key_values(
+        drafter_module
+    ):
+        try:
+            result["eager"] = _measure(KvSession(drafter_module), KvSession(target_module))
+        except CacheUnavailableError as exc:
+            result["eager"] = {"error": str(exc)}
+    if compiled_engine is not None and compiled_engine.compiled:
+        target_session = getattr(compiled_engine._target, "_inc", None)
+        drafter_session = getattr(compiled_engine._drafters[0], "_inc", None)
+        if target_session is not None and drafter_session is not None:
+            result["compiled"] = _measure(drafter_session, target_session)
+    return result
 
 
 def _assistant_schedule(drafter: nn.Module) -> str:

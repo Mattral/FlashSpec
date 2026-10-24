@@ -277,3 +277,30 @@ def test_repository_readme_has_the_block() -> None:
     text = Path("README.md").read_text(encoding="utf-8")
     assert BEGIN in text
     assert END in text
+
+
+def test_dry_run_of_an_ingested_commit_shows_it_once(toy_bundle: Path, tmp_path: Path) -> None:
+    """Re-validating a bundle that is already unpacked does not duplicate its rows."""
+    good = _rewrite(toy_bundle, tmp_path / "good.zip", _as_gpu_run, _clean)
+    readme = _readme(tmp_path)
+    dest = tmp_path / "gpu"
+    first = ingest([good], destination=dest, readme=readme)
+    again = ingest([good], destination=dest, readme=readme, dry_run=True)
+    assert again == first
+
+
+def test_attachments_are_bundled_and_accepted(tmp_path: Path) -> None:
+    """A diagnostics JSON rides along, is hashed, and passes the layout check."""
+    config = tmp_path / "toy.yaml"
+    config.write_text(_TOY_YAML, encoding="utf-8")
+    note = tmp_path / "greedy_mismatch.json"
+    note.write_text('{"cases": []}\n', encoding="utf-8")
+    zip_path, complete = build_bundle([config], tmp_path / "work", attachments=[note])
+    assert complete
+    with zipfile.ZipFile(zip_path) as archive:
+        manifest = json.loads(archive.read("manifest.json"))
+        assert archive.read("diagnostics/greedy_mismatch.json") == note.read_bytes()
+    assert "diagnostics/greedy_mismatch.json" in manifest["files"]
+    good = _rewrite(zip_path, tmp_path / "good.zip", _as_gpu_run, _clean)
+    _manifest, documents = validate_bundle(good)
+    assert all(name.startswith("results/") for name in documents)

@@ -356,3 +356,54 @@ def test_summarise_runs_quantiles() -> None:
     assert metrics["tokens_per_second_iqr"] == 32.5
     single = summarise_runs([100.0], [5], None)
     assert single["tokens_per_second_p25"] == single["tokens_per_second_p75"] == 50.0
+
+
+class TestPhase5Methods:
+    """flashspec_compiled, compiled HF baselines and the forward-cost probe (CPU: not compiled)."""
+
+    def test_compiled_methods_and_cost_fields(self) -> None:
+        """Every method writes a document; compiled variants say whether compile was effective."""
+        methods = [
+            "flashspec_ucb",
+            "flashspec_compiled",
+            "hf_greedy",
+            "hf_greedy_compiled",
+            "hf_assisted",
+        ]
+        paired = run_paired_generations(_toy_config(temperature=0.0, methods=methods))
+        assert set(paired) == set(methods)
+        for name in ("flashspec_ucb", "flashspec_compiled"):
+            doc = paired[name]
+            cost = doc["step_cost"]
+            assert isinstance(cost, dict)
+            assert cost["c"] is not None and cost["c"] > 0
+            match = doc["greedy_token_match"]
+            assert isinstance(match, dict)
+            assert match["prompts_matched"] == match["n_prompts"] == 3
+            metrics = doc["metrics"]
+            assert isinstance(metrics, dict)
+            assert "speedup_vs_hf_greedy_compiled_median" in metrics
+        compiled = paired["flashspec_compiled"]
+        expected = {"requested": True, "effective": False, "fallback_reason": None}
+        assert compiled["compile"] == expected
+        assert "speedup_vs_flashspec_ucb_median" in compiled["metrics"]  # type: ignore[operator]
+        hf_compiled = paired["hf_greedy_compiled"]
+        assert hf_compiled["compile"] == {"requested": True, "effective": False}
+        assert hf_compiled["greedy_token_match"]["prompts_matched"] == 3  # type: ignore[index]
+        counts = hf_compiled["forward_counts"]
+        assert isinstance(counts, dict)
+        assert str(counts["source"]).startswith("derived")
+        assert "not checked" in str(hf_compiled["nonfinite_logits"])
+        for doc in paired.values():
+            forward_cost = doc["forward_cost"]
+            assert isinstance(forward_cost, dict)
+            eager = forward_cost["eager"]
+            assert isinstance(eager, dict)
+            assert eager["c"] is not None and eager["c"] > 0
+            assert forward_cost["compiled"] is None
+
+    def test_sampled_mode_runs_hf_sample_compiled(self) -> None:
+        """At T > 0 the compiled plain baseline is hf_sample_compiled."""
+        methods = ["flashspec_ucb", "hf_sample", "hf_sample_compiled", "hf_greedy_compiled"]
+        paired = run_paired_generations(_toy_config(temperature=0.7, methods=methods))
+        assert set(paired) == {"flashspec_ucb", "hf_sample", "hf_sample_compiled"}

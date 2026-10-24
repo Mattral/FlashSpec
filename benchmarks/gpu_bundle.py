@@ -18,6 +18,8 @@ holds:
   host reads and tok/s, printed from the JSONs. The JSONs win if the two
   ever disagree.
 - ``run.log``: everything the run printed.
+- ``diagnostics/*.json``: optional attachments (``--attach``), such as
+  the ``benchmarks/greedy_mismatch.py`` report. Hashed, not results.
 
 ``scripts/ingest_gpu_bundle.py`` validates the zip and builds the README
 tables from the JSONs. Nothing in this script writes or edits a number.
@@ -160,6 +162,7 @@ def build_bundle(
     configs: list[Path],
     output_dir: Path,
     zip_path: Path | None = None,
+    attachments: list[Path] | None = None,
 ) -> tuple[Path, bool]:
     """Run ``configs`` and write the bundle zip.
 
@@ -172,6 +175,8 @@ def build_bundle(
     zip_path : Path or None
         Destination zip. Default: ``output_dir.parent /
         flashspec_gpu_bundle_<commit>.zip``.
+    attachments : list of Path or None
+        JSON files stored as ``diagnostics/<name>``.
 
     Returns
     -------
@@ -224,6 +229,7 @@ def build_bundle(
     profile_path = output_dir / "profile.txt"
     profile_path.write_text(render_profile(documents), encoding="utf-8")
     files = sorted(results_dir.glob("*.json"))
+    attached = {f"diagnostics/{path.name}": path for path in attachments or []}
     manifest: dict[str, object] = {
         "bundle_format": BUNDLE_FORMAT,
         "git_commit": commit,
@@ -241,6 +247,7 @@ def build_bundle(
         },
         "files": {
             **{f"results/{path.name}": _sha256(path) for path in files},
+            **{name: _sha256(path) for name, path in attached.items()},
             "profile.txt": _sha256(profile_path),
             "run.log": _sha256(log_path),
         },
@@ -254,6 +261,8 @@ def build_bundle(
         archive.write(log_path, "run.log")
         for path in files:
             archive.write(path, f"results/{path.name}")
+        for name, path in attached.items():
+            archive.write(path, name)
     complete = all(row["status"] == "ok" for row in config_rows)
     return destination, complete
 
@@ -264,8 +273,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--config", action="append", required=True, type=Path)
     parser.add_argument("--output-dir", required=True, type=Path)
     parser.add_argument("--zip", type=Path, default=None)
+    parser.add_argument("--attach", action="append", type=Path, default=[])
     args = parser.parse_args(argv)
-    destination, complete = build_bundle(args.config, args.output_dir, args.zip)
+    destination, complete = build_bundle(args.config, args.output_dir, args.zip, args.attach)
     print(f"Bundle written to {destination}")
     if not complete:
         print("At least one config failed; see manifest.json and run.log in the bundle.")

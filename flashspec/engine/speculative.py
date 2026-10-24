@@ -342,6 +342,30 @@ class SpeculativeEngine:
         self._profiler: StepProfiler | None = (
             StepProfiler(self._device) if config.metrics.profile_steps else None
         )
+        self._compiled = False
+        if config.compile:
+            self._compiled = self._enable_compile()
+
+    def _enable_compile(self) -> bool:
+        """Move capable wrappers onto a static cache with CUDA-graph capture."""
+        if self._device.type != "cuda":
+            logger.warning(
+                "FlashSpecConfig.compile needs a CUDA device; it is a no-op on %s.",
+                self._device.type,
+            )
+            return False
+        switched = False
+        for owner in (self._target, *self._drafters):
+            use_static = getattr(owner, "use_static_cache", None)
+            if callable(use_static):
+                use_static(self._config.compile_max_cache_len, compile_forward=True)
+                switched = True
+        return switched
+
+    @property
+    def compiled(self) -> bool:
+        """Whether the batch-1 path runs on static caches with CUDA graphs."""
+        return self._compiled
 
     def generate(
         self,
@@ -724,6 +748,10 @@ class SpeculativeEngine:
         length = prompt_len
         produced: list[int] = []
         incremental = _Incremental.for_call(self._target, self._drafters)
+        for owner in (self._target, *self._drafters):
+            reserve = getattr(owner, "reserve_cache", None)
+            if callable(reserve):
+                reserve(capacity + 1)
 
         profiler = self._profiler
         if profiler is not None:
