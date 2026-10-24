@@ -27,6 +27,12 @@ class TargetModel:
     pass by appending the draft tokens to the context and extracting the
     logits at each draft position.
 
+    Two interfaces are offered. :meth:`score_draft` takes the full context
+    on every call. The incremental batch-1 interface, :meth:`begin`,
+    :meth:`verify` and :meth:`commit`, is what the engine uses: each step
+    is exactly one forward of the pending token plus the draft, and
+    committing the accepted prefix never runs the model.
+
     Parameters
     ----------
     model_name_or_path : str
@@ -90,6 +96,7 @@ class TargetModel:
                 ) from exc
             logger.debug("Target model loaded", extra={"model": model_name_or_path})
         self._kv = KvSession(self._model)
+        self._verified = 0
 
     def score_draft(
         self,
@@ -195,6 +202,100 @@ class TargetModel:
             draft_logits = draft_logits / temperature
 
         return torch.log_softmax(draft_logits, dim=-1)
+
+    # ── Incremental batch-1 path (one forward per step) ─────────────────
+
+    def begin(self, prompt: torch.Tensor) -> bool:
+        """Prefill ``prompt`` for incremental verification.
+
+        Parameters
+        ----------
+        prompt : torch.Tensor
+            Shape ``(1, seq)``, int64.
+
+        Returns
+        -------
+        bool
+            True when :meth:`verify` and :meth:`commit` can be used. False
+            when the model has no usable cache or the batch is not one;
+            the caller then uses :meth:`score_draft`.
+        """
+        prompt = prompt.to(self._device)
+        if not self._kv.supports(prompt):
+            return False
+        try:
+            self._kv.start(prompt)
+        except CacheUnavailableError:
+            self._kv.disable()
+            return False
+        self._verified = 0
+        return True
+
+    def verify(self, draft_token_ids: torch.Tensor, temperature: float = 1.0) -> torch.Tensor:
+        """Score a draft with one forward of ``pending + draft`` tokens.
+
+        Parameters
+        ----------
+        draft_token_ids : torch.Tensor
+            Shape ``(1, gamma)``, int64.
+        temperature : float
+            Applied to the raw logits **before** ``log_softmax`` (§7). Must
+            be > 0.
+
+        Returns
+        -------
+        torch.Tensor
+            Log-probabilities. Shape ``(1, gamma + 1, vocab)``, float32.
+            Row ``i < gamma`` scores draft token ``i``; row ``gamma`` is
+            the bonus distribution after a full accept.
+
+        Raises
+        ------
+        ValueError
+            If ``temperature`` <= 0.
+        CacheUnavailableError
+            If the cache cannot be extended. The session is disabled; the
+            caller restarts with :meth:`score_draft`.
+        """
+        if temperature <= 0.0:
+            raise ValueError(f"temperature must be > 0; got {temperature}.")
+        draft_token_ids = draft_token_ids.to(self._device)
+        gamma = int(draft_token_ids.shape[1])
+        # The first kept row is the last pending token, which predicts the
+        # first draft token. The last row predicts the bonus token.
+        rows = self._kv.advance(draft_token_ids, keep=gamma + 1)
+        self._verified = gamma
+        if temperature != 1.0:
+            rows = rows / temperature
+        return torch.log_softmax(rows, dim=-1)
+
+    def commit(self, n_accepted: int, next_token: torch.Tensor) -> None:
+        """Keep ``n_accepted`` draft tokens and queue ``next_token``. Never forwards.
+
+        Parameters
+        ----------
+        n_accepted : int
+            Accepted draft tokens from the last :meth:`verify`, in
+            ``[0, gamma]``.
+        next_token : torch.Tensor
+            The residual or bonus token. Shape ``(1, 1)``.
+
+        Raises
+        ------
+        ValueError
+            If ``n_accepted`` is outside ``[0, gamma]``.
+        CacheUnavailableError
+            If the cache cannot be cropped.
+        """
+        if not 0 <= n_accepted <= self._verified:
+            raise ValueError(f"n_accepted must be in [0, {self._verified}]; got {n_accepted}.")
+        self._kv.crop(self._verified - n_accepted)
+        self._kv.push_pending(next_token.to(self._device).view(1, -1))
+        self._verified = 0
+
+    def check_cache(self, context: torch.Tensor) -> None:
+        """Assert the incremental cache matches ``context`` (``FLASHSPEC_DEBUG_CACHE=1`` only)."""
+        self._kv.check(context.to(self._device))
 
     def roll_cache_to(self, token_ids: torch.Tensor) -> None:
         """Crop or extend the cache until it matches ``token_ids``.

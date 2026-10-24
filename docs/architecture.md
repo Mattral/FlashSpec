@@ -50,9 +50,29 @@ lengths differ, the loop groups the active rows by context length and
 forwards only the largest group. Other lengths run on a later iteration.
 There is one bandit choice per loop.
 
-The drafter and the target roll their KV caches only when the group that
-runs has one row (`len(idxs) == 1` in `flashspec/engine/speculative.py`).
-A larger group full-forwards. A model that cannot continue from
+At batch size 1 the drafter and the target keep incremental KV caches
+(`flashspec/engine/kv_cache.py`). Each holds the forwarded prefix plus
+*pending* tokens: committed to the sequence, not yet forwarded. A step is:
+
+- drafter: `gamma` forwards. The first carries the pending tokens, each
+  later one the previous draft token. The last draft token is not
+  forwarded.
+- target: one forward of `pending + draft` (`1 + gamma` tokens), which
+  gives the `gamma` draft rows and the bonus row.
+- commit: both caches drop the rejected positions by count (`crop`) and
+  queue the residual or bonus token as pending. Nothing is forwarded.
+  After a full accept the drafter's pending is `[last draft, bonus]`.
+  A drafter the bandit did not pick only queues the step's tokens.
+
+The prompt is prefilled without its last token, with `logits_to_keep=1`
+where the model supports it, and that last token is the first pending
+token. `FLASHSPEC_DEBUG_CACHE=1` keeps the cached ids as well and asserts
+after every step that cache plus pending equals the accepted sequence.
+
+When the batch has more than one row, the drafter and the target roll
+their caches by comparing token ids, and only when the group that runs
+has one row (`len(idxs) == 1` in `flashspec/engine/speculative.py`). A
+larger group full-forwards. A model that cannot continue from
 `past_key_values` disables the cache and stays on the full forward.
 The cache is not a padded multi-row batch.
 
