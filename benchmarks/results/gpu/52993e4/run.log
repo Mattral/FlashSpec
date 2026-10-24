@@ -1,0 +1,38 @@
+FlashSpec GPU bundle: commit 52993e4, 1 config(s)
+
+=== benchmarks/configs/qwen_t4_compile.yaml ===
+Running qwen_t4_compile: dataset=mt_bench mode=greedy
+Skipping hf_sample: temperature is 0, so it would be hf_greedy. No numbers were written for it.
+Skipping hf_sample_compiled: temperature is 0, so it would be hf_greedy. No numbers were written for it.
+flashspec_ucb: 17.848947424797554 tok/s (median) on {'platform': 'Linux', 'machine': 'x86_64', 'python': '3.13.16', 'torch': '2.11.0+cu130', 'avx2': True, 'gpu': 'Tesla T4', 'cuda': '13.0', 'gpu_count': 1}
+flashspec_compiled: 55.252001625954684 tok/s (median) on {'platform': 'Linux', 'machine': 'x86_64', 'python': '3.13.16', 'torch': '2.11.0+cu130', 'avx2': True, 'gpu': 'Tesla T4', 'cuda': '13.0', 'gpu_count': 1}
+hf_greedy: 23.397178479769785 tok/s (median) on {'platform': 'Linux', 'machine': 'x86_64', 'python': '3.13.16', 'torch': '2.11.0+cu130', 'avx2': True, 'gpu': 'Tesla T4', 'cuda': '13.0', 'gpu_count': 1}
+hf_greedy_compiled: 49.12532116486909 tok/s (median) on {'platform': 'Linux', 'machine': 'x86_64', 'python': '3.13.16', 'torch': '2.11.0+cu130', 'avx2': True, 'gpu': 'Tesla T4', 'cuda': '13.0', 'gpu_count': 1}
+hf_assisted: 18.523353839382736 tok/s (median) on {'platform': 'Linux', 'machine': 'x86_64', 'python': '3.13.16', 'torch': '2.11.0+cu130', 'avx2': True, 'gpu': 'Tesla T4', 'cuda': '13.0', 'gpu_count': 1}
+Running qwen_t4_compile: dataset=mt_bench mode=t0.7
+Skipping hf_greedy: this run samples at temperature 0.7; hf_sample is the matching baseline. No numbers were written for it.
+Skipping hf_greedy_compiled: this run samples at temperature 0.7; hf_sample is the matching baseline. No numbers were written for it.
+flashspec_ucb: 18.051633117833564 tok/s (median) on {'platform': 'Linux', 'machine': 'x86_64', 'python': '3.13.16', 'torch': '2.11.0+cu130', 'avx2': True, 'gpu': 'Tesla T4', 'cuda': '13.0', 'gpu_count': 1}
+flashspec_compiled: 55.877849299137125 tok/s (median) on {'platform': 'Linux', 'machine': 'x86_64', 'python': '3.13.16', 'torch': '2.11.0+cu130', 'avx2': True, 'gpu': 'Tesla T4', 'cuda': '13.0', 'gpu_count': 1}
+hf_sample: 22.970064276527687 tok/s (median) on {'platform': 'Linux', 'machine': 'x86_64', 'python': '3.13.16', 'torch': '2.11.0+cu130', 'avx2': True, 'gpu': 'Tesla T4', 'cuda': '13.0', 'gpu_count': 1}
+hf_sample_compiled: 48.94843360467012 tok/s (median) on {'platform': 'Linux', 'machine': 'x86_64', 'python': '3.13.16', 'torch': '2.11.0+cu130', 'avx2': True, 'gpu': 'Tesla T4', 'cuda': '13.0', 'gpu_count': 1}
+hf_assisted: 13.640262305103246 tok/s (median) on {'platform': 'Linux', 'machine': 'x86_64', 'python': '3.13.16', 'torch': '2.11.0+cu130', 'avx2': True, 'gpu': 'Tesla T4', 'cuda': '13.0', 'gpu_count': 1}
+Running qwen_t4_compile: dataset=humaneval mode=greedy
+Skipping hf_sample: temperature is 0, so it would be hf_greedy. No numbers were written for it.
+Skipping hf_sample_compiled: temperature is 0, so it would be hf_greedy. No numbers were written for it.
+flashspec_ucb: 23.955334966652856 tok/s (median) on {'platform': 'Linux', 'machine': 'x86_64', 'python': '3.13.16', 'torch': '2.11.0+cu130', 'avx2': True, 'gpu': 'Tesla T4', 'cuda': '13.0', 'gpu_count': 1}
+flashspec_compiled: 72.82514637900351 tok/s (median) on {'platform': 'Linux', 'machine': 'x86_64', 'python': '3.13.16', 'torch': '2.11.0+cu130', 'avx2': True, 'gpu': 'Tesla T4', 'cuda': '13.0', 'gpu_count': 1}
+hf_greedy: 23.47412238102048 tok/s (median) on {'platform': 'Linux', 'machine': 'x86_64', 'python': '3.13.16', 'torch': '2.11.0+cu130', 'avx2': True, 'gpu': 'Tesla T4', 'cuda': '13.0', 'gpu_count': 1}
+hf_greedy_compiled: 49.12146246181767 tok/s (median) on {'platform': 'Linux', 'machine': 'x86_64', 'python': '3.13.16', 'torch': '2.11.0+cu130', 'avx2': True, 'gpu': 'Tesla T4', 'cuda': '13.0', 'gpu_count': 1}
+hf_assisted: 22.237121132281878 tok/s (median) on {'platform': 'Linux', 'machine': 'x86_64', 'python': '3.13.16', 'torch': '2.11.0+cu130', 'avx2': True, 'gpu': 'Tesla T4', 'cuda': '13.0', 'gpu_count': 1}
+Running qwen_t4_compile: dataset=humaneval mode=t0.7
+Skipping hf_greedy: this run samples at temperature 0.7; hf_sample is the matching baseline. No numbers were written for it.
+Skipping hf_greedy_compiled: this run samples at temperature 0.7; hf_sample is the matching baseline. No numbers were written for it.
+flashspec_ucb: 20.926996555037533 tok/s (median) on {'platform': 'Linux', 'machine': 'x86_64', 'python': '3.13.16', 'torch': '2.11.0+cu130', 'avx2': True, 'gpu': 'Tesla T4', 'cuda': '13.0', 'gpu_count': 1}
+flashspec_compiled: 64.65023157407026 tok/s (median) on {'platform': 'Linux', 'machine': 'x86_64', 'python': '3.13.16', 'torch': '2.11.0+cu130', 'avx2': True, 'gpu': 'Tesla T4', 'cuda': '13.0', 'gpu_count': 1}
+hf_sample: 23.737994536255016 tok/s (median) on {'platform': 'Linux', 'machine': 'x86_64', 'python': '3.13.16', 'torch': '2.11.0+cu130', 'avx2': True, 'gpu': 'Tesla T4', 'cuda': '13.0', 'gpu_count': 1}
+hf_sample_compiled: 49.040621806485035 tok/s (median) on {'platform': 'Linux', 'machine': 'x86_64', 'python': '3.13.16', 'torch': '2.11.0+cu130', 'avx2': True, 'gpu': 'Tesla T4', 'cuda': '13.0', 'gpu_count': 1}
+hf_assisted: 18.252091267763525 tok/s (median) on {'platform': 'Linux', 'machine': 'x86_64', 'python': '3.13.16', 'torch': '2.11.0+cu130', 'avx2': True, 'gpu': 'Tesla T4', 'cuda': '13.0', 'gpu_count': 1}
+=== benchmarks/configs/qwen_t4_compile.yaml: ok in 1687.980158419 s ===
+
+Total: 1689.610380618 s

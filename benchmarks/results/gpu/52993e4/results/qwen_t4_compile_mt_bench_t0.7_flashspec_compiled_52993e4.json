@@ -1,0 +1,193 @@
+{
+  "status": "measured",
+  "measurement_kind": "end_to_end",
+  "timestamp": "2026-10-24T12:10:34.951688+00:00",
+  "git_commit": "52993e4",
+  "hardware": {
+    "platform": "Linux",
+    "machine": "x86_64",
+    "python": "3.13.16",
+    "torch": "2.11.0+cu130",
+    "avx2": true,
+    "gpu": "Tesla T4",
+    "cuda": "13.0",
+    "gpu_count": 1
+  },
+  "model": "Qwen/Qwen2.5-1.5B-Instruct",
+  "method": "flashspec_compiled",
+  "gamma": 4,
+  "dataset": "mt_bench",
+  "n_samples": 10,
+  "metrics": {
+    "tokens_per_second_mean": 56.25675041132389,
+    "tokens_per_second_std": 6.909199580992947,
+    "tokens_per_second_median": 55.877849299137125,
+    "tokens_per_second_p25": 50.58062889171737,
+    "tokens_per_second_p75": 59.43849884307497,
+    "tokens_per_second_iqr": 8.8578699513576,
+    "p50_latency_ms": 2208.6657570000625,
+    "p95_latency_ms": 2672.9453180000746,
+    "p99_latency_ms": 2672.9453180000746,
+    "acceptance_rate_mean": 0.5374968568894605,
+    "acceptance_rate_std": 0.0326204123284334,
+    "gpu_memory_gb": 3.9273171424865723,
+    "speedup_vs_flashspec_ucb_mean": 3.134059136863989,
+    "speedup_vs_flashspec_ucb_std": 0.14547574745217234,
+    "speedup_vs_flashspec_ucb_median": 3.1728836261336024,
+    "speedup_vs_hf_sample_mean": 2.447146215174908,
+    "speedup_vs_hf_sample_std": 0.2992352315348531,
+    "speedup_vs_hf_sample_median": 2.4026007789116655,
+    "speedup_vs_hf_sample_compiled_mean": 1.1493423000654888,
+    "speedup_vs_hf_sample_compiled_std": 0.13964981312596908,
+    "speedup_vs_hf_sample_compiled_median": 1.1410430525952333,
+    "speedup_vs_hf_assisted_mean": 4.883803818839702,
+    "speedup_vs_hf_assisted_std": 1.8420737943506686,
+    "speedup_vs_hf_assisted_median": 4.0319731142311515
+  },
+  "unmeasured": [
+    "speedup_vs_ar_mean",
+    "speedup_vs_ar_std"
+  ],
+  "notes": "End-to-end generation on the loaded checkpoint versus a vanilla autoregressive loop on the same target. Weights were loaded as torch.float16. Prompts are the fixed mt_bench set (81, 101, 111, 121, 91, 131, 141, 151, 82, 92), tokenized as one user turn through the target's chat template (generation prompt added). Sampling at temperature 0.7. Every method generates exactly 128 tokens; EOS is neither a stop nor suppressed. The checkpoint's shipped generation defaults were replaced by GenerationConfig() for the HuggingFace baselines (see generation_config_overrides). One drafter is loaded, so the bandit cannot adapt; this row measures speculative decoding with a fixed drafter. FlashSpecConfig.compile: static KV caches and torch.compile(mode='reduce-overhead') CUDA graphs for the drafter decode and target verify.",
+  "prompt_ids": [
+    "81",
+    "101",
+    "111",
+    "121",
+    "91",
+    "131",
+    "141",
+    "151",
+    "82",
+    "92"
+  ],
+  "decoding": {
+    "mode": "sample",
+    "temperature": 0.7,
+    "stop_at_eos": false,
+    "max_new_tokens": 128
+  },
+  "drafter": "Qwen/Qwen2.5-0.5B-Instruct",
+  "prompt_format": "chat_template",
+  "prompt_tokens": [
+    51,
+    67,
+    64,
+    55,
+    61,
+    201,
+    55,
+    57,
+    75,
+    79
+  ],
+  "method_order": "rotated by one position per prompt",
+  "generation_config_overrides": {
+    "replaced_with": "transformers GenerationConfig() defaults; pad_token_id kept",
+    "shipped_target": {
+      "do_sample": true,
+      "temperature": 0.7,
+      "top_k": 20,
+      "top_p": 0.8,
+      "repetition_penalty": 1.1,
+      "pad_token_id": 151643,
+      "bos_token_id": 151643,
+      "eos_token_id": [
+        151645,
+        151643
+      ]
+    },
+    "shipped_drafter": {
+      "do_sample": true,
+      "temperature": 0.7,
+      "top_k": 20,
+      "top_p": 0.8,
+      "repetition_penalty": 1.1,
+      "pad_token_id": 151643,
+      "bos_token_id": 151643,
+      "eos_token_id": [
+        151645,
+        151643
+      ]
+    }
+  },
+  "forward_cost": {
+    "definition": "c = drafter 1-token forward ms / target (gamma+1)-token verify forward ms",
+    "context_tokens": 51,
+    "gamma": 4,
+    "reps": 20,
+    "warmup": 3,
+    "eager": {
+      "drafter_decode_ms": 35.21430100011003,
+      "target_verify_ms": 39.5201825000413,
+      "target_decode_ms": 42.30431700000281,
+      "c": 0.8910460117453463
+    },
+    "compiled": {
+      "drafter_decode_ms": 9.182467499954328,
+      "target_verify_ms": 19.335387000069204,
+      "target_decode_ms": 19.547972500049582,
+      "c": 0.47490476916347535
+    }
+  },
+  "step_profile": {
+    "n_steps": 388.0,
+    "tokens_emitted": 1280.0,
+    "tokens_per_step_mean": 3.2989690721649483,
+    "step_ms_mean": 59.40309220418027,
+    "draft_ms_total": 15134.151355743408,
+    "draft_ms_mean": 39.00554473129744,
+    "draft_fraction": 0.6566248200889545,
+    "verify_ms_total": 7560.989059448242,
+    "verify_ms_mean": 19.48708520476351,
+    "verify_fraction": 0.3280483301741686,
+    "sample_ms_total": 155.6770239174366,
+    "sample_ms_mean": 0.4012294430861768,
+    "sample_fraction": 0.006754352815625679,
+    "bookkeeping_ms_total": 197.58233611285686,
+    "bookkeeping_ms_mean": 0.5092328250331363,
+    "bookkeeping_fraction": 0.008572496921251196
+  },
+  "step_cost": {
+    "drafter_forward_ms": 9.75138618282436,
+    "target_verify_ms": 19.48708520476351,
+    "c": 0.5004025014700858,
+    "source": "step_profile: draft_ms_mean / drafter forwards per step, verify_ms_mean (one target forward per step); draft time includes draft sampling"
+  },
+  "forward_counts": {
+    "n_generations": 10,
+    "tokens_emitted": 1280,
+    "target_forwards": 398,
+    "target_forwards_per_emitted_token": 0.3109375,
+    "emitted_tokens_per_target_forward_after_prefill": 3.2989690721649483,
+    "target_input_lengths_first_generation": [],
+    "source": "derived: a hook would force the compiled forward to recompile",
+    "drafter_forwards": 1562,
+    "drafter_input_lengths_first_generation": [],
+    "n_steps": 388,
+    "target_forwards_per_step": 1.0,
+    "drafter_forwards_per_step": 4.0
+  },
+  "host_syncs": {
+    "counter": "cuda_sync_debug_mode",
+    "prompt_id": "81",
+    "total": 50,
+    "target_forwards_after_prefill": 46,
+    "target_forwards_source": "derived: one per step / per decoded token",
+    "per_target_forward": 1.0869565217391304,
+    "by_kind": {
+      "cuda": 50
+    },
+    "n_steps": 46,
+    "per_step": 1.0869565217391304
+  },
+  "nonfinite_logits": {
+    "scope": "not checked: a forward hook would force the compiled forward to recompile",
+    "prompt_id": "81"
+  },
+  "compile": {
+    "requested": true,
+    "effective": true,
+    "fallback_reason": null
+  }
+}

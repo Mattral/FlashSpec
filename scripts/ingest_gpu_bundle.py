@@ -51,6 +51,8 @@ DESTINATION = Path("benchmarks/results/gpu")
 README = Path("README.md")
 BEGIN = "<!-- BEGIN GENERATED: gpu-results (scripts/ingest_gpu_bundle.py) -->"
 END = "<!-- END GENERATED: gpu-results -->"
+STATUS_BEGIN = "<!-- BEGIN GENERATED: status (scripts/ingest_gpu_bundle.py) -->"
+STATUS_END = "<!-- END GENERATED: status -->"
 ALLOWED_HARDWARE = frozenset(
     {"platform", "machine", "python", "torch", "avx2", "gpu", "cuda", "gpu_count"}
 )
@@ -323,12 +325,88 @@ def render_tables(documents: list[dict[str, Any]], *, sig: int | None = None) ->
     return "\n".join(lines) + "\n"
 
 
-def _replace_block(readme: str, body: str) -> str:
-    if BEGIN not in readme or END not in readme:
-        raise BundleError(f"README has no {BEGIN} ... {END} block")
-    head, rest = readme.split(BEGIN, 1)
-    _old, tail = rest.split(END, 1)
-    return f"{head}{BEGIN}\n{body}{END}{tail}"
+def render_status(documents: list[dict[str, Any]], *, sig: int | None = None) -> str | None:
+    """Headline table: compiled FlashSpec vs compiled HF, eager HF and assisted HF.
+
+    Built from the newest commit that has ``flashspec_compiled`` results;
+    ``None`` when there is none.
+    """
+    compiled = [doc for doc in documents if doc.get("method") == "flashspec_compiled"]
+    if not compiled:
+        return None
+    commit = max(compiled, key=lambda doc: str(doc.get("timestamp")))["git_commit"]
+    docs = [doc for doc in compiled if doc.get("git_commit") == commit]
+    others = {
+        (doc.get("dataset"), (doc.get("decoding") or {}).get("mode"), doc.get("method")): doc
+        for doc in documents
+        if doc.get("git_commit") == commit
+    }
+    first = docs[0]
+    hardware = first.get("hardware") or {}
+    lines = [
+        f"Measured at git `{commit}`: `{first.get('model')}` verified by "
+        f"`{first.get('drafter')}`, {hardware.get('gpu')}, fp16, batch 1, gamma "
+        f"{first.get('gamma')}, {first.get('n_samples')} prompts per set (chat template), "
+        f"{(first.get('decoding') or {}).get('max_new_tokens')} new tokens. One model pair, "
+        "one GPU. Speedups are medians of per-prompt ratios within the same run. The "
+        "headline baseline is HuggingFace `generate` with a static cache compiled the same "
+        "way (CUDA graphs); eager HuggingFace and assisted generation are context. "
+        + (
+            f"Cells are shown to {sig} significant figures."
+            if sig is not None
+            else "Cells are the stored JSON values."
+        ),
+        "",
+        "| dataset | mode | FlashSpec tok/s | compiled HF tok/s | **vs compiled HF** "
+        "| eager HF tok/s | vs eager HF | vs HF assisted | acceptance | c (compiled) "
+        "| greedy match vs eager HF |",
+        "|" + "---|" * 11,
+    ]
+    for doc in sorted(
+        docs, key=lambda d: (str(d.get("dataset")), str((d.get("decoding") or {}).get("mode")))
+    ):
+        decoding = doc.get("decoding") or {}
+        mode = decoding.get("mode")
+        plain = "hf_greedy" if mode == "greedy" else "hf_sample"
+        metrics = doc.get("metrics") or {}
+        dataset = doc.get("dataset")
+
+        def _tps(method: str, dataset: Any = dataset, mode: Any = mode) -> object:  # noqa: ANN401
+            other = others.get((dataset, mode, method)) or {}
+            return (other.get("metrics") or {}).get("tokens_per_second_median")
+
+        cost = (doc.get("forward_cost") or {}).get("compiled") or {}
+        match = doc.get("greedy_token_match")
+        lines.append(
+            "| "
+            + " | ".join(
+                [
+                    str(doc.get("dataset")),
+                    "greedy" if mode == "greedy" else f"T={decoding.get('temperature')}",
+                    _cell(metrics.get("tokens_per_second_median"), sig),
+                    _cell(_tps(f"{plain}_compiled"), sig),
+                    "**" + _cell(metrics.get(f"speedup_vs_{plain}_compiled_median"), sig) + "**",
+                    _cell(_tps(plain), sig),
+                    _cell(metrics.get(f"speedup_vs_{plain}_median"), sig),
+                    _cell(metrics.get("speedup_vs_hf_assisted_median"), sig),
+                    _cell(metrics.get("acceptance_rate_mean"), sig),
+                    _cell(cost.get("c"), sig),
+                    f"{match['prompts_matched']}/{match['n_prompts']}"
+                    if isinstance(match, dict)
+                    else "n/a",
+                ]
+            )
+            + " |"
+        )
+    return "\n".join(lines) + "\n"
+
+
+def _replace_block(readme: str, body: str, begin: str = BEGIN, end: str = END) -> str:
+    if begin not in readme or end not in readme:
+        raise BundleError(f"README has no {begin} ... {end} block")
+    head, rest = readme.split(begin, 1)
+    _old, tail = rest.split(end, 1)
+    return f"{head}{begin}\n{body}{end}{tail}"
 
 
 def _all_documents(root: Path) -> list[dict[str, Any]]:
@@ -376,8 +454,13 @@ def ingest(
                 out.parent.mkdir(parents=True, exist_ok=True)
                 out.write_bytes(archive.read(name))
         print(f"Accepted {path.name} -> {target}")
-    body = render_tables(_all_documents(destination), sig=sig)
-    readme.write_text(_replace_block(readme.read_text(encoding="utf-8"), body), encoding="utf-8")
+    documents = _all_documents(destination)
+    body = render_tables(documents, sig=sig)
+    text = _replace_block(readme.read_text(encoding="utf-8"), body)
+    status = render_status(documents, sig=sig)
+    if status is not None and STATUS_BEGIN in text:
+        text = _replace_block(text, status, STATUS_BEGIN, STATUS_END)
+    readme.write_text(text, encoding="utf-8")
     print(f"Regenerated the gpu-results block in {readme}")
     return body
 

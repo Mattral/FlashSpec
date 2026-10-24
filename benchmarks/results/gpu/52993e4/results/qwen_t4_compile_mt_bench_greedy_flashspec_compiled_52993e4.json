@@ -1,0 +1,210 @@
+{
+  "status": "measured",
+  "measurement_kind": "end_to_end",
+  "timestamp": "2026-10-24T12:04:01.589579+00:00",
+  "git_commit": "52993e4",
+  "hardware": {
+    "platform": "Linux",
+    "machine": "x86_64",
+    "python": "3.13.16",
+    "torch": "2.11.0+cu130",
+    "avx2": true,
+    "gpu": "Tesla T4",
+    "cuda": "13.0",
+    "gpu_count": 1
+  },
+  "model": "Qwen/Qwen2.5-1.5B-Instruct",
+  "method": "flashspec_compiled",
+  "gamma": 4,
+  "dataset": "mt_bench",
+  "n_samples": 10,
+  "metrics": {
+    "tokens_per_second_mean": 55.963676154917366,
+    "tokens_per_second_std": 8.572059732068604,
+    "tokens_per_second_median": 55.252001625954684,
+    "tokens_per_second_p25": 51.03451752732001,
+    "tokens_per_second_p75": 56.23720752136681,
+    "tokens_per_second_iqr": 5.2026899940468,
+    "p50_latency_ms": 2278.4045429998514,
+    "p95_latency_ms": 2907.125235999956,
+    "p99_latency_ms": 2907.125235999956,
+    "acceptance_rate_mean": 0.5310738087770345,
+    "acceptance_rate_std": 0.03191355886776103,
+    "gpu_memory_gb": 3.9152259826660156,
+    "speedup_vs_flashspec_ucb_mean": 3.0811351748402753,
+    "speedup_vs_flashspec_ucb_std": 0.2099798433692188,
+    "speedup_vs_flashspec_ucb_median": 3.1471566033210427,
+    "speedup_vs_hf_greedy_mean": 2.401983217699875,
+    "speedup_vs_hf_greedy_std": 0.357017672181821,
+    "speedup_vs_hf_greedy_median": 2.379455989273368,
+    "speedup_vs_hf_greedy_compiled_mean": 1.1399292915524684,
+    "speedup_vs_hf_greedy_compiled_std": 0.17279032013984028,
+    "speedup_vs_hf_greedy_compiled_median": 1.1245701242847757,
+    "speedup_vs_hf_assisted_mean": 3.4779518896990553,
+    "speedup_vs_hf_assisted_std": 0.7733865457137848,
+    "speedup_vs_hf_assisted_median": 3.2676885098898643
+  },
+  "unmeasured": [
+    "speedup_vs_ar_mean",
+    "speedup_vs_ar_std"
+  ],
+  "notes": "End-to-end generation on the loaded checkpoint versus a vanilla autoregressive loop on the same target. Weights were loaded as torch.float16. Prompts are the fixed mt_bench set (81, 101, 111, 121, 91, 131, 141, 151, 82, 92), tokenized as one user turn through the target's chat template (generation prompt added). Decoding is greedy (temperature 0). Every method generates exactly 128 tokens; EOS is neither a stop nor suppressed. The checkpoint's shipped generation defaults were replaced by GenerationConfig() for the HuggingFace baselines (see generation_config_overrides). One drafter is loaded, so the bandit cannot adapt; this row measures speculative decoding with a fixed drafter. FlashSpecConfig.compile: static KV caches and torch.compile(mode='reduce-overhead') CUDA graphs for the drafter decode and target verify.",
+  "prompt_ids": [
+    "81",
+    "101",
+    "111",
+    "121",
+    "91",
+    "131",
+    "141",
+    "151",
+    "82",
+    "92"
+  ],
+  "decoding": {
+    "mode": "greedy",
+    "temperature": 0.0,
+    "stop_at_eos": false,
+    "max_new_tokens": 128
+  },
+  "drafter": "Qwen/Qwen2.5-0.5B-Instruct",
+  "prompt_format": "chat_template",
+  "prompt_tokens": [
+    51,
+    67,
+    64,
+    55,
+    61,
+    201,
+    55,
+    57,
+    75,
+    79
+  ],
+  "method_order": "rotated by one position per prompt",
+  "generation_config_overrides": {
+    "replaced_with": "transformers GenerationConfig() defaults; pad_token_id kept",
+    "shipped_target": {
+      "do_sample": true,
+      "temperature": 0.7,
+      "top_k": 20,
+      "top_p": 0.8,
+      "repetition_penalty": 1.1,
+      "pad_token_id": 151643,
+      "bos_token_id": 151643,
+      "eos_token_id": [
+        151645,
+        151643
+      ]
+    },
+    "shipped_drafter": {
+      "do_sample": true,
+      "temperature": 0.7,
+      "top_k": 20,
+      "top_p": 0.8,
+      "repetition_penalty": 1.1,
+      "pad_token_id": 151643,
+      "bos_token_id": 151643,
+      "eos_token_id": [
+        151645,
+        151643
+      ]
+    }
+  },
+  "forward_cost": {
+    "definition": "c = drafter 1-token forward ms / target (gamma+1)-token verify forward ms",
+    "context_tokens": 51,
+    "gamma": 4,
+    "reps": 20,
+    "warmup": 3,
+    "eager": {
+      "drafter_decode_ms": 35.7653889999483,
+      "target_verify_ms": 39.858598999899186,
+      "target_decode_ms": 41.968560999976035,
+      "c": 0.8973067267125661
+    },
+    "compiled": {
+      "drafter_decode_ms": 9.105870999974286,
+      "target_verify_ms": 19.263331500042113,
+      "target_decode_ms": 19.69711800006735,
+      "c": 0.4727048901148993
+    }
+  },
+  "step_profile": {
+    "n_steps": 402.0,
+    "tokens_emitted": 1280.0,
+    "tokens_per_step_mean": 3.18407960199005,
+    "step_ms_mean": 58.047635914637375,
+    "draft_ms_total": 15262.24401473999,
+    "draft_ms_mean": 37.96578113119401,
+    "draft_fraction": 0.6540452601209293,
+    "verify_ms_total": 7804.518615722656,
+    "verify_ms_mean": 19.414225412245415,
+    "verify_fraction": 0.33445333485751644,
+    "sample_ms_total": 64.44595177471638,
+    "sample_ms_mean": 0.1603133128724288,
+    "sample_fraction": 0.002761754382352098,
+    "bookkeeping_ms_total": 203.94105544686317,
+    "bookkeeping_ms_mean": 0.5073160583255303,
+    "bookkeeping_fraction": 0.008739650639202082
+  },
+  "step_cost": {
+    "drafter_forward_ms": 9.491445282798502,
+    "target_verify_ms": 19.414225412245415,
+    "c": 0.4888912681940854,
+    "source": "step_profile: draft_ms_mean / drafter forwards per step, verify_ms_mean (one target forward per step); draft time includes draft sampling"
+  },
+  "forward_counts": {
+    "n_generations": 10,
+    "tokens_emitted": 1280,
+    "target_forwards": 412,
+    "target_forwards_per_emitted_token": 0.321875,
+    "emitted_tokens_per_target_forward_after_prefill": 3.18407960199005,
+    "target_input_lengths_first_generation": [],
+    "source": "derived: a hook would force the compiled forward to recompile",
+    "drafter_forwards": 1618,
+    "drafter_input_lengths_first_generation": [],
+    "n_steps": 402,
+    "target_forwards_per_step": 1.0,
+    "drafter_forwards_per_step": 4.0
+  },
+  "host_syncs": {
+    "counter": "cuda_sync_debug_mode",
+    "prompt_id": "81",
+    "total": 48,
+    "target_forwards_after_prefill": 44,
+    "target_forwards_source": "derived: one per step / per decoded token",
+    "per_target_forward": 1.0909090909090908,
+    "by_kind": {
+      "cuda": 48
+    },
+    "n_steps": 44,
+    "per_step": 1.0909090909090908
+  },
+  "nonfinite_logits": {
+    "scope": "not checked: a forward hook would force the compiled forward to recompile",
+    "prompt_id": "81"
+  },
+  "compile": {
+    "requested": true,
+    "effective": true,
+    "fallback_reason": null
+  },
+  "greedy_token_match": {
+    "reference": "hf_greedy",
+    "prompts_matched": 10,
+    "n_prompts": 10,
+    "first_divergence": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  }
+}

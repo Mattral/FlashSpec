@@ -304,3 +304,11 @@ def test_attachments_are_bundled_and_accepted(tmp_path: Path) -> None:
     good = _rewrite(zip_path, tmp_path / "good.zip", _as_gpu_run, _clean)
     _manifest, documents = validate_bundle(good)
     assert all(name.startswith("results/") for name in documents)
+
+
+def test_render_status_needs_compiled_results() -> None:
+    """The README status table is only built from flashspec_compiled results."""
+    from scripts.ingest_gpu_bundle import render_status
+
+    assert render_status([]) is None
+    assert render_status([{"method": "flashspec_ucb"}]) is None
