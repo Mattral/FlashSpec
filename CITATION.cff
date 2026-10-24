@@ -11,21 +11,28 @@ message: >-
   using the metadata below. The preprint is available on Zenodo with
   DOI 10.5281/zenodo.20766119.
 title: >-
-  FlashSpec: Adaptive Speculative Decoding with Online Bandit Draft
-  Selection and Triton-Optimised Verification
+  FlashSpec: lossless speculative decoding with a static-cache CUDA-graph
+  fast path
 authors:
   - family-names: Myet
     given-names: "Min Htet"
     alias: Mattral
     orcid: "https://orcid.org/0009-0005-0853-8301"
 abstract: >-
-  FlashSpec is an open-source adaptive speculative-decoding inference
-  engine for large language models. It implements token verification
-  with a Triton kernel and a pure-PyTorch reference, and can select
-  among registered drafters with UCB1 or Thompson sampling. The suite
-  checks the output distribution with a chi-squared test. That test is
-  not a continuous-integration gate in this revision. Committed
-  end-to-end pairs are slower than autoregressive decoding.
+  FlashSpec is an open-source speculative-decoding engine for HuggingFace
+  causal language models. Its sampling path (Leviathan et al. Algorithm 1)
+  keeps the target model's output distribution, and its greedy path
+  emits the target's argmax at every position. CI checks both on CPU: a
+  chi-squared test on emitted tokens, and a token-for-token comparison
+  with generate(do_sample=False). A batch-1 path on a
+  static KV cache with CUDA graphs was measured on one model pair
+  (Qwen2.5-1.5B-Instruct verified by Qwen2.5-0.5B-Instruct), one Tesla
+  T4, fp16, batch 1, with compile on: there it was faster than
+  HuggingFace generate compiled the same way. Without compile it was
+  slower than plain HuggingFace generate on most measured cells. The
+  UCB1/Thompson draft selector is experimental: every measured run used
+  one drafter. The Triton and assembly kernels are experimental and not
+  on the generation critical path.
 version: 0.1.5
 date-released: "2026-10-16"
 license: Apache-2.0

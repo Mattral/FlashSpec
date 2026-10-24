@@ -6,8 +6,12 @@ Different draft models have different acceptance rates across input distribution
 A short repetitive prompt may favour a small n-gram drafter; a long
 code-generation task may favour a 1B-parameter LLM drafter.
 
-FlashSpec treats draft-model selection as a K-armed bandit problem and adapts
-the choice online without human tuning.
+FlashSpec treats draft-model selection as a K-armed bandit problem and can
+adapt the choice online.
+
+> **Experimental, single-arm measured only.** Every measured language-model
+> run used one drafter, so the selector has not been measured choosing
+> between drafters. The regret results below are synthetic simulations.
 
 ---
 

@@ -1,4 +1,9 @@
-# FlashSpec Triton Kernels
+# FlashSpec Triton Kernels (experimental)
+
+> **Not on the critical path.** `SpeculativeEngine` does not call these
+> kernels; its accept/reject test is PyTorch on the device. A step's time is
+> the drafter and target forwards, and the test is microseconds next to
+> them. The kernels are kept as a systems exercise with parity tests.
 
 ## 2.1 Token-verification kernel (`verify_kernel.py`)
 
