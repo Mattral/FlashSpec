@@ -384,11 +384,6 @@ class TestPhase5Methods:
             assert isinstance(metrics, dict)
             assert "speedup_vs_hf_greedy_compiled_median" in metrics
         compiled = paired["flashspec_compiled"]
-        match_compiled = compiled["greedy_token_match_compiled"]
-        assert isinstance(match_compiled, dict)
-        assert match_compiled["reference"] == "hf_greedy_compiled"
-        assert match_compiled["prompts_matched"] == match_compiled["n_prompts"] == 3
-        assert "greedy_token_match_compiled" not in paired["flashspec_ucb"]
         expected = {"requested": True, "effective": False, "fallback_reason": None}
         assert compiled["compile"] == expected
         assert "speedup_vs_flashspec_ucb_median" in compiled["metrics"]  # type: ignore[operator]
@@ -442,3 +437,13 @@ class TestOutputs:
 
         assert harness.token_sha256([3, 14, 15]) == hashlib.sha256(b"3,14,15").hexdigest()
         assert harness.token_sha256([]) == hashlib.sha256(b"").hexdigest()
+
+    def test_compiled_greedy_matches_compiled_hf(self) -> None:
+        """flashspec_compiled is checked token-for-token against hf_greedy_compiled."""
+        methods = ["flashspec_ucb", "flashspec_compiled", "hf_greedy", "hf_greedy_compiled"]
+        paired = run_paired_generations(_toy_config(temperature=0.0, methods=methods))
+        match_compiled = paired["flashspec_compiled"]["greedy_token_match_compiled"]
+        assert isinstance(match_compiled, dict)
+        assert match_compiled["reference"] == "hf_greedy_compiled"
+        assert match_compiled["prompts_matched"] == match_compiled["n_prompts"] == 3
+        assert "greedy_token_match_compiled" not in paired["flashspec_ucb"]
