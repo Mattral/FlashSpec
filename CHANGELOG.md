@@ -77,6 +77,19 @@ Versioning follows [Semantic Versioning 2.0.0](https://semver.org/).
   serve CLI sets it from the tokenizer, so completions end at EOS.
 
 ### Fixed
+- Greedy first token now comes from the same computation as
+  HuggingFace `generate`: the target prefills the whole prompt with
+  `logits_to_keep=1` and scores the first draft token from that row. It
+  used to hold the last prompt token back and score it as row 0 of the
+  first `[last prompt token + draft]` forward. The two are equal in exact
+  arithmetic but not in fp16. On TinyLlama MT-Bench prompt 131 the
+  fp32 top-2 margin at token 0 is 0.0013 logits, and the two paths
+  differed by up to 0.0195 logits in fp16 on CPU, enough to change the
+  argmax (the Phase 4 T4 run diverged at token 0 on that prompt). After
+  the change, the token-0 logits equal HuggingFace's exactly in fp32
+  (max difference 0.0 on CPU). `benchmarks/greedy_mismatch.py` and
+  `tests/integration/test_greedy_mismatch_gpu.py` rerun the three Phase 4
+  mismatches on a GPU: fp32 must match, fp16 reports the top-2 margins.
 - The HuggingFace baselines were not plain greedy or plain temperature
   sampling on checkpoints that ship generation defaults. Qwen2.5-Instruct
   ships `top_k=20`, `top_p=0.8` and `repetition_penalty=1.1`, and

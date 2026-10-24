@@ -98,6 +98,7 @@ class TargetModel:
             logger.debug("Target model loaded", extra={"model": model_name_or_path})
         self._kv = KvSession(self._model)
         self._verified = 0
+        self._prefill_logits: torch.Tensor | None = None
 
     def score_draft(
         self,
@@ -225,12 +226,33 @@ class TargetModel:
         if not self._kv.supports(prompt):
             return False
         try:
-            self._kv.start(prompt)
+            # The whole prompt is prefilled, as HuggingFace generate does, so
+            # the first token's logits come from the same computation.
+            self._prefill_logits = self._kv.start(prompt, hold_last=False)
         except CacheUnavailableError:
             self._kv.disable()
             return False
         self._verified = 0
         return True
+
+    def _verify_rows(self, draft_token_ids: torch.Tensor) -> torch.Tensor:
+        """Raw logits for the gamma draft positions and the bonus position, one forward.
+
+        After :meth:`begin`, the row predicting the first draft token is the
+        prefill's last row, and the forward carries only the draft. After
+        a :meth:`commit`, the forward carries the pending token and the
+        draft, and its first row predicts the first draft token.
+        """
+        gamma = int(draft_token_ids.shape[1])
+        first = self._prefill_logits
+        if first is not None:
+            self._prefill_logits = None
+            rest = self._kv.advance(draft_token_ids, keep=gamma)
+            rows = torch.cat([first.unsqueeze(1), rest], dim=1)
+        else:
+            rows = self._kv.advance(draft_token_ids, keep=gamma + 1)
+        self._verified = gamma
+        return rows
 
     def verify(self, draft_token_ids: torch.Tensor, temperature: float = 1.0) -> torch.Tensor:
         """Score a draft with one forward of ``pending + draft`` tokens.
@@ -261,11 +283,8 @@ class TargetModel:
         if temperature <= 0.0:
             raise ValueError(f"temperature must be > 0; got {temperature}.")
         draft_token_ids = draft_token_ids.to(self._device)
-        gamma = int(draft_token_ids.shape[1])
-        # The first kept row is the last pending token, which predicts the
-        # first draft token. The last row predicts the bonus token.
-        rows = self._kv.advance(draft_token_ids, keep=gamma + 1)
-        self._verified = gamma
+        # Rows predict the gamma draft tokens and then the bonus token.
+        rows = self._verify_rows(draft_token_ids)
         if temperature != 1.0:
             rows = rows / temperature
         return torch.log_softmax(rows, dim=-1)
@@ -292,10 +311,7 @@ class TargetModel:
             If the cache cannot be extended. The session is disabled.
         """
         draft_token_ids = draft_token_ids.to(self._device)
-        gamma = int(draft_token_ids.shape[1])
-        rows = self._kv.advance(draft_token_ids, keep=gamma + 1)
-        self._verified = gamma
-        return rows.argmax(dim=-1)
+        return self._verify_rows(draft_token_ids).argmax(dim=-1)
 
     def commit(self, n_accepted: int, next_token: torch.Tensor) -> None:
         """Keep ``n_accepted`` draft tokens and queue ``next_token``. Never forwards.

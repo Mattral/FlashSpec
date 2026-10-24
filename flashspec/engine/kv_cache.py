@@ -184,19 +184,33 @@ class KvSession:
         """Tokens currently in the cache, from the integer bookkeeping."""
         return self._length
 
-    def start(self, prompt: torch.Tensor) -> None:
+    def start(self, prompt: torch.Tensor, *, hold_last: bool = True) -> torch.Tensor | None:
         """Begin incremental mode on ``prompt``.
 
-        Every prompt token except the last is forwarded now, keeping a
-        single logit row (``logits_to_keep=1`` when the model supports
-        it). The last token becomes pending, so the first
-        :meth:`advance` returns the logits that predict the first new
-        token. A one-token prompt is not forwarded at all.
+        With ``hold_last`` (the drafter's mode), every prompt token except
+        the last is forwarded now, keeping a single logit row
+        (``logits_to_keep=1`` when the model supports it). The last token
+        becomes pending, so the first :meth:`advance` returns the logits
+        that predict the first new token. A one-token prompt is not
+        forwarded at all.
+
+        Without ``hold_last`` (the target's mode), the whole prompt is
+        forwarded with ``logits_to_keep=1``, which is the computation
+        HuggingFace ``generate`` uses for its first token, and that row is
+        returned. Nothing is pending afterwards.
 
         Parameters
         ----------
         prompt : torch.Tensor
             Shape ``(1, seq)`` with ``seq >= 1``, int64, on the model device.
+        hold_last : bool
+            Keep the last prompt token pending instead of forwarding it.
+
+        Returns
+        -------
+        torch.Tensor or None
+            ``None`` with ``hold_last``; otherwise the raw logits that
+            predict the first new token, shape ``(1, vocab)``, float32.
 
         Raises
         ------
@@ -209,6 +223,12 @@ class KvSession:
         self.reset()
         self._debug = debug_cache_enabled()
         ids = prompt.to(dtype=torch.long)
+        if not hold_last:
+            self._past, logits = self._call(ids, None, keep=1)
+            self._length = int(ids.shape[1])
+            if self._debug:
+                self._debug_ids = ids.clone()
+            return logits[:, -1, :]
         if int(ids.shape[1]) > 1:
             head = ids[:, :-1]
             self._past, _ = self._call(head, None, keep=1)
@@ -216,6 +236,7 @@ class KvSession:
             if self._debug:
                 self._debug_ids = head.clone()
         self._pending = ids[:, -1:]
+        return None
 
     def advance(self, new_ids: torch.Tensor | None, keep: int) -> torch.Tensor:
         """Forward the pending tokens plus ``new_ids`` in one call.

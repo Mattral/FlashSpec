@@ -64,9 +64,11 @@ At batch size 1 the drafter and the target keep incremental KV caches
   After a full accept the drafter's pending is `[last draft, bonus]`.
   A drafter the bandit did not pick only queues the step's tokens.
 
-The prompt is prefilled without its last token, with `logits_to_keep=1`
-where the model supports it, and that last token is the first pending
-token. `FLASHSPEC_DEBUG_CACHE=1` keeps the cached ids as well and asserts
+The target prefills the whole prompt with `logits_to_keep=1`, the same
+call HuggingFace `generate` makes, and that row scores the first draft
+token, so the first verify forward carries only the draft. The drafter
+prefills the prompt without its last token, which becomes its first
+pending token. `FLASHSPEC_DEBUG_CACHE=1` keeps the cached ids as well and asserts
 after every step that cache plus pending equals the accepted sequence.
 
 With `variant` `"rejection"` or `"greedy"`, batch 1 runs a dedicated
