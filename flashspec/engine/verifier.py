@@ -29,7 +29,8 @@ class TargetModel:
 
     Two interfaces are offered. :meth:`score_draft` takes the full context
     on every call. The incremental batch-1 interface, :meth:`begin`,
-    :meth:`verify` and :meth:`commit`, is what the engine uses: each step
+    :meth:`verify` (or :meth:`verify_greedy`) and :meth:`commit`, is what
+    the engine uses: each step
     is exactly one forward of the pending token plus the draft, and
     committing the accepted prefix never runs the model.
 
@@ -268,6 +269,33 @@ class TargetModel:
         if temperature != 1.0:
             rows = rows / temperature
         return torch.log_softmax(rows, dim=-1)
+
+    def verify_greedy(self, draft_token_ids: torch.Tensor) -> torch.Tensor:
+        """Greedy verify: the same single forward as :meth:`verify`, argmax only.
+
+        No softmax is computed. Rows are the target's argmax at each draft
+        position and at the bonus position.
+
+        Parameters
+        ----------
+        draft_token_ids : torch.Tensor
+            Shape ``(1, gamma)``, int64.
+
+        Returns
+        -------
+        torch.Tensor
+            Target argmax ids. Shape ``(1, gamma + 1)``, int64.
+
+        Raises
+        ------
+        CacheUnavailableError
+            If the cache cannot be extended. The session is disabled.
+        """
+        draft_token_ids = draft_token_ids.to(self._device)
+        gamma = int(draft_token_ids.shape[1])
+        rows = self._kv.advance(draft_token_ids, keep=gamma + 1)
+        self._verified = gamma
+        return rows.argmax(dim=-1)
 
     def commit(self, n_accepted: int, next_token: torch.Tensor) -> None:
         """Keep ``n_accepted`` draft tokens and queue ``next_token``. Never forwards.

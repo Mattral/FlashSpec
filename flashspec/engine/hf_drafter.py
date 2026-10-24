@@ -64,6 +64,8 @@ class HuggingFaceDrafter:
         are not recast; only their device is changed.
     temperature : float
         Sampling temperature applied before log-softmax. Default ``1.0``.
+        ``0`` proposes the argmax token; the returned log-probs are then
+        those at temperature 1.
     model : nn.Module or None
         Pre-built module with a ``forward`` that returns ``.logits``.
         ``None`` loads ``model_name_or_path`` via ``transformers``.
@@ -73,7 +75,7 @@ class HuggingFaceDrafter:
     RuntimeError
         If hub loading fails or ``transformers`` is not installed.
     ValueError
-        If ``temperature`` is not positive.
+        If ``temperature`` is negative.
     """
 
     def __init__(
@@ -84,12 +86,14 @@ class HuggingFaceDrafter:
         temperature: float = 1.0,
         model: Any | None = None,  # noqa: ANN401 — injected modules are duck-typed
     ) -> None:
-        if temperature <= 0.0:
-            raise ValueError(f"temperature must be > 0; got {temperature}.")
+        if temperature < 0.0:
+            raise ValueError(f"temperature must be >= 0; got {temperature}.")
         self._name = model_name_or_path
         self._device = torch.device(device)
         self._dtype = dtype
         self._temperature = temperature
+        # Temperature 0 proposes the argmax; scores are reported unscaled.
+        self._score_temperature = temperature if temperature > 0.0 else 1.0
         if model is not None:
             self._model = model.to(self._device)
             self._model.eval()
@@ -243,8 +247,10 @@ class HuggingFaceDrafter:
         self._unforwarded = None
         return True
 
-    def draft(self, gamma: int) -> tuple[torch.Tensor, torch.Tensor]:
-        """Sample ``gamma`` tokens with ``gamma`` forwards.
+    def draft(
+        self, gamma: int, *, greedy: bool | None = None
+    ) -> tuple[torch.Tensor, torch.Tensor | None]:
+        """Propose ``gamma`` tokens with ``gamma`` forwards.
 
         The first forward carries the pending tokens. Each later forward
         carries the previous draft token. The last draft token is not
@@ -255,13 +261,18 @@ class HuggingFaceDrafter:
         ----------
         gamma : int
             Number of draft tokens. Must be ``>= 1``.
+        greedy : bool or None
+            True takes the argmax of the raw logits: no softmax, no
+            randomness, and no log-probs are built. ``None`` means greedy
+            when this drafter's temperature is 0.
 
         Returns
         -------
         draft_token_ids : torch.Tensor
             Shape ``(1, gamma)``, dtype int64.
-        draft_logprobs : torch.Tensor
+        draft_logprobs : torch.Tensor or None
             Temperature-scaled log-probs. Shape ``(1, gamma, vocab)``.
+            ``None`` when greedy.
 
         Raises
         ------
@@ -272,18 +283,24 @@ class HuggingFaceDrafter:
         """
         if gamma < 1:
             raise ValueError(f"gamma must be >= 1; got {gamma}.")
+        if greedy is None:
+            greedy = self._temperature == 0.0
         token_steps: list[torch.Tensor] = []
         logprob_steps: list[torch.Tensor] = []
         next_ids: torch.Tensor | None = None
         for _ in range(gamma):
             next_logits = self._kv.advance(next_ids, keep=1)[:, -1, :]
-            step_logprobs = scaled_log_softmax(next_logits, self._temperature)
-            next_ids = torch.multinomial(step_logprobs.exp(), num_samples=1)
+            if greedy:
+                next_ids = next_logits.argmax(dim=-1, keepdim=True)
+            else:
+                step_logprobs = scaled_log_softmax(next_logits, self._score_temperature)
+                next_ids = torch.multinomial(step_logprobs.exp(), num_samples=1)
+                logprob_steps.append(step_logprobs.unsqueeze(1))
             token_steps.append(next_ids)
-            logprob_steps.append(step_logprobs.unsqueeze(1))
         self._forwarded_drafts = gamma - 1
         self._unforwarded = next_ids
-        return torch.cat(token_steps, dim=1), torch.cat(logprob_steps, dim=1)
+        logprobs = None if greedy else torch.cat(logprob_steps, dim=1)
+        return torch.cat(token_steps, dim=1), logprobs
 
     def commit(self, n_accepted: int, next_token: torch.Tensor) -> None:
         """Keep ``n_accepted`` draft tokens and queue ``next_token``. Never forwards.
@@ -353,6 +370,12 @@ class HuggingFaceDrafter:
         except CacheUnavailableError:
             self._kv.disable()
 
+    def _pick(self, step_logprobs: torch.Tensor) -> torch.Tensor:
+        """Sample one token per row, or take the argmax at temperature 0."""
+        if self._temperature == 0.0:
+            return step_logprobs.argmax(dim=-1, keepdim=True)
+        return torch.multinomial(step_logprobs.exp(), num_samples=1)
+
     def _sample_cached(
         self,
         next_logits: torch.Tensor,
@@ -362,8 +385,8 @@ class HuggingFaceDrafter:
         token_steps: list[torch.Tensor] = []
         logprob_steps: list[torch.Tensor] = []
         for _ in range(gamma):
-            step_logprobs = scaled_log_softmax(next_logits, self._temperature)
-            next_id = torch.multinomial(step_logprobs.exp(), num_samples=1)
+            step_logprobs = scaled_log_softmax(next_logits, self._score_temperature)
+            next_id = self._pick(step_logprobs)
             token_steps.append(next_id)
             logprob_steps.append(step_logprobs.unsqueeze(1))
             next_logits = self._kv.append(next_id)[:, -1, :]
@@ -379,8 +402,8 @@ class HuggingFaceDrafter:
         logprob_steps: list[torch.Tensor] = []
         for _ in range(gamma):
             step_logits = self._next_logits(context)
-            step_logprobs = scaled_log_softmax(step_logits, self._temperature)
-            next_id = torch.multinomial(step_logprobs.exp(), num_samples=1)
+            step_logprobs = scaled_log_softmax(step_logits, self._score_temperature)
+            next_id = self._pick(step_logprobs)
             token_steps.append(next_id)
             logprob_steps.append(step_logprobs.unsqueeze(1))
             context = torch.cat([context, next_id], dim=1)
@@ -418,14 +441,14 @@ class HuggingFaceDrafter:
                 # one position later, so its last row is not part of the
                 # gamma draft scores.
                 rows = torch.cat([first.unsqueeze(1), step[:, :-1, :]], dim=1)
-                return scaled_log_softmax(rows, self._temperature)
+                return scaled_log_softmax(rows, self._score_temperature)
         gamma = int(draft_token_ids.shape[1])
         full_ids = torch.cat([input_ids, draft_token_ids], dim=1)
         with torch.no_grad():
             logits = self._model(full_ids).logits
         context_len = input_ids.shape[1]
         draft_logits = logits[:, context_len - 1 : context_len + gamma - 1, :].float()
-        return scaled_log_softmax(draft_logits, self._temperature)
+        return scaled_log_softmax(draft_logits, self._score_temperature)
 
     def _next_logits(self, context: torch.Tensor) -> torch.Tensor:
         """Return next-token logits for ``context``.
