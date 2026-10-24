@@ -197,7 +197,45 @@ JSONs of a validated bundle (`benchmarks/results/gpu/<commit>/`). Do not
 edit it by hand.
 
 <!-- BEGIN GENERATED: gpu-results (scripts/ingest_gpu_bundle.py) -->
-No GPU bundle has been ingested yet.
+#### `Qwen/Qwen2.5-1.5B-Instruct` verified, `Qwen/Qwen2.5-0.5B-Instruct` drafting
+
+GPU Tesla T4 · torch 2.11.0+cu130 · gamma 4 · 12 result files · git `36134c0`. Prompts: chat_template; n per row: 10. Cells are the stored JSON values, not rounded.
+
+| dataset | mode | method | tok/s median | tok/s p25 | tok/s p75 | acceptance | tokens / target fwd | target fwd / token | speedup vs plain HF (median) | speedup vs hf_assisted (median) | greedy match | NaN/inf logits | peak GB |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| humaneval | greedy | flashspec_ucb | 26.23852723249483 | 24.63765887975667 | 27.162960607917213 | 0.7748324561339393 | 4.19672131147541 | 0.24609375 | 1.0229054923869696 | 1.0601084433981502 | 10/10 | 0 | 3.831118583679199 |
+| humaneval | greedy | hf_greedy | 25.747536265737693 | 25.667860736052027 | 25.94495327957157 | n/a | 1.0078740157480315 | 1.0 | n/a | n/a | n/a | 0 | 3.8375372886657715 |
+| humaneval | greedy | hf_assisted | 24.67250490527404 | 22.646022509962553 | 25.612035488652108 | n/a | 7.231638418079096 | 0.14609375 | n/a | n/a | 10/10 | 0 | 3.9205241203308105 |
+| humaneval | T=0.7 | flashspec_ucb | 22.994806388294748 | 21.758612773754045 | 25.17813966076342 | 0.7036410816413052 | 3.8323353293413174 | 0.26875 | 0.9143376283741449 | 1.1413036574151052 | n/a | 0 | 3.8405613899230957 |
+| humaneval | T=0.7 | hf_sample | 25.401692277734487 | 25.188006318909956 | 25.52414674099085 | n/a | 1.0078740157480315 | 1.0 | n/a | n/a | n/a | 0 | 3.840813636779785 |
+| humaneval | T=0.7 | hf_assisted | 19.75492333430464 | 17.68724539958827 | 22.51555521260074 | n/a | 6.2745098039215685 | 0.1671875 | n/a | n/a | n/a | 0 | 3.9224438667297363 |
+| mt_bench | greedy | flashspec_ucb | 19.263895987077582 | 17.876720942167275 | 19.932220650397593 | 0.5308389674229258 | 3.176178660049628 | 0.32265625 | 0.7528549865839097 | 1.073667645549547 | 9/10 | 0 | 3.8356237411499023 |
+| mt_bench | greedy | hf_greedy | 25.487991963425753 | 25.439671247202842 | 25.65189575863387 | n/a | 1.0078740157480315 | 1.0 | n/a | n/a | n/a | 0 | 3.845881938934326 |
+| mt_bench | greedy | hf_assisted | 19.857969448236993 | 15.308813592486892 | 22.27020365580778 | n/a | 3.8905775075987843 | 0.26484375 | n/a | n/a | 10/10 | 0 | 3.916429042816162 |
+| mt_bench | T=0.7 | flashspec_ucb | 19.856912897628682 | 18.059678676289927 | 21.612539675023445 | 0.5357908259547473 | 3.290488431876607 | 0.31171875 | 0.7713409325667324 | 1.1933850262734405 | n/a | 0 | 3.8409838676452637 |
+| mt_bench | T=0.7 | hf_sample | 25.708033881186918 | 25.52976546475353 | 25.845993306023857 | n/a | 1.0078740157480315 | 1.0 | n/a | n/a | n/a | 0 | 3.8480911254882812 |
+| mt_bench | T=0.7 | hf_assisted | 14.715778555192315 | 12.989302254851275 | 19.21646429804001 | n/a | 3.78698224852071 | 0.271875 | n/a | n/a | n/a | 0 | 3.9214768409729004 |
+
+#### `TinyLlama/TinyLlama-1.1B-Chat-v1.0` verified, `Felladrin/Llama-160M-Chat-v1` drafting
+
+GPU Tesla T4 · torch 2.11.0+cu130 · gamma 4 · 12 result files · git `36134c0`. Prompts: chat_template; n per row: 10. Cells are the stored JSON values, not rounded.
+
+| dataset | mode | method | tok/s median | tok/s p25 | tok/s p75 | acceptance | tokens / target fwd | target fwd / token | speedup vs plain HF (median) | speedup vs hf_assisted (median) | greedy match | NaN/inf logits | peak GB |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| humaneval | greedy | flashspec_ucb | 31.250871186065634 | 29.67332081324305 | 31.730403496731114 | 0.3428825495568735 | 2.5 | 0.4078125 | 0.920824455046579 | 1.3627982299701538 | 9/10 | 0 | 3.3315539360046387 |
+| humaneval | greedy | hf_greedy | 33.80787372488116 | 33.588002304518476 | 34.12714768557471 | n/a | 1.0078740157480315 | 1.0 | n/a | n/a | n/a | 0 | 3.339426040649414 |
+| humaneval | greedy | hf_assisted | 22.801485829108483 | 20.90997221766804 | 23.29082343261765 | n/a | 2.644628099173554 | 0.3859375 | n/a | n/a | 10/10 | 0 | 3.357449531555176 |
+| humaneval | T=0.7 | flashspec_ucb | 29.79554888577421 | 28.57163363897569 | 30.722737408248435 | 0.37814445408204117 | 2.4521072796934864 | 0.415625 | 0.8781563928644487 | 1.5265792438087513 | n/a | 0 | 3.3389954566955566 |
+| humaneval | T=0.7 | hf_sample | 33.78956769887036 | 33.30730619276562 | 34.0416340840893 | n/a | 1.0078740157480315 | 1.0 | n/a | n/a | n/a | 0 | 3.3462777137756348 |
+| humaneval | T=0.7 | hf_assisted | 17.487019025333403 | 13.7530429740147 | 23.568704422712038 | n/a | 2.633744855967078 | 0.3875 | n/a | n/a | n/a | 0 | 3.3656387329101562 |
+| mt_bench | greedy | flashspec_ucb | 30.210543463312913 | 26.763347847207847 | 31.938117072957773 | 0.3849257507706609 | 2.4242424242424243 | 0.4203125 | 0.9063770613006314 | 1.2096862194202025 | 9/10 | 0 | 3.339047431945801 |
+| mt_bench | greedy | hf_greedy | 33.96586860489057 | 33.82290284657868 | 34.12758268923611 | n/a | 1.0078740157480315 | 1.0 | n/a | n/a | n/a | 0 | 3.3504180908203125 |
+| mt_bench | greedy | hf_assisted | 24.551502847019417 | 20.15396423641451 | 28.619996148281555 | n/a | 2.549800796812749 | 0.4 | n/a | n/a | 10/10 | 0 | 3.3552961349487305 |
+| mt_bench | T=0.7 | flashspec_ucb | 27.690370534753658 | 26.354477514108684 | 31.13884479526491 | 0.35637230927831254 | 2.4427480916030535 | 0.4171875 | 0.8500740058459157 | 1.2956752804023388 | n/a | 0 | 3.3453612327575684 |
+| mt_bench | T=0.7 | hf_sample | 33.636622481082696 | 33.08990594716871 | 34.08290521661548 | n/a | 1.0078740157480315 | 1.0 | n/a | n/a | n/a | 0 | 3.3561997413635254 |
+| mt_bench | T=0.7 | hf_assisted | 22.920757315705643 | 20.03353302426056 | 24.297143585330673 | n/a | 2.4758220502901356 | 0.41171875 | n/a | n/a | n/a | 0 | 3.361243724822998 |
+
+Speedups are medians of per-prompt ratios against the method in the same run. NaN/inf counts come from one untimed probe generation per method on the first prompt.
 <!-- END GENERATED: gpu-results -->
 
 ### Measured — TinyLlama-1.1B-Chat float32 · CPU · γ=4 · git `f59b5b4`
