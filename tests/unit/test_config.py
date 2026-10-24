@@ -24,10 +24,24 @@ class TestSamplingConfig:
         with pytest.raises(ValidationError, match="gamma"):
             SamplingConfig(gamma=0)
 
-    def test_temperature_zero_raises_validation_error(self) -> None:
-        """Temperature <= 0 raises ValidationError."""
+    def test_negative_temperature_raises_validation_error(self) -> None:
+        """Temperature < 0 raises ValidationError."""
         with pytest.raises(ValidationError):
-            SamplingConfig(temperature=0.0)
+            SamplingConfig(temperature=-0.1)
+
+    def test_temperature_zero_selects_greedy(self) -> None:
+        """Temperature 0 means greedy decoding."""
+        cfg = SamplingConfig(temperature=0.0)
+        assert cfg.variant == "greedy"
+        assert cfg.greedy
+        assert not SamplingConfig().greedy
+
+    def test_greedy_and_zero_temperature_must_agree(self) -> None:
+        """Greedy at T > 0, or rejection sampling at T = 0, is refused."""
+        with pytest.raises(ValidationError, match="greedy"):
+            SamplingConfig(temperature=0.7, variant="greedy")
+        with pytest.raises(ValidationError, match="greedy"):
+            SamplingConfig(temperature=0.0, variant="rejection")
 
     def test_top_p_above_one_raises_validation_error(self) -> None:
         """top_p > 1.0 raises ValidationError."""

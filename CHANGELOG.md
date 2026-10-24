@@ -23,6 +23,22 @@ Versioning follows [Semantic Versioning 2.0.0](https://semver.org/).
   random tiny Llama pair, and `benchmarks/configs/tiny_llama_cpu.yaml`.
   FlashSpec result files now carry `step_profile`, `forward_counts` and
   `host_syncs`.
+- Greedy decoding: `SamplingConfig(temperature=0)` selects
+  `variant="greedy"`. The drafter proposes argmax tokens (no softmax, no
+  log-probs), the target's single verify forward returns argmax ids, and
+  draft tokens are accepted up to the first mismatch; the next token is
+  `target_argmax[n_accepted]`, which covers both the mismatch and the
+  bonus case (`flashspec/sampling/greedy.py`). The output equals
+  `model.generate(do_sample=False)` token for token
+  (`tests/unit/test_greedy_gold.py`; the TinyLlama GPU version is
+  `tests/integration/test_greedy_gold_gpu.py`, runnable from
+  `notebooks/04_gpu_measurement.ipynb`). Sampling at temperature > 0 is
+  unchanged.
+- The harness runs greedy configs (`temperature: 0`,
+  `benchmarks/configs/tiny_llama_cpu_greedy.yaml`): `vanilla_ar` decodes
+  greedily, `hf_sample` is skipped, every result records `decoding`, and
+  the FlashSpec result records `greedy_token_match` against the greedy
+  baseline for each measured prompt.
 
 ### Fixed
 - `test_adversarial_swap_recovery_within_200_rounds` checked the wrong

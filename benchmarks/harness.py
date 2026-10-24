@@ -625,11 +625,18 @@ def _cached_generate(
     logits = session.sync(input_ids)
     pieces: list[torch.Tensor] = []
     for _ in range(max_new_tokens):
-        scaled = logits if temperature == 1.0 else logits / temperature
-        next_id = torch.multinomial(torch.softmax(scaled, dim=-1), num_samples=1)
+        next_id = _next_token(logits, temperature)
         pieces.append(next_id)
         logits = session.append(next_id)[:, -1, :]
     return torch.cat(pieces, dim=1)
+
+
+def _next_token(logits: torch.Tensor, temperature: float) -> torch.Tensor:
+    """Sample from ``logits / temperature``, or take the argmax at temperature 0."""
+    if temperature == 0.0:
+        return logits.argmax(dim=-1, keepdim=True)
+    scaled = logits if temperature == 1.0 else logits / temperature
+    return torch.multinomial(torch.softmax(scaled, dim=-1), num_samples=1)
 
 
 def autoregressive_generate(
@@ -654,17 +661,19 @@ def autoregressive_generate(
     max_new_tokens : int
         Number of new tokens.
     temperature : float
-        Applied to logits before softmax.
+        Applied to logits before softmax. ``0`` decodes greedily.
 
     Returns
     -------
     torch.Tensor
         New token ids. Shape ``(batch, max_new_tokens)``.
     """
-    if temperature <= 0.0:
-        raise ValueError(f"temperature must be > 0; got {temperature}.")
+    if temperature < 0.0:
+        raise ValueError(f"temperature must be >= 0; got {temperature}.")
     if _uses_hf_generate(model):
-        return _hf_generate(model, input_ids, max_new_tokens, temperature)
+        return _hf_generate(
+            model, input_ids, max_new_tokens, temperature, do_sample=temperature > 0.0
+        )
     if input_ids.shape[0] == 1 and model_accepts_past_key_values(model):
         try:
             return _cached_generate(model, input_ids, max_new_tokens, temperature)
@@ -675,9 +684,7 @@ def autoregressive_generate(
     for _ in range(max_new_tokens):
         with torch.no_grad():
             logits = model(context).logits[:, -1, :].float()
-        if temperature != 1.0:
-            logits = logits / temperature
-        next_id = torch.multinomial(torch.softmax(logits, dim=-1), num_samples=1)
+        next_id = _next_token(logits, temperature)
         pieces.append(next_id)
         context = torch.cat([context, next_id], dim=1)
     return torch.cat(pieces, dim=1)
@@ -1199,6 +1206,14 @@ def _run_loaded_pair(
         )
     if prompt_note:
         shared_notes += prompt_note
+    greedy = temperature == 0.0
+    if greedy:
+        shared_notes += " Decoding is greedy (temperature 0)."
+    else:
+        shared_notes += f" Sampling at temperature {temperature}."
+    decoding: dict[str, object] = {
+        "decoding": {"mode": "greedy" if greedy else "sample", "temperature": temperature}
+    }
     spec_notes = shared_notes
     if len(drafters) < 2:
         spec_notes += (
@@ -1226,11 +1241,20 @@ def _run_loaded_pair(
                 "No numbers were written for it."
             )
             continue
+        if name == "hf_sample" and temperature == 0.0:
+            print(
+                "Skipping hf_sample: temperature is 0, so it would be hf_greedy. "
+                "No numbers were written for it."
+            )
+            continue
         runnable_hf.append(name)
 
     target_forwards = ForwardRecorder(target_module)
     drafter_forwards = ForwardRecorder(drafter_module)
     step_records: list[StepRecord] = []
+    # Greedy runs compare FlashSpec's tokens with the greedy baseline's,
+    # prompt by prompt, from the measured generations themselves.
+    last_outputs: dict[str, torch.Tensor] = {}
 
     def _time_speculative(prompt: torch.Tensor) -> tuple[float, int, float]:
         target_forwards.attach()
@@ -1248,6 +1272,7 @@ def _run_loaded_pair(
             drafter_forwards.detach()
         if result.step_profile is not None:
             step_records.extend(result.step_profile)
+        last_outputs["flashspec"] = result.output_ids
         return elapsed_ms, result.n_tokens_generated, result.acceptance_rate
 
     def _time_ar(prompt: torch.Tensor) -> tuple[float, int]:
@@ -1260,6 +1285,7 @@ def _run_loaded_pair(
         if device.type == "cuda":
             torch.cuda.synchronize()
         elapsed_ms = (time.perf_counter() - started) * 1000.0
+        last_outputs["vanilla_ar"] = tokens
         return elapsed_ms, int(tokens.shape[1])
 
     def _time_hf(name: str, prompt: torch.Tensor) -> tuple[float, int]:
@@ -1297,6 +1323,7 @@ def _run_loaded_pair(
     hf_tokens: dict[str, list[int]] = {name: [] for name in runnable_hf}
     first_target_lengths: list[int] = []
     first_drafter_lengths: list[int] = []
+    greedy_matches: list[bool] = []
     for prompt in prompts:
         latency_ms, n_tokens, alpha = _time_speculative(prompt)
         if not first_target_lengths:
@@ -1306,6 +1333,10 @@ def _run_loaded_pair(
         spec_tokens.append(n_tokens)
         spec_alpha.append(alpha)
         ar_ms, ar_n = _time_ar(prompt)
+        if greedy:
+            greedy_matches.append(
+                torch.equal(last_outputs["flashspec"].cpu(), last_outputs["vanilla_ar"].cpu())
+            )
         ar_latency.append(ar_ms)
         ar_tokens.append(ar_n)
         for name in runnable_hf:
@@ -1394,6 +1425,18 @@ def _run_loaded_pair(
             hardware=hardware,
             prompt_ids=prompt_ids,
             extra={
+                **decoding,
+                **(
+                    {
+                        "greedy_token_match": {
+                            "reference": "vanilla_ar (greedy decode of the target)",
+                            "prompts_matched": sum(greedy_matches),
+                            "n_prompts": len(greedy_matches),
+                        }
+                    }
+                    if greedy
+                    else {}
+                ),
                 "step_profile": profile,
                 "forward_counts": forward_counts,
                 "host_syncs": host_syncs,
@@ -1411,6 +1454,7 @@ def _run_loaded_pair(
             unmeasured=ar_unmeasured,
             hardware=hardware,
             prompt_ids=prompt_ids,
+            extra=decoding,
         ),
     }
     hf_notes = {
@@ -1438,6 +1482,7 @@ def _run_loaded_pair(
             unmeasured=unmeasured,
             hardware=hardware,
             prompt_ids=prompt_ids,
+            extra=decoding,
         )
     return documents
 

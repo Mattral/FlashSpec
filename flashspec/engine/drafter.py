@@ -292,7 +292,8 @@ def load_drafters(
     dtype : torch.dtype
         Compute dtype forwarded to each constructor.
     temperature : float
-        Sampling temperature forwarded to each constructor.
+        Sampling temperature forwarded to each constructor. ``0`` builds
+        drafters that propose the argmax token.
     models : dict or None
         Optional map of name to an already-built module. Entries are
         forwarded as the ``model`` keyword.
@@ -305,7 +306,7 @@ def load_drafters(
     Raises
     ------
     ValueError
-        If ``names`` is empty or ``temperature`` is not positive.
+        If ``names`` is empty or ``temperature`` is negative.
     TypeError
         If a registered class does not accept the constructor keywords.
     """
@@ -313,8 +314,8 @@ def load_drafters(
         raise ValueError(
             "names must contain at least one drafter. A bandit comparison needs two or more."
         )
-    if temperature <= 0.0:
-        raise ValueError(f"temperature must be > 0; got {temperature}.")
+    if temperature < 0.0:
+        raise ValueError(f"temperature must be >= 0; got {temperature}.")
     if len(names) < 2:
         logger.warning(
             "Loading a single drafter. The bandit cannot adapt and will "

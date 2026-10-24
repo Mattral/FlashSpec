@@ -233,3 +233,21 @@ def test_assemble_result_rejects_extra_that_overwrites_fields() -> None:
             hardware={},
             extra={"metrics": {}},
         )
+
+
+def test_toy_llama_greedy_records_token_match_and_skips_hf_sample(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Temperature 0 runs greedy everywhere and checks FlashSpec against the greedy decode."""
+    config = load_benchmark_config(Path("benchmarks/configs/tiny_llama_cpu_greedy.yaml"))
+    config.update({"max_new_tokens": 12, "n_warmup": 0, "n_samples": 2, "prompt_length": 6})
+    config["methods"] = [*config["methods"], "hf_sample"]
+    paired = run_paired_generations(config)
+    assert set(paired) == {"flashspec_ucb", "vanilla_ar", "hf_greedy", "hf_assisted"}
+    assert "Skipping hf_sample" in capsys.readouterr().out
+    spec = paired["flashspec_ucb"]
+    assert spec["decoding"] == {"mode": "greedy", "temperature": 0.0}
+    assert paired["hf_greedy"]["decoding"] == {"mode": "greedy", "temperature": 0.0}
+    match = spec["greedy_token_match"]
+    assert isinstance(match, dict)
+    assert match["prompts_matched"] == match["n_prompts"] == 2

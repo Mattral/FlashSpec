@@ -7,7 +7,7 @@ in the module that owns it.
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -64,27 +64,56 @@ class SamplingConfig(BaseModel):
         Speculation length — number of draft tokens proposed per step.
     temperature : float
         Sampling temperature applied to target logits before log-softmax.
-        Must be positive; use 1.0 for unscaled probabilities.
+        Use 1.0 for unscaled probabilities. ``0`` means greedy decoding and
+        selects ``variant="greedy"``.
     top_p : float
         Nucleus sampling threshold.  Set to 1.0 to disable.
     seed : int or None
         Random seed for reproducibility.  ``None`` means non-deterministic.
-    variant : {"rejection", "typical"}
-        Sampling algorithm variant.
+    variant : {"rejection", "typical", "greedy"}
+        Sampling algorithm variant. ``"greedy"`` accepts draft tokens up to
+        the first one that differs from the target's argmax, so the output
+        equals the target's own greedy decode. It requires
+        ``temperature == 0`` and is chosen automatically for it.
 
     Raises
     ------
     ValueError
-        If ``gamma`` < 1, ``temperature`` ≤ 0, or ``top_p`` not in (0, 1].
+        If ``gamma`` < 1, ``temperature`` < 0, ``top_p`` not in (0, 1], or
+        ``temperature == 0`` and ``variant`` disagree.
     """
 
     gamma: int = Field(default=4, ge=1)
-    temperature: float = Field(default=1.0, gt=0.0)
+    temperature: float = Field(default=1.0, ge=0.0)
     top_p: float = Field(default=1.0, gt=0.0, le=1.0)
     seed: int | None = None
-    variant: Literal["rejection", "typical"] = "rejection"
+    variant: Literal["rejection", "typical", "greedy"] = "rejection"
 
     model_config = {"frozen": True}
+
+    @model_validator(mode="before")
+    @classmethod
+    def _greedy_at_zero_temperature(cls, data: Any) -> Any:  # noqa: ANN401
+        """Pick ``variant="greedy"`` for ``temperature == 0`` unless one was given."""
+        if isinstance(data, dict) and data.get("temperature") == 0 and "variant" not in data:
+            return {**data, "variant": "greedy"}
+        return data
+
+    @model_validator(mode="after")
+    def _greedy_iff_zero_temperature(self) -> SamplingConfig:
+        """Greedy decoding and ``temperature == 0`` go together."""
+        if (self.variant == "greedy") != (self.temperature == 0.0):
+            raise ValueError(
+                f"variant='greedy' requires temperature=0 and temperature=0 requires "
+                f"variant='greedy'; got variant={self.variant!r}, "
+                f"temperature={self.temperature}."
+            )
+        return self
+
+    @property
+    def greedy(self) -> bool:
+        """True for ``variant="greedy"``."""
+        return self.variant == "greedy"
 
 
 class MetricsConfig(BaseModel):

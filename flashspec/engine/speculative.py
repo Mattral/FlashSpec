@@ -20,6 +20,7 @@ from flashspec.metrics.acceptance import AcceptanceTracker
 from flashspec.metrics.latency import LatencyTracker
 from flashspec.metrics.step_profile import StepProfiler, StepRecord
 from flashspec.metrics.throughput import ThroughputTracker
+from flashspec.sampling.greedy import greedy_verify
 from flashspec.sampling.rejection import rejection_sample
 from flashspec.sampling.typical import typical_sample
 from flashspec.utils.config import FlashSpecConfig
@@ -101,13 +102,14 @@ class _Incremental:
         drafter: Any,  # noqa: ANN401
         context: torch.Tensor,
         gamma: int,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+        greedy: bool = False,
+    ) -> tuple[torch.Tensor, torch.Tensor | None]:
         if self.drafter_capable[arm] and not self.drafter_live[arm]:
             self.drafter_live[arm] = bool(drafter.begin(context))
             self.drafter_capable[arm] = self.drafter_live[arm]
         if self.drafter_live[arm]:
             try:
-                ids, logprobs = drafter.draft(gamma)
+                ids, logprobs = drafter.draft(gamma, greedy=greedy)
             except CacheUnavailableError:
                 self.drafter_live[arm] = False
                 self.drafter_capable[arm] = False
@@ -123,22 +125,26 @@ class _Incremental:
         draft_ids: torch.Tensor,
         gamma: int,
         temperature: float,
+        greedy: bool = False,
     ) -> torch.Tensor:
+        """Target log-probs, or target argmax ids when ``greedy``."""
         if self.target_capable and not self.target_live:
             self.target_live = bool(target.begin(context))
             self.target_capable = self.target_live
         if self.target_live:
             try:
-                scored: torch.Tensor = target.verify(draft_ids, temperature=temperature)
+                if greedy and callable(getattr(target, "verify_greedy", None)):
+                    scored: torch.Tensor = target.verify_greedy(draft_ids)
+                elif greedy:
+                    scored = target.verify(draft_ids, temperature=1.0).argmax(dim=-1)
+                else:
+                    scored = target.verify(draft_ids, temperature=temperature)
             except CacheUnavailableError:
                 self.target_live = False
                 self.target_capable = False
             else:
                 return scored
-        legacy: torch.Tensor = target.score_draft(
-            context, draft_ids, gamma, temperature=temperature, include_bonus=True
-        )
-        return legacy
+        return _score_with_context(target, context, draft_ids, gamma, temperature, greedy)
 
     def commit(
         self,
@@ -185,6 +191,27 @@ class _Incremental:
         if owner is drafter:
             return self.drafter_capable[arm]
         return self.target_capable
+
+
+def _score_with_context(
+    target: Any,  # noqa: ANN401
+    context: torch.Tensor,
+    draft_ids: torch.Tensor,
+    gamma: int,
+    temperature: float,
+    greedy: bool,
+) -> torch.Tensor:
+    """Context-based scoring: log-probs, or argmax ids when ``greedy``."""
+    if greedy:
+        # The argmax does not depend on temperature; score at 1.
+        scored: torch.Tensor = target.score_draft(
+            context, draft_ids, gamma, temperature=1.0, include_bonus=True
+        )
+        return scored.argmax(dim=-1)
+    legacy: torch.Tensor = target.score_draft(
+        context, draft_ids, gamma, temperature=temperature, include_bonus=True
+    )
+    return legacy
 
 
 # ── Engine ────────────────────────────────────────────────────────────────────
@@ -378,58 +405,90 @@ class SpeculativeEngine:
             arm = self._bandit.select()
             drafter = self._drafters[arm]
 
-            # 2. Draft model proposes gamma tokens.
-            if incremental is not None:
-                draft_token_ids, draft_logprobs = incremental.draft(arm, drafter, context, gamma)
+            greedy_bonus: torch.Tensor | None = None
+            if config_sampling.greedy:
+                # Greedy: argmax drafts, one argmax verify, accept up to the
+                # first mismatch. No softmax and no random draws.
+                if incremental is not None:
+                    draft_token_ids, _ = incremental.draft(
+                        arm, drafter, context, gamma, greedy=True
+                    )
+                else:
+                    draft_token_ids, _ = drafter.generate_draft(context, gamma)
+                if profiler is not None:
+                    profiler.mark("draft")
+                if incremental is not None:
+                    target_argmax = incremental.verify(
+                        self._target, context, draft_token_ids, gamma, 1.0, greedy=True
+                    )
+                else:
+                    target_argmax = _score_with_context(
+                        self._target, context, draft_token_ids, gamma, 1.0, greedy=True
+                    )
+                if profiler is not None:
+                    profiler.mark("verify")
+                accepted_ids, first_rejection, greedy_bonus = greedy_verify(
+                    draft_token_ids, target_argmax
+                )
+                bonus_logprobs = None
             else:
-                draft_token_ids, draft_logprobs = drafter.generate_draft(context, gamma)
-            if profiler is not None:
-                profiler.mark("draft")
+                # 2. Draft model proposes gamma tokens.
+                if incremental is not None:
+                    draft_token_ids, maybe_logprobs = incremental.draft(
+                        arm, drafter, context, gamma
+                    )
+                    if maybe_logprobs is None:
+                        raise RuntimeError("Drafter returned no log-probs for a sampling step.")
+                    draft_logprobs = maybe_logprobs
+                else:
+                    draft_token_ids, draft_logprobs = drafter.generate_draft(context, gamma)
+                if profiler is not None:
+                    profiler.mark("draft")
 
-            # 3. Target model scores draft positions (temperature applied inside).
-            # include_bonus asks for the extra row that predicts the token
-            # after a fully accepted draft. Rejection sampling still sees
-            # only the gamma draft positions.
-            if incremental is not None:
-                target_logprobs = incremental.verify(
-                    self._target,
-                    context,
-                    draft_token_ids,
-                    gamma,
-                    config_sampling.temperature,
-                )
-            else:
-                target_logprobs = self._target.score_draft(
-                    context,
-                    draft_token_ids,
-                    gamma,
-                    temperature=config_sampling.temperature,
-                    include_bonus=True,
-                )
-            if profiler is not None:
-                profiler.mark("verify")
-            bonus_logprobs = None
-            if target_logprobs.shape[1] == gamma + 1:
-                bonus_logprobs = target_logprobs[:, gamma, :]
-                target_logprobs = target_logprobs[:, :gamma, :]
+                # 3. Target model scores draft positions (temperature applied inside).
+                # include_bonus asks for the extra row that predicts the token
+                # after a fully accepted draft. Rejection sampling still sees
+                # only the gamma draft positions.
+                if incremental is not None:
+                    target_logprobs = incremental.verify(
+                        self._target,
+                        context,
+                        draft_token_ids,
+                        gamma,
+                        config_sampling.temperature,
+                    )
+                else:
+                    target_logprobs = self._target.score_draft(
+                        context,
+                        draft_token_ids,
+                        gamma,
+                        temperature=config_sampling.temperature,
+                        include_bonus=True,
+                    )
+                if profiler is not None:
+                    profiler.mark("verify")
+                bonus_logprobs = None
+                if target_logprobs.shape[1] == gamma + 1:
+                    bonus_logprobs = target_logprobs[:, gamma, :]
+                    target_logprobs = target_logprobs[:, :gamma, :]
 
-            # 4. Accept/reject sampling.
-            if config_sampling.variant == "rejection":
-                accepted_ids, first_rejection, _alpha = rejection_sample(
-                    input_ids=context,
-                    draft_logprobs=draft_logprobs,
-                    target_logprobs=target_logprobs,
-                    draft_token_ids=draft_token_ids,
-                    gamma=gamma,
-                )
-            else:
-                accepted_ids, first_rejection, _alpha = typical_sample(
-                    draft_logprobs=draft_logprobs,
-                    target_logprobs=target_logprobs,
-                    draft_token_ids=draft_token_ids,
-                    gamma=gamma,
-                    typical_p=config_sampling.top_p,
-                )
+                # 4. Accept/reject sampling.
+                if config_sampling.variant == "rejection":
+                    accepted_ids, first_rejection, _alpha = rejection_sample(
+                        input_ids=context,
+                        draft_logprobs=draft_logprobs,
+                        target_logprobs=target_logprobs,
+                        draft_token_ids=draft_token_ids,
+                        gamma=gamma,
+                    )
+                else:
+                    accepted_ids, first_rejection, _alpha = typical_sample(
+                        draft_logprobs=draft_logprobs,
+                        target_logprobs=target_logprobs,
+                        draft_token_ids=draft_token_ids,
+                        gamma=gamma,
+                        typical_p=config_sampling.top_p,
+                    )
 
             # The raw count stays the acceptance metric. The bonus token
             # is appended below and is not included. first_rejection is in
@@ -452,14 +511,18 @@ class SpeculativeEngine:
                 # already wrote its residual into ``valid``.
                 full_accept = int(first_rejection[local].item()) == gamma
                 if (
-                    bonus_logprobs is not None
+                    (bonus_logprobs is not None or greedy_bonus is not None)
                     and full_accept
                     and take.numel() == gamma
                     and room > gamma
                 ):
-                    probs = bonus_logprobs[local].exp()
-                    probs = probs / probs.sum().clamp(min=1e-9)
-                    bonus_id = torch.multinomial(probs, num_samples=1).to(take.dtype)
+                    if greedy_bonus is not None:
+                        bonus_id = greedy_bonus[local].view(1).to(take.dtype)
+                    else:
+                        assert bonus_logprobs is not None
+                        probs = bonus_logprobs[local].exp()
+                        probs = probs / probs.sum().clamp(min=1e-9)
+                        bonus_id = torch.multinomial(probs, num_samples=1).to(take.dtype)
                     take = torch.cat([take, bonus_id.view(-1)])
                 piece = take.view(1, -1)
                 generated_rows[index].append(piece)
