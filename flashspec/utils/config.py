@@ -100,12 +100,17 @@ class MetricsConfig(BaseModel):
         Whether to track p50/p95/p99 step latency.
     latency_window : int
         Rolling window size for latency percentile computation.
+    profile_steps : bool
+        Record a per-step draft/verify/sample/bookkeeping breakdown
+        (:class:`flashspec.metrics.step_profile.StepProfiler`). Off by
+        default; the benchmark harness turns it on.
     """
 
     track_acceptance: bool = True
     track_throughput: bool = True
     track_latency: bool = True
     latency_window: int = Field(default=1000, ge=10)
+    profile_steps: bool = False
 
     model_config = {"frozen": True}
 

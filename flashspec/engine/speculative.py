@@ -16,6 +16,7 @@ from flashspec.engine.drafter import DraftModel
 from flashspec.engine.verifier import TargetModel
 from flashspec.metrics.acceptance import AcceptanceTracker
 from flashspec.metrics.latency import LatencyTracker
+from flashspec.metrics.step_profile import StepProfiler, StepRecord
 from flashspec.metrics.throughput import ThroughputTracker
 from flashspec.sampling.rejection import rejection_sample
 from flashspec.sampling.typical import typical_sample
@@ -42,12 +43,16 @@ class GenerationResult:
         Mean draft-token acceptance rate (alpha) for this call.
     tokens_per_second : float
         Wall-clock tokens per second for this call.
+    step_profile : tuple[StepRecord, ...] or None
+        Per-step time breakdown for this call when
+        ``config.metrics.profile_steps`` is true, otherwise ``None``.
     """
 
     output_ids: torch.Tensor
     n_tokens_generated: int
     acceptance_rate: float
     tokens_per_second: float
+    step_profile: tuple[StepRecord, ...] | None = None
 
 
 # ── Engine ────────────────────────────────────────────────────────────────────
@@ -129,6 +134,9 @@ class SpeculativeEngine:
         self._latency_tracker = LatencyTracker(
             window=config.metrics.latency_window,
         )
+        self._profiler: StepProfiler | None = (
+            StepProfiler(self._device) if config.metrics.profile_steps else None
+        )
 
     def generate(
         self,
@@ -204,10 +212,15 @@ class SpeculativeEngine:
         def _row_count(index: int) -> int:
             return sum(piece.shape[1] for piece in generated_rows[index])
 
+        profiler = self._profiler
+        if profiler is not None:
+            profiler.reset()
         self._throughput_tracker.start()
 
         while any(_row_count(i) < max_tokens for i in range(batch_size)):
             self._latency_tracker.start()
+            if profiler is not None:
+                profiler.start_step()
             step_started = time.perf_counter()
             active = [i for i in range(batch_size) if _row_count(i) < max_tokens]
             groups: dict[int, list[int]] = {}
@@ -224,6 +237,8 @@ class SpeculativeEngine:
 
             # 2. Draft model proposes gamma tokens.
             draft_token_ids, draft_logprobs = drafter.generate_draft(context, gamma)
+            if profiler is not None:
+                profiler.mark("draft")
 
             # 3. Target model scores draft positions (temperature applied inside).
             # include_bonus asks for the extra row that predicts the token
@@ -236,6 +251,8 @@ class SpeculativeEngine:
                 temperature=config_sampling.temperature,
                 include_bonus=True,
             )
+            if profiler is not None:
+                profiler.mark("verify")
             bonus_logprobs = None
             if target_logprobs.shape[1] == gamma + 1:
                 bonus_logprobs = target_logprobs[:, gamma, :]
@@ -266,6 +283,7 @@ class SpeculativeEngine:
             n_accepted = min(gamma, max(0, n_accepted))
 
             progressed = False
+            emitted = 0
             for local, index in enumerate(idxs):
                 row = accepted_ids[local]
                 valid = row[row != -1]
@@ -290,7 +308,12 @@ class SpeculativeEngine:
                 piece = take.view(1, -1)
                 generated_rows[index].append(piece)
                 contexts[index] = torch.cat([contexts[index], piece], dim=1)
+                emitted += int(piece.shape[1])
                 progressed = True
+            # The residual and bonus draws happen inside the loop above,
+            # so its time counts as sampling.
+            if profiler is not None:
+                profiler.mark("sample")
 
             # One sequence can keep a KV cache. Crop both models back to
             # the tokens actually appended, including a bonus token.
@@ -307,6 +330,9 @@ class SpeculativeEngine:
             self._bandit.update(arm, accepted=n_accepted, reward=reward)
             self._acceptance_tracker.record(n_accepted)
             self._latency_tracker.stop()
+            if profiler is not None:
+                profiler.mark("bookkeeping")
+                profiler.end_step(emitted)
             if not progressed:
                 logger.warning(
                     "Speculative step accepted no tokens; stopping early.",
@@ -347,4 +373,5 @@ class SpeculativeEngine:
             n_tokens_generated=total_new,
             acceptance_rate=self._acceptance_tracker.mean_acceptance_rate,
             tokens_per_second=tokens_per_second,
+            step_profile=tuple(profiler.records()) if profiler is not None else None,
         )
