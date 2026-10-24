@@ -4,13 +4,20 @@ Speed at batch 1 is set by how many forwards each model runs per step,
 not by how many tokens each forward carries. These tests record the
 ``input_ids`` length of every forward and pin the per-step pattern.
 
-The pattern pinned here is the current one, which does twice the target
-work it should: after each verify forward of ``gamma`` tokens, the
-target re-forwards the residual or bonus token alone to catch its cache
-up, and the drafter forwards ``gamma + 1`` single tokens per step.
-The catch-up is skipped only when nothing new was emitted past the
-cached draft, which happens on a last step that fully accepts and has
-no room left for the bonus token.
+Pattern pinned here:
+
+- Both models prefill ``prompt[:-1]``; the last prompt token is pending.
+- Target: exactly one forward per step, of the pending token plus the
+  ``gamma`` draft tokens (``1 + gamma``). Committing the residual or
+  bonus token queues it as the next pending token and never forwards.
+- Drafter: exactly ``gamma`` forwards per step. The first carries the
+  pending tokens: one after a rejection, two after a full accept (the
+  last draft token, never forwarded, then the bonus token). The others
+  carry one draft token each.
+
+Before this pattern the target re-forwarded the residual or bonus token
+alone after every verify (two target forwards per step), and the
+drafter ran ``gamma + 1`` forwards per step.
 """
 
 from __future__ import annotations
@@ -86,27 +93,33 @@ def _quiet_single_arm_warning() -> Iterator[None]:
     logger.setLevel(previous)
 
 
-@pytest.mark.parametrize(("gamma", "seed"), [(4, 0), (4, 7), (2, 3)])
+_CASES = [(4, 0), (4, 7), (2, 3), (1, 5), (6, 9)]
+
+
+@pytest.mark.parametrize(("gamma", "seed"), _CASES)
 def test_target_forwards_per_step(gamma: int, seed: int) -> None:
-    """Current: one prefill, then a verify of ``gamma`` and a 1-token catch-up per step."""
+    """One prefill, then exactly one ``1 + gamma`` forward per step."""
     result, target_lengths, _ = _run(gamma, seed)
     assert result.step_profile is not None
     n_steps = len(result.step_profile)
     assert result.n_tokens_generated == _MAX_NEW
-    assert target_lengths[0] == _PROMPT_LEN
-    full = [gamma, 1] * n_steps
-    assert target_lengths[1:] in (full, full[:-1]), target_lengths
+    assert target_lengths[0] == _PROMPT_LEN - 1
+    assert target_lengths[1:] == [1 + gamma] * n_steps, target_lengths
+    assert len(target_lengths) == 1 + n_steps
 
 
-@pytest.mark.parametrize(("gamma", "seed"), [(4, 0), (4, 7), (2, 3)])
+@pytest.mark.parametrize(("gamma", "seed"), _CASES)
 def test_drafter_forwards_per_step(gamma: int, seed: int) -> None:
-    """Current: one prefill, then ``gamma + 1`` single-token forwards per step."""
+    """One prefill, then exactly ``gamma`` forwards per step; the first carries the pending."""
     result, _, drafter_lengths = _run(gamma, seed)
     assert result.step_profile is not None
-    n_steps = len(result.step_profile)
-    assert drafter_lengths[0] == _PROMPT_LEN
-    full = [1] * ((gamma + 1) * n_steps)
-    assert drafter_lengths[1:] in (full, full[:-1]), drafter_lengths
+    emitted = [step.tokens_emitted for step in result.step_profile]
+    expected = [_PROMPT_LEN - 1]
+    for index in range(len(emitted)):
+        full_accept_before = index > 0 and emitted[index - 1] == gamma + 1
+        expected += [2 if full_accept_before else 1] + [1] * (gamma - 1)
+    assert drafter_lengths == expected, (drafter_lengths, emitted)
+    assert len(drafter_lengths) == 1 + gamma * len(emitted)
 
 
 def test_run_covers_rejections_and_full_accepts() -> None:

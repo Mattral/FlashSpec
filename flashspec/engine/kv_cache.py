@@ -1,10 +1,30 @@
 """Batch-1 KV cache for a causal language model.
 
-The session stores ``past_key_values`` and the token ids that produced
-them. A later call crops the cache back to the shared prefix of the
-accepted tokens, then forwards only the suffix. Transformers 5 crops
-with a negative count: ``crop(-n)`` drops ``n`` tokens. A positive
-count is the deprecated absolute-length form and is not used here.
+A session has two ways to stay aligned with the sequence.
+
+*Incremental* (:meth:`KvSession.start`, :meth:`KvSession.advance`,
+:meth:`KvSession.crop`, :meth:`KvSession.push_pending`). The caller
+says exactly what happened with integers: how many tokens to drop and
+which tokens were committed. Committed tokens that have not been
+forwarded yet are held as *pending* and are prepended to the next
+forward, so committing never runs the model. The speculative engine
+uses this mode: one target forward per step.
+
+*Sync* (:meth:`KvSession.sync`). The caller passes the whole accepted
+context; the session compares it with the token ids it cached, crops
+to the shared prefix and forwards the suffix. The context-based
+wrapper methods (``generate_draft``, ``score_draft``,
+``compute_logprobs``) use this mode, as do batches the engine does not
+run incrementally.
+
+Transformers 5 crops with a negative count: ``crop(-n)`` drops ``n``
+tokens. A positive count is the deprecated absolute-length form and is
+not used here.
+
+Set ``FLASHSPEC_DEBUG_CACHE=1`` to keep the cached token ids in the
+incremental mode too, so :meth:`KvSession.check` can assert that the
+integer bookkeeping matches the real sequence. It is off by default
+because it concatenates ids on every forward.
 
 Batch sizes other than 1, and models that do not return a cache, stay
 on the caller's full-sequence forward.
@@ -13,15 +33,28 @@ on the caller's full-sequence forward.
 from __future__ import annotations
 
 import inspect
+import os
 from typing import Any
 
 import torch
 
 from flashspec.utils.logging import get_logger
 
-__all__ = ["CacheUnavailableError", "KvSession", "model_accepts_past_key_values"]
+__all__ = [
+    "CacheUnavailableError",
+    "KvSession",
+    "debug_cache_enabled",
+    "model_accepts_past_key_values",
+]
 
 logger = get_logger(__name__)
+
+_DEBUG_ENV = "FLASHSPEC_DEBUG_CACHE"
+
+
+def debug_cache_enabled() -> bool:
+    """Return whether ``FLASHSPEC_DEBUG_CACHE=1`` is set."""
+    return os.environ.get(_DEBUG_ENV) == "1"
 
 
 class CacheUnavailableError(RuntimeError):
@@ -55,6 +88,26 @@ def model_accepts_past_key_values(model: Any) -> bool:  # noqa: ANN401
     return any(item.kind is inspect.Parameter.VAR_KEYWORD for item in parameters.values())
 
 
+def _logits_to_keep_name(model: Any) -> str | None:  # noqa: ANN401
+    """Return the keyword that limits returned logit rows, if ``forward`` names one.
+
+    Transformers 4.50 and later call it ``logits_to_keep``; 4.45 to 4.49
+    call it ``num_logits_to_keep``. A ``**kwargs`` forward is not trusted
+    with either name.
+    """
+    forward = getattr(model, "forward", None)
+    if forward is None:
+        return None
+    try:
+        parameters = inspect.signature(forward).parameters
+    except (TypeError, ValueError):
+        return None
+    for name in ("logits_to_keep", "num_logits_to_keep"):
+        if name in parameters:
+            return name
+    return None
+
+
 def _seq_length(past: Any) -> int | None:  # noqa: ANN401
     """Return the cached token count, or None when the object has none."""
     getter = getattr(past, "get_seq_length", None)
@@ -78,9 +131,16 @@ class KvSession:
     def __init__(self, model: Any) -> None:  # noqa: ANN401
         self._model = model
         self.enabled = model_accepts_past_key_values(model)
+        self._keep_name = _logits_to_keep_name(model)
         self._past: Any = None  # noqa: ANN401
         self._cached_ids: torch.Tensor | None = None
         self._next_logits: torch.Tensor | None = None
+        # Incremental mode: tokens in the cache, and committed tokens
+        # waiting to be forwarded.
+        self._length = 0
+        self._pending: torch.Tensor | None = None
+        self._debug = False
+        self._debug_ids: torch.Tensor | None = None
 
     def supports(self, token_ids: torch.Tensor) -> bool:
         """Return whether this call can use the cache.
@@ -102,12 +162,169 @@ class KvSession:
         self._past = None
         self._cached_ids = None
         self._next_logits = None
+        self._length = 0
+        self._pending = None
+        self._debug_ids = None
 
     def disable(self) -> None:
         """Stop using the cache and drop any stored state."""
         self.enabled = False
         self.reset()
         logger.debug("KV cache disabled; later calls forward the full sequence")
+
+    # ── Incremental mode ────────────────────────────────────────────────
+
+    @property
+    def pending_length(self) -> int:
+        """Committed tokens that the next :meth:`advance` will forward first."""
+        return 0 if self._pending is None else int(self._pending.shape[1])
+
+    @property
+    def cached_length(self) -> int:
+        """Tokens currently in the cache, from the integer bookkeeping."""
+        return self._length
+
+    def start(self, prompt: torch.Tensor) -> None:
+        """Begin incremental mode on ``prompt``.
+
+        Every prompt token except the last is forwarded now, keeping a
+        single logit row (``logits_to_keep=1`` when the model supports
+        it). The last token becomes pending, so the first
+        :meth:`advance` returns the logits that predict the first new
+        token. A one-token prompt is not forwarded at all.
+
+        Parameters
+        ----------
+        prompt : torch.Tensor
+            Shape ``(1, seq)`` with ``seq >= 1``, int64, on the model device.
+
+        Raises
+        ------
+        CacheUnavailableError
+            If the session is disabled, the batch is not one, or the
+            model does not return a usable cache.
+        """
+        if not self.supports(prompt) or int(prompt.shape[1]) < 1:
+            raise CacheUnavailableError("start is only used for one non-empty cached row")
+        self.reset()
+        self._debug = debug_cache_enabled()
+        ids = prompt.to(dtype=torch.long)
+        if int(ids.shape[1]) > 1:
+            head = ids[:, :-1]
+            self._past, _ = self._call(head, None, keep=1)
+            self._length = int(head.shape[1])
+            if self._debug:
+                self._debug_ids = head.clone()
+        self._pending = ids[:, -1:]
+
+    def advance(self, new_ids: torch.Tensor | None, keep: int) -> torch.Tensor:
+        """Forward the pending tokens plus ``new_ids`` in one call.
+
+        Parameters
+        ----------
+        new_ids : torch.Tensor or None
+            Tokens after the pending ones. Shape ``(1, m)``. ``None``
+            forwards only the pending tokens.
+        keep : int
+            Logit rows to return, counted back from the last input
+            position. Must be at least 1 and at most the input length.
+
+        Returns
+        -------
+        torch.Tensor
+            Raw logits for the last ``keep`` input positions. Shape
+            ``(1, keep, vocab)``, float32. The last row predicts the
+            token after the last input token.
+
+        Raises
+        ------
+        CacheUnavailableError
+            If there is nothing to forward, ``keep`` is out of range, or
+            the model does not extend the cache.
+        """
+        pieces = [piece for piece in (self._pending, new_ids) if piece is not None]
+        if not pieces:
+            raise CacheUnavailableError("advance with no pending or new tokens")
+        token_ids = pieces[0] if len(pieces) == 1 else torch.cat(pieces, dim=1)
+        if token_ids.ndim != 2 or token_ids.shape[0] != 1:
+            raise CacheUnavailableError("advance expects one row")
+        added = int(token_ids.shape[1])
+        if not 1 <= keep <= added:
+            raise CacheUnavailableError(f"keep={keep} must be in [1, {added}]")
+        self._past, logits = self._call(token_ids, self._past, keep=keep)
+        self._length += added
+        self._pending = None
+        if self._debug:
+            fresh = token_ids.to(dtype=torch.long)
+            self._debug_ids = (
+                fresh.clone() if self._debug_ids is None else torch.cat([self._debug_ids, fresh], 1)
+            )
+        return logits
+
+    def crop(self, n_tokens: int) -> None:
+        """Drop the last ``n_tokens`` cached tokens. Never forwards.
+
+        Parameters
+        ----------
+        n_tokens : int
+            Tokens to drop. ``0`` is a no-op.
+
+        Raises
+        ------
+        CacheUnavailableError
+            If ``n_tokens`` is negative or larger than the cache, or the
+            cache object cannot crop. The session is left disabled.
+        """
+        if n_tokens == 0:
+            return
+        new_len = self._length - n_tokens
+        if n_tokens < 0 or new_len < 0 or not self._crop_to(new_len):
+            self.disable()
+            raise CacheUnavailableError(f"cannot crop {n_tokens} of {self._length} cached tokens")
+        self._length = new_len
+        if self._debug and self._debug_ids is not None:
+            self._debug_ids = self._debug_ids[:, :new_len]
+
+    def push_pending(self, token_ids: torch.Tensor) -> None:
+        """Commit ``token_ids`` after the current pending tokens. Never forwards.
+
+        Parameters
+        ----------
+        token_ids : torch.Tensor
+            Shape ``(1, n)`` with ``n >= 1``.
+        """
+        ids = token_ids.to(dtype=torch.long)
+        self._pending = ids if self._pending is None else torch.cat([self._pending, ids], dim=1)
+
+    def check(self, context: torch.Tensor) -> None:
+        """Assert that cache plus pending tokens equal ``context``.
+
+        Only meaningful when ``FLASHSPEC_DEBUG_CACHE=1`` was set before
+        :meth:`start`; otherwise it returns without checking.
+
+        Parameters
+        ----------
+        context : torch.Tensor
+            Accepted sequence. Shape ``(1, seq)``.
+
+        Raises
+        ------
+        AssertionError
+            If the cache length or the token ids disagree.
+        """
+        if not self._debug:
+            return
+        seq = _seq_length(self._past) if self._past is not None else 0
+        if seq != self._length:
+            raise AssertionError(f"cache holds {seq} tokens, bookkeeping says {self._length}")
+        pieces = [piece for piece in (self._debug_ids, self._pending) if piece is not None]
+        held = torch.cat(pieces, dim=1) if pieces else context.new_empty((1, 0))
+        if not torch.equal(held.to(context.device), context.to(dtype=torch.long)):
+            raise AssertionError(
+                f"cache + pending ids {held.tolist()} do not match context {context.tolist()}"
+            )
+
+    # ── Sync mode ───────────────────────────────────────────────────────
 
     def sync(self, context: torch.Tensor) -> torch.Tensor:
         """Make the cache match ``context`` and return next-token logits.
@@ -245,10 +462,17 @@ class KvSession:
         self._past = past
         self._next_logits = next_logits.float()
 
-    def _call(self, token_ids: torch.Tensor, past: Any) -> tuple[Any, torch.Tensor]:  # noqa: ANN401
+    def _call(
+        self,
+        token_ids: torch.Tensor,
+        past: Any,  # noqa: ANN401
+        keep: int | None = None,
+    ) -> tuple[Any, torch.Tensor]:  # noqa: ANN401
         kwargs: dict[str, Any] = {"use_cache": True}
         if past is not None:
             kwargs["past_key_values"] = past
+        if keep is not None and self._keep_name is not None:
+            kwargs[self._keep_name] = keep
         previous = 0 if past is None else _seq_length(past)
         try:
             with torch.no_grad():
@@ -264,11 +488,17 @@ class KvSession:
         if past_out is None or logits is None:
             self.disable()
             raise CacheUnavailableError("forward did not return past_key_values and logits")
-        logits = logits.float()
-        if int(logits.shape[1]) != int(token_ids.shape[1]):
+        added = int(token_ids.shape[1])
+        if keep is not None and int(logits.shape[1]) != keep:
+            # The model ignored logits_to_keep or has no such argument.
+            if int(logits.shape[1]) != added:
+                self.disable()
+                raise CacheUnavailableError("logits do not cover the new tokens")
+            logits = logits[:, -keep:, :]
+        elif keep is None and int(logits.shape[1]) != added:
             self.disable()
             raise CacheUnavailableError("logits do not cover the new tokens")
-        added = int(token_ids.shape[1])
+        logits = logits.float()
         expected = added if previous is None else int(previous) + added
         if _seq_length(past_out) != expected:
             self.disable()

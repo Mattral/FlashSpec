@@ -7,12 +7,14 @@ and metrics trackers into a single generation loop.
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Any
 
 import torch
 
 from flashspec.bandit.base import DraftSelector
 from flashspec.engine.drafter import DraftModel
+from flashspec.engine.kv_cache import CacheUnavailableError, debug_cache_enabled
 from flashspec.engine.verifier import TargetModel
 from flashspec.metrics.acceptance import AcceptanceTracker
 from flashspec.metrics.latency import LatencyTracker
@@ -55,6 +57,136 @@ class GenerationResult:
     step_profile: tuple[StepRecord, ...] | None = None
 
 
+# ── Batch-1 incremental cache bookkeeping ────────────────────────────────────
+
+_TARGET_API: tuple[str, ...] = ("begin", "verify", "commit")
+_DRAFTER_API: tuple[str, ...] = ("begin", "draft", "commit", "push_pending")
+
+
+def _offers(owner: object, names: tuple[str, ...]) -> bool:
+    return all(callable(getattr(owner, name, None)) for name in names)
+
+
+@dataclass(slots=True)
+class _Incremental:
+    """Which batch-1 components run on the incremental cache this call.
+
+    A component is *capable* when its wrapper offers the incremental API
+    and *live* once :meth:`begin` has succeeded on the current sequence.
+    A capable component that is not live starts lazily from the accepted
+    context the next time it is used. A component whose cache fails is no
+    longer capable and uses its context-based method for the rest of the
+    call.
+    """
+
+    target_capable: bool
+    drafter_capable: list[bool]
+    target_live: bool = False
+    drafter_live: list[bool] = field(default_factory=list)
+    debug: bool = False
+
+    @classmethod
+    def for_call(cls, target: object, drafters: list[Any]) -> _Incremental:
+        capable = [_offers(drafter, _DRAFTER_API) for drafter in drafters]
+        return cls(
+            target_capable=_offers(target, _TARGET_API),
+            drafter_capable=capable,
+            drafter_live=[False] * len(drafters),
+            debug=debug_cache_enabled(),
+        )
+
+    def draft(
+        self,
+        arm: int,
+        drafter: Any,  # noqa: ANN401
+        context: torch.Tensor,
+        gamma: int,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        if self.drafter_capable[arm] and not self.drafter_live[arm]:
+            self.drafter_live[arm] = bool(drafter.begin(context))
+            self.drafter_capable[arm] = self.drafter_live[arm]
+        if self.drafter_live[arm]:
+            try:
+                ids, logprobs = drafter.draft(gamma)
+            except CacheUnavailableError:
+                self.drafter_live[arm] = False
+                self.drafter_capable[arm] = False
+            else:
+                return ids, logprobs
+        ids, logprobs = drafter.generate_draft(context, gamma)
+        return ids, logprobs
+
+    def verify(
+        self,
+        target: Any,  # noqa: ANN401
+        context: torch.Tensor,
+        draft_ids: torch.Tensor,
+        gamma: int,
+        temperature: float,
+    ) -> torch.Tensor:
+        if self.target_capable and not self.target_live:
+            self.target_live = bool(target.begin(context))
+            self.target_capable = self.target_live
+        if self.target_live:
+            try:
+                scored: torch.Tensor = target.verify(draft_ids, temperature=temperature)
+            except CacheUnavailableError:
+                self.target_live = False
+                self.target_capable = False
+            else:
+                return scored
+        legacy: torch.Tensor = target.score_draft(
+            context, draft_ids, gamma, temperature=temperature, include_bonus=True
+        )
+        return legacy
+
+    def commit(
+        self,
+        arm: int,
+        drafters: list[Any],
+        target: Any,  # noqa: ANN401
+        n_accepted: int,
+        piece: torch.Tensor,
+        context: torch.Tensor,
+    ) -> None:
+        """Record one step. Nothing here runs a model forward.
+
+        ``piece`` is what the step appended: the accepted draft tokens
+        and then the residual or bonus token. A shorter piece (the last
+        step, cut by ``max_new_tokens``) leaves no token to queue, so the
+        affected caches are restarted from ``context`` if they are used
+        again.
+        """
+        complete = int(piece.shape[1]) == n_accepted + 1
+        next_token = piece[:, -1:]
+        if self.target_live:
+            if complete:
+                target.commit(n_accepted, next_token)
+            else:
+                self.target_live = False
+        for index, drafter in enumerate(drafters):
+            if not self.drafter_live[index]:
+                continue
+            if index != arm:
+                drafter.push_pending(piece)
+            elif complete:
+                drafter.commit(n_accepted, next_token)
+            else:
+                self.drafter_live[index] = False
+        if self.debug:
+            if self.target_live:
+                target.check_cache(context)
+            for index, drafter in enumerate(drafters):
+                if self.drafter_live[index]:
+                    drafter.check_cache(context)
+
+    def uses_cache(self, owner: object, arm: int, drafter: object) -> bool:
+        """Whether ``owner`` is kept in step by :meth:`commit` instead of ``roll_cache_to``."""
+        if owner is drafter:
+            return self.drafter_capable[arm]
+        return self.target_capable
+
+
 # ── Engine ────────────────────────────────────────────────────────────────────
 
 
@@ -65,6 +197,11 @@ class SpeculativeEngine:
     1. Bandit selects a draft model arm.
     2. Draft model proposes ``gamma`` tokens autoregressively.
     3. Target model scores all ``gamma`` positions in one forward pass.
+       At batch 1, with wrappers that offer the incremental API
+       (``begin``/``verify``/``commit`` on the target and
+       ``begin``/``draft``/``commit``/``push_pending`` on the drafter),
+       that is the only target forward of the step and the drafter runs
+       exactly ``gamma`` forwards.
     4. Sampling algorithm accepts/rejects draft tokens and samples residual.
     5. Bandit is updated with accepted tokens per second of step time.
        The raw accept count is still recorded. The bonus token is not
@@ -179,7 +316,9 @@ class SpeculativeEngine:
            with temperature applied before log-softmax (§7).
         4. Rejection sampling accepts/rejects tokens (Algorithm 1).
         5. Accepted tokens are appended to the context. For a batch of one,
-           the drafter and verifier crop their KV caches to that prefix.
+           the drafter and verifier crop their KV caches by the number of
+           rejected tokens and queue the residual or bonus token for their
+           next forward. No model runs during this step.
         6. The bandit records accepted draft tokens per second of the step.
            The raw accept count is still recorded. The bonus token is not
            part of that count.
@@ -212,6 +351,10 @@ class SpeculativeEngine:
         def _row_count(index: int) -> int:
             return sum(piece.shape[1] for piece in generated_rows[index])
 
+        incremental = (
+            _Incremental.for_call(self._target, self._drafters) if batch_size == 1 else None
+        )
+
         profiler = self._profiler
         if profiler is not None:
             profiler.reset()
@@ -236,7 +379,10 @@ class SpeculativeEngine:
             drafter = self._drafters[arm]
 
             # 2. Draft model proposes gamma tokens.
-            draft_token_ids, draft_logprobs = drafter.generate_draft(context, gamma)
+            if incremental is not None:
+                draft_token_ids, draft_logprobs = incremental.draft(arm, drafter, context, gamma)
+            else:
+                draft_token_ids, draft_logprobs = drafter.generate_draft(context, gamma)
             if profiler is not None:
                 profiler.mark("draft")
 
@@ -244,13 +390,22 @@ class SpeculativeEngine:
             # include_bonus asks for the extra row that predicts the token
             # after a fully accepted draft. Rejection sampling still sees
             # only the gamma draft positions.
-            target_logprobs = self._target.score_draft(
-                context,
-                draft_token_ids,
-                gamma,
-                temperature=config_sampling.temperature,
-                include_bonus=True,
-            )
+            if incremental is not None:
+                target_logprobs = incremental.verify(
+                    self._target,
+                    context,
+                    draft_token_ids,
+                    gamma,
+                    config_sampling.temperature,
+                )
+            else:
+                target_logprobs = self._target.score_draft(
+                    context,
+                    draft_token_ids,
+                    gamma,
+                    temperature=config_sampling.temperature,
+                    include_bonus=True,
+                )
             if profiler is not None:
                 profiler.mark("verify")
             bonus_logprobs = None
@@ -284,6 +439,7 @@ class SpeculativeEngine:
 
             progressed = False
             emitted = 0
+            last_piece: torch.Tensor | None = None
             for local, index in enumerate(idxs):
                 row = accepted_ids[local]
                 valid = row[row != -1]
@@ -309,18 +465,31 @@ class SpeculativeEngine:
                 generated_rows[index].append(piece)
                 contexts[index] = torch.cat([contexts[index], piece], dim=1)
                 emitted += int(piece.shape[1])
+                last_piece = piece
                 progressed = True
             # The residual and bonus draws happen inside the loop above,
             # so its time counts as sampling.
             if profiler is not None:
                 profiler.mark("sample")
 
-            # One sequence can keep a KV cache. Crop both models back to
-            # the tokens actually appended, including a bonus token.
-            # Rejected draft positions are not part of that prefix.
+            # One sequence can keep a KV cache. Incremental caches drop
+            # the rejected draft positions and queue the residual or bonus
+            # token without a forward. Any other wrapper is rolled to the
+            # accepted prefix, which may forward the new tokens.
             if len(idxs) == 1:
                 accepted_prefix = contexts[idxs[0]]
+                if incremental is not None and last_piece is not None:
+                    incremental.commit(
+                        arm,
+                        self._drafters,
+                        self._target,
+                        int(first_rejection[0]),
+                        last_piece,
+                        accepted_prefix,
+                    )
                 for owner in (drafter, self._target):
+                    if incremental is not None and incremental.uses_cache(owner, arm, drafter):
+                        continue
                     roll = getattr(owner, "roll_cache_to", None)
                     if callable(roll):
                         roll(accepted_prefix)

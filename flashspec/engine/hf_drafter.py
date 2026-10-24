@@ -96,6 +96,10 @@ class HuggingFaceDrafter:
         else:
             self._model = self._load_pretrained(model_name_or_path)
         self._kv = KvSession(self._model)
+        # Incremental mode: draft tokens forwarded by the last draft() (all
+        # but the last), and the last one, which was not forwarded.
+        self._forwarded_drafts = 0
+        self._unforwarded: torch.Tensor | None = None
 
     def _load_pretrained(self, model_name_or_path: str) -> Any:  # noqa: ANN401
         """Load a causal LM from the HuggingFace hub or a local path.
@@ -208,6 +212,126 @@ class HuggingFaceDrafter:
             else:
                 return self._sample_cached(next_logits, gamma)
         return self._sample_uncached(context, gamma)
+
+    # ── Incremental batch-1 path (gamma forwards per step) ──────────────
+
+    def begin(self, prompt: torch.Tensor) -> bool:
+        """Prefill ``prompt`` for incremental drafting.
+
+        Parameters
+        ----------
+        prompt : torch.Tensor
+            The accepted sequence so far. Shape ``(1, seq)``, int64.
+
+        Returns
+        -------
+        bool
+            True when :meth:`draft`, :meth:`commit` and
+            :meth:`push_pending` can be used. False when the model has no
+            usable cache or the batch is not one; the caller then uses
+            :meth:`generate_draft`.
+        """
+        prompt = prompt.to(self._device)
+        if not self._kv.supports(prompt):
+            return False
+        try:
+            self._kv.start(prompt)
+        except CacheUnavailableError:
+            self._kv.disable()
+            return False
+        self._forwarded_drafts = 0
+        self._unforwarded = None
+        return True
+
+    def draft(self, gamma: int) -> tuple[torch.Tensor, torch.Tensor]:
+        """Sample ``gamma`` tokens with ``gamma`` forwards.
+
+        The first forward carries the pending tokens. Each later forward
+        carries the previous draft token. The last draft token is not
+        forwarded: if it is accepted, :meth:`commit` queues it in front of
+        the next token, and if it is rejected there is nothing to undo.
+
+        Parameters
+        ----------
+        gamma : int
+            Number of draft tokens. Must be ``>= 1``.
+
+        Returns
+        -------
+        draft_token_ids : torch.Tensor
+            Shape ``(1, gamma)``, dtype int64.
+        draft_logprobs : torch.Tensor
+            Temperature-scaled log-probs. Shape ``(1, gamma, vocab)``.
+
+        Raises
+        ------
+        ValueError
+            If ``gamma < 1``.
+        CacheUnavailableError
+            If the cache cannot be extended. The session is disabled.
+        """
+        if gamma < 1:
+            raise ValueError(f"gamma must be >= 1; got {gamma}.")
+        token_steps: list[torch.Tensor] = []
+        logprob_steps: list[torch.Tensor] = []
+        next_ids: torch.Tensor | None = None
+        for _ in range(gamma):
+            next_logits = self._kv.advance(next_ids, keep=1)[:, -1, :]
+            step_logprobs = scaled_log_softmax(next_logits, self._temperature)
+            next_ids = torch.multinomial(step_logprobs.exp(), num_samples=1)
+            token_steps.append(next_ids)
+            logprob_steps.append(step_logprobs.unsqueeze(1))
+        self._forwarded_drafts = gamma - 1
+        self._unforwarded = next_ids
+        return torch.cat(token_steps, dim=1), torch.cat(logprob_steps, dim=1)
+
+    def commit(self, n_accepted: int, next_token: torch.Tensor) -> None:
+        """Keep ``n_accepted`` draft tokens and queue ``next_token``. Never forwards.
+
+        Parameters
+        ----------
+        n_accepted : int
+            Accepted tokens from the last :meth:`draft`, in ``[0, gamma]``.
+        next_token : torch.Tensor
+            The residual or bonus token. Shape ``(1, 1)``.
+
+        Raises
+        ------
+        ValueError
+            If ``n_accepted`` is outside ``[0, gamma]``.
+        CacheUnavailableError
+            If the cache cannot be cropped.
+        """
+        gamma = self._forwarded_drafts + 1
+        if self._unforwarded is None or not 0 <= n_accepted <= gamma:
+            raise ValueError(f"n_accepted must be in [0, {gamma}] after draft(); got {n_accepted}.")
+        next_token = next_token.to(self._device).view(1, -1)
+        if n_accepted == gamma:
+            # Every draft token was accepted. The last one was never
+            # forwarded, so it goes in front of the bonus token.
+            self._kv.push_pending(torch.cat([self._unforwarded, next_token], dim=1))
+        else:
+            self._kv.crop(self._forwarded_drafts - n_accepted)
+            self._kv.push_pending(next_token)
+        self._forwarded_drafts = 0
+        self._unforwarded = None
+
+    def push_pending(self, token_ids: torch.Tensor) -> None:
+        """Queue tokens another drafter's step committed. Never forwards.
+
+        The engine calls this on drafters the bandit did not pick, so
+        their caches catch up in one forward the next time they draft.
+
+        Parameters
+        ----------
+        token_ids : torch.Tensor
+            Shape ``(1, n)``.
+        """
+        self._kv.push_pending(token_ids.to(self._device).view(1, -1))
+
+    def check_cache(self, context: torch.Tensor) -> None:
+        """Assert the incremental cache matches ``context`` (``FLASHSPEC_DEBUG_CACHE=1`` only)."""
+        self._kv.check(context.to(self._device))
 
     def roll_cache_to(self, token_ids: torch.Tensor) -> None:
         """Crop or extend the cache until it matches ``token_ids``.

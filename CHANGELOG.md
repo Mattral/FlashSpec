@@ -38,6 +38,20 @@ The v0.2.0 H100 run is skipped unless a specific reason comes up. Do not
 tag 0.2.0.
 
 ### Changed
+- Batch-1 speculative steps run one target forward instead of two, and
+  `gamma` drafter forwards instead of `gamma + 1`. The target used to
+  re-forward the residual or bonus token alone after every verify to
+  catch its cache up. The caches now crop by the rejected count and hold
+  the next token as pending, so it rides along in the next verify (or
+  first draft) forward. New incremental methods: `TargetModel.begin`,
+  `verify`, `commit`; `HuggingFaceDrafter.begin`, `draft`, `commit`,
+  `push_pending`. The context-based methods are unchanged and still used
+  for batches larger than one and for wrappers that lack the new methods.
+  With a fixed seed the emitted tokens are identical to before.
+- The prompt prefill keeps one logit row (`logits_to_keep=1`) instead of
+  materialising `(seq, vocab)` logits.
+- `FLASHSPEC_DEBUG_CACHE=1` asserts after every step that each cache
+  matches the accepted sequence.
 - `paper/flashspec.tex` is a draft preprint for a later Zenodo version
   (October 2026, software 0.1.5, ORCID 0009-0005-0853-8301, no
   affiliation). The citable record remains
