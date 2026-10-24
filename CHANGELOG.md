@@ -11,6 +11,18 @@ Versioning follows [Semantic Versioning 2.0.0](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- Every benchmark result JSON stores `outputs`: per prompt, in prompt
+  order, the generated token ids, their count and a sha256 (of the ids as
+  decimal text joined by `,`). Two methods made the same tokens for a
+  prompt exactly when the hashes match. A greedy `flashspec_compiled`
+  result run next to `hf_greedy_compiled` also records
+  `greedy_token_match_compiled` against it: both use compiled numerics,
+  so this is the lossless check for the compiled path (the existing
+  `greedy_token_match` stays against eager `hf_greedy`). The ingest script
+  rejects a bundle whose results lack `outputs`, whose hashes don't match
+  their ids, or whose greedy `flashspec_compiled` lacks the compiled
+  match. The README status table gains a "greedy match vs compiled HF"
+  column; it is `n/a` for bundle `52993e4`, which predates the field.
 - Phase 5 (no GPU numbers yet): `FlashSpecConfig.compile` runs the
   batch-1 path on a preallocated static KV cache
   (`flashspec/engine/static_cache.py`) and captures the fixed-shape
