@@ -10,8 +10,9 @@ Usage::
 A bundle is the zip ``benchmarks/gpu_bundle.py`` writes. It is accepted
 only when:
 
-- it holds nothing but ``manifest.json``, ``profile.txt``, ``run.log`` and
-  ``results/<name>.json``, and every sha256 in the manifest matches;
+- it holds nothing but ``manifest.json``, ``profile.txt``, ``run.log``,
+  ``results/<name>.json`` and ``diagnostics/<name>.json``, and every
+  sha256 in the manifest matches;
 - the manifest commit exists in this repository, tracked files were not
   modified at run time, and every config finished (``--allow-partial``
   relaxes the last);
@@ -50,11 +51,21 @@ DESTINATION = Path("benchmarks/results/gpu")
 README = Path("README.md")
 BEGIN = "<!-- BEGIN GENERATED: gpu-results (scripts/ingest_gpu_bundle.py) -->"
 END = "<!-- END GENERATED: gpu-results -->"
+STATUS_BEGIN = "<!-- BEGIN GENERATED: status (scripts/ingest_gpu_bundle.py) -->"
+STATUS_END = "<!-- END GENERATED: status -->"
 ALLOWED_HARDWARE = frozenset(
     {"platform", "machine", "python", "torch", "avx2", "gpu", "cuda", "gpu_count"}
 )
 SPEC = "flashspec_ucb"
-BASELINES = ("hf_greedy", "hf_sample", "hf_assisted", "vanilla_ar")
+SPECS = ("flashspec_ucb", "flashspec_compiled")
+BASELINES = (
+    "hf_greedy",
+    "hf_greedy_compiled",
+    "hf_sample",
+    "hf_sample_compiled",
+    "hf_assisted",
+    "vanilla_ar",
+)
 
 __all__ = ["BEGIN", "END", "ingest", "main", "render_tables", "validate_bundle"]
 
@@ -82,7 +93,11 @@ def _member_ok(name: str) -> bool:
         return False
     if name in {"manifest.json", "profile.txt", "run.log"}:
         return True
-    return len(path.parts) == 2 and path.parts[0] == "results" and path.suffix == ".json"
+    return (
+        len(path.parts) == 2
+        and path.parts[0] in {"results", "diagnostics"}
+        and path.suffix == ".json"
+    )
 
 
 def _check_document(name: str, doc: dict[str, Any], commit: str) -> list[str]:
@@ -115,10 +130,10 @@ def _check_document(name: str, doc: dict[str, Any], commit: str) -> list[str]:
         if section not in doc:
             errors.append(f"{name}: missing section {section!r}")
     method = doc.get("method")
-    if method == SPEC and "step_profile" not in doc:
+    if method in SPECS and "step_profile" not in doc:
         errors.append(f"{name}: FlashSpec result without step_profile")
     decoding = doc.get("decoding") or {}
-    if decoding.get("mode") == "greedy" and method in (SPEC, "hf_assisted"):
+    if decoding.get("mode") == "greedy" and method in (*SPECS, "hf_assisted"):
         if "greedy_token_match" not in doc:
             errors.append(f"{name}: greedy {method} result without greedy_token_match")
     return errors
@@ -207,7 +222,10 @@ def render_tables(documents: list[dict[str, Any]], *, sig: int | None = None) ->
     pairs: dict[tuple[str, str], list[dict[str, Any]]] = {}
     for doc in documents:
         pairs.setdefault((str(doc.get("model")), str(doc.get("drafter"))), []).append(doc)
-    method_rank = {SPEC: 0, **{name: index + 1 for index, name in enumerate(BASELINES)}}
+    method_rank = {
+        **{name: index for index, name in enumerate(SPECS)},
+        **{name: index + len(SPECS) for index, name in enumerate(BASELINES)},
+    }
     lines: list[str] = []
     precision = (
         f"Cells are shown to {sig} significant figures; the JSON keeps full precision."
@@ -231,9 +249,10 @@ def render_tables(documents: list[dict[str, Any]], *, sig: int | None = None) ->
         lines.append(
             "| dataset | mode | method | tok/s median | tok/s p25 | tok/s p75 | acceptance "
             "| tokens / target fwd | target fwd / token | speedup vs plain HF (median) "
-            "| speedup vs hf_assisted (median) | greedy match | NaN/inf logits | peak GB |"
+            "| speedup vs compiled plain HF (median) | speedup vs hf_assisted (median) "
+            "| c (step profile) | greedy match | NaN/inf logits | peak GB |"
         )
-        lines.append("|" + "---|" * 14)
+        lines.append("|" + "---|" * 16)
 
         def _key(doc: dict[str, Any]) -> tuple[str, str, int]:
             decoding = doc.get("decoding") or {}
@@ -257,7 +276,7 @@ def render_tables(documents: list[dict[str, Any]], *, sig: int | None = None) ->
                 match_cell = f"{match['prompts_matched']}/{match['n_prompts']}"
             nonfinite = doc.get("nonfinite_logits") or {}
             bad = None
-            if nonfinite:
+            if "target_entries" in nonfinite:
                 bad = int(nonfinite.get("target_entries", 0)) + int(
                     nonfinite.get("drafter_entries", 0)
                 )
@@ -272,12 +291,32 @@ def render_tables(documents: list[dict[str, Any]], *, sig: int | None = None) ->
                 _cell(counts.get("emitted_tokens_per_target_forward_after_prefill"), sig),
                 _cell(counts.get("target_forwards_per_emitted_token"), sig),
                 _cell(metrics.get(f"speedup_vs_{plain}_median"), sig),
+                _cell(metrics.get(f"speedup_vs_{plain}_compiled_median"), sig),
                 _cell(metrics.get("speedup_vs_hf_assisted_median"), sig),
+                _cell((doc.get("step_cost") or {}).get("c"), sig),
                 match_cell,
                 _cell(bad, sig),
                 _cell(metrics.get("gpu_memory_gb"), sig),
             ]
             lines.append("| " + " | ".join(row) + " |")
+        costs = sorted(
+            {
+                (
+                    str(doc.get("dataset")),
+                    json.dumps((doc.get("forward_cost") or {}).get("eager")),
+                    json.dumps((doc.get("forward_cost") or {}).get("compiled")),
+                )
+                for doc in docs
+                if doc.get("forward_cost")
+            }
+        )
+        for dataset, eager, compiled in costs:
+            eager_c = (json.loads(eager) or {}).get("c")
+            compiled_c = (json.loads(compiled) or {}).get("c") if compiled != "null" else None
+            lines.append(
+                f"- forward_cost ({dataset}): c eager {_cell(eager_c, sig)}, "
+                f"c compiled {_cell(compiled_c, sig)}"
+            )
         lines.append("")
     lines.append(
         "Speedups are medians of per-prompt ratios against the method in the same run. "
@@ -286,12 +325,88 @@ def render_tables(documents: list[dict[str, Any]], *, sig: int | None = None) ->
     return "\n".join(lines) + "\n"
 
 
-def _replace_block(readme: str, body: str) -> str:
-    if BEGIN not in readme or END not in readme:
-        raise BundleError(f"README has no {BEGIN} ... {END} block")
-    head, rest = readme.split(BEGIN, 1)
-    _old, tail = rest.split(END, 1)
-    return f"{head}{BEGIN}\n{body}{END}{tail}"
+def render_status(documents: list[dict[str, Any]], *, sig: int | None = None) -> str | None:
+    """Headline table: compiled FlashSpec vs compiled HF, eager HF and assisted HF.
+
+    Built from the newest commit that has ``flashspec_compiled`` results;
+    ``None`` when there is none.
+    """
+    compiled = [doc for doc in documents if doc.get("method") == "flashspec_compiled"]
+    if not compiled:
+        return None
+    commit = max(compiled, key=lambda doc: str(doc.get("timestamp")))["git_commit"]
+    docs = [doc for doc in compiled if doc.get("git_commit") == commit]
+    others = {
+        (doc.get("dataset"), (doc.get("decoding") or {}).get("mode"), doc.get("method")): doc
+        for doc in documents
+        if doc.get("git_commit") == commit
+    }
+    first = docs[0]
+    hardware = first.get("hardware") or {}
+    lines = [
+        f"Measured at git `{commit}`: `{first.get('model')}` verified by "
+        f"`{first.get('drafter')}`, {hardware.get('gpu')}, fp16, batch 1, gamma "
+        f"{first.get('gamma')}, {first.get('n_samples')} prompts per set (chat template), "
+        f"{(first.get('decoding') or {}).get('max_new_tokens')} new tokens. One model pair, "
+        "one GPU. Speedups are medians of per-prompt ratios within the same run. The "
+        "headline baseline is HuggingFace `generate` with a static cache compiled the same "
+        "way (CUDA graphs); eager HuggingFace and assisted generation are context. "
+        + (
+            f"Cells are shown to {sig} significant figures."
+            if sig is not None
+            else "Cells are the stored JSON values."
+        ),
+        "",
+        "| dataset | mode | FlashSpec tok/s | compiled HF tok/s | **vs compiled HF** "
+        "| eager HF tok/s | vs eager HF | vs HF assisted | acceptance | c (compiled) "
+        "| greedy match vs eager HF |",
+        "|" + "---|" * 11,
+    ]
+    for doc in sorted(
+        docs, key=lambda d: (str(d.get("dataset")), str((d.get("decoding") or {}).get("mode")))
+    ):
+        decoding = doc.get("decoding") or {}
+        mode = decoding.get("mode")
+        plain = "hf_greedy" if mode == "greedy" else "hf_sample"
+        metrics = doc.get("metrics") or {}
+        dataset = doc.get("dataset")
+
+        def _tps(method: str, dataset: Any = dataset, mode: Any = mode) -> object:  # noqa: ANN401
+            other = others.get((dataset, mode, method)) or {}
+            return (other.get("metrics") or {}).get("tokens_per_second_median")
+
+        cost = (doc.get("forward_cost") or {}).get("compiled") or {}
+        match = doc.get("greedy_token_match")
+        lines.append(
+            "| "
+            + " | ".join(
+                [
+                    str(doc.get("dataset")),
+                    "greedy" if mode == "greedy" else f"T={decoding.get('temperature')}",
+                    _cell(metrics.get("tokens_per_second_median"), sig),
+                    _cell(_tps(f"{plain}_compiled"), sig),
+                    "**" + _cell(metrics.get(f"speedup_vs_{plain}_compiled_median"), sig) + "**",
+                    _cell(_tps(plain), sig),
+                    _cell(metrics.get(f"speedup_vs_{plain}_median"), sig),
+                    _cell(metrics.get("speedup_vs_hf_assisted_median"), sig),
+                    _cell(metrics.get("acceptance_rate_mean"), sig),
+                    _cell(cost.get("c"), sig),
+                    f"{match['prompts_matched']}/{match['n_prompts']}"
+                    if isinstance(match, dict)
+                    else "n/a",
+                ]
+            )
+            + " |"
+        )
+    return "\n".join(lines) + "\n"
+
+
+def _replace_block(readme: str, body: str, begin: str = BEGIN, end: str = END) -> str:
+    if begin not in readme or end not in readme:
+        raise BundleError(f"README has no {begin} ... {end} block")
+    head, rest = readme.split(begin, 1)
+    _old, tail = rest.split(end, 1)
+    return f"{head}{begin}\n{body}{end}{tail}"
 
 
 def _all_documents(root: Path) -> list[dict[str, Any]]:
@@ -324,9 +439,11 @@ def ingest(
     """
     accepted = [(path, *validate_bundle(path, allow_partial=allow_partial)) for path in zips]
     if dry_run:
-        documents = _all_documents(destination) + [
-            doc for _path, _manifest, docs in accepted for doc in docs.values()
-        ]
+        # A re-ingested commit replaces its unpacked copy, so show it once.
+        incoming = {str(manifest["git_commit"]) for _path, manifest, _docs in accepted}
+        documents = [
+            doc for doc in _all_documents(destination) if str(doc.get("git_commit")) not in incoming
+        ] + [doc for _path, _manifest, docs in accepted for doc in docs.values()]
         return render_tables(documents, sig=sig)
     for path, manifest, _docs in accepted:
         target = destination / str(manifest["git_commit"])
@@ -337,8 +454,13 @@ def ingest(
                 out.parent.mkdir(parents=True, exist_ok=True)
                 out.write_bytes(archive.read(name))
         print(f"Accepted {path.name} -> {target}")
-    body = render_tables(_all_documents(destination), sig=sig)
-    readme.write_text(_replace_block(readme.read_text(encoding="utf-8"), body), encoding="utf-8")
+    documents = _all_documents(destination)
+    body = render_tables(documents, sig=sig)
+    text = _replace_block(readme.read_text(encoding="utf-8"), body)
+    status = render_status(documents, sig=sig)
+    if status is not None and STATUS_BEGIN in text:
+        text = _replace_block(text, status, STATUS_BEGIN, STATUS_END)
+    readme.write_text(text, encoding="utf-8")
     print(f"Regenerated the gpu-results block in {readme}")
     return body
 

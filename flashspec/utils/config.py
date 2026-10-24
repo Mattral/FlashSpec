@@ -159,6 +159,14 @@ class FlashSpecConfig(BaseModel):
         Compute dtype for model forward passes.
     max_new_tokens : int
         Maximum tokens to generate per call.
+    compile : bool
+        Batch-1 fast path on a static KV cache with CUDA-graph capture
+        (``torch.compile(mode="reduce-overhead")``) of the fixed-shape
+        drafter decode and target verify calls. CUDA only; elsewhere it is
+        a no-op that logs a warning.
+    compile_max_cache_len : int
+        Initial static cache capacity in tokens. A longer call grows it
+        once (and recaptures the graphs).
     eos_token_ids : tuple[int, ...]
         Token ids that end a sequence. Generation of a row stops right
         after it emits one of them; the stop token is kept. Empty (the
@@ -182,6 +190,8 @@ class FlashSpecConfig(BaseModel):
     dtype: Literal["float32", "bfloat16", "float16"] = "bfloat16"
     max_new_tokens: int = Field(default=512, ge=1)
     eos_token_ids: tuple[int, ...] = ()
+    compile: bool = False
+    compile_max_cache_len: int = Field(default=1024, ge=16)
     bandit: BanditConfig = Field(default_factory=BanditConfig)
     sampling: SamplingConfig = Field(default_factory=SamplingConfig)
     metrics: MetricsConfig = Field(default_factory=MetricsConfig)

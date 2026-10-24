@@ -1,0 +1,166 @@
+{
+  "status": "measured",
+  "measurement_kind": "end_to_end",
+  "timestamp": "2026-10-24T12:04:01.594150+00:00",
+  "git_commit": "52993e4",
+  "hardware": {
+    "platform": "Linux",
+    "machine": "x86_64",
+    "python": "3.13.16",
+    "torch": "2.11.0+cu130",
+    "avx2": true,
+    "gpu": "Tesla T4",
+    "cuda": "13.0",
+    "gpu_count": 1
+  },
+  "model": "Qwen/Qwen2.5-1.5B-Instruct",
+  "method": "hf_greedy_compiled",
+  "gamma": 4,
+  "dataset": "mt_bench",
+  "n_samples": 10,
+  "metrics": {
+    "tokens_per_second_mean": 49.084991214708566,
+    "tokens_per_second_std": 0.16450539152638669,
+    "tokens_per_second_median": 49.12532116486909,
+    "tokens_per_second_p25": 48.97701107926284,
+    "tokens_per_second_p75": 49.21500203797986,
+    "tokens_per_second_iqr": 0.23799095871702036,
+    "p50_latency_ms": 2604.5615180000823,
+    "p95_latency_ms": 2626.820749999979,
+    "p99_latency_ms": 2626.820749999979,
+    "gpu_memory_gb": 3.910264492034912
+  },
+  "unmeasured": [
+    "acceptance_rate_mean",
+    "acceptance_rate_std",
+    "speedup_vs_ar_mean",
+    "speedup_vs_ar_std"
+  ],
+  "notes": "HuggingFace generate(do_sample=False). Preallocated StaticCache reused across calls; generate compiles the decode forward with CompileConfig() (torch.compile, mode 'reduce-overhead') on CUDA. Same target, prompts and max_new_tokens. End-to-end generation on the loaded checkpoint versus a vanilla autoregressive loop on the same target. Weights were loaded as torch.float16. Prompts are the fixed mt_bench set (81, 101, 111, 121, 91, 131, 141, 151, 82, 92), tokenized as one user turn through the target's chat template (generation prompt added). Decoding is greedy (temperature 0). Every method generates exactly 128 tokens; EOS is neither a stop nor suppressed. The checkpoint's shipped generation defaults were replaced by GenerationConfig() for the HuggingFace baselines (see generation_config_overrides).",
+  "prompt_ids": [
+    "81",
+    "101",
+    "111",
+    "121",
+    "91",
+    "131",
+    "141",
+    "151",
+    "82",
+    "92"
+  ],
+  "decoding": {
+    "mode": "greedy",
+    "temperature": 0.0,
+    "stop_at_eos": false,
+    "max_new_tokens": 128
+  },
+  "drafter": "Qwen/Qwen2.5-0.5B-Instruct",
+  "prompt_format": "chat_template",
+  "prompt_tokens": [
+    51,
+    67,
+    64,
+    55,
+    61,
+    201,
+    55,
+    57,
+    75,
+    79
+  ],
+  "method_order": "rotated by one position per prompt",
+  "generation_config_overrides": {
+    "replaced_with": "transformers GenerationConfig() defaults; pad_token_id kept",
+    "shipped_target": {
+      "do_sample": true,
+      "temperature": 0.7,
+      "top_k": 20,
+      "top_p": 0.8,
+      "repetition_penalty": 1.1,
+      "pad_token_id": 151643,
+      "bos_token_id": 151643,
+      "eos_token_id": [
+        151645,
+        151643
+      ]
+    },
+    "shipped_drafter": {
+      "do_sample": true,
+      "temperature": 0.7,
+      "top_k": 20,
+      "top_p": 0.8,
+      "repetition_penalty": 1.1,
+      "pad_token_id": 151643,
+      "bos_token_id": 151643,
+      "eos_token_id": [
+        151645,
+        151643
+      ]
+    }
+  },
+  "forward_cost": {
+    "definition": "c = drafter 1-token forward ms / target (gamma+1)-token verify forward ms",
+    "context_tokens": 51,
+    "gamma": 4,
+    "reps": 20,
+    "warmup": 3,
+    "eager": {
+      "drafter_decode_ms": 35.7653889999483,
+      "target_verify_ms": 39.858598999899186,
+      "target_decode_ms": 41.968560999976035,
+      "c": 0.8973067267125661
+    },
+    "compiled": {
+      "drafter_decode_ms": 9.105870999974286,
+      "target_verify_ms": 19.263331500042113,
+      "target_decode_ms": 19.69711800006735,
+      "c": 0.4727048901148993
+    }
+  },
+  "forward_counts": {
+    "n_generations": 10,
+    "tokens_emitted": 1280,
+    "target_forwards": 1280,
+    "target_forwards_per_emitted_token": 1.0,
+    "emitted_tokens_per_target_forward_after_prefill": 1.0078740157480315,
+    "target_input_lengths_first_generation": [],
+    "source": "derived: a hook would force the compiled forward to recompile"
+  },
+  "host_syncs": {
+    "counter": "cuda_sync_debug_mode",
+    "prompt_id": "81",
+    "total": 132,
+    "target_forwards_after_prefill": 127,
+    "target_forwards_source": "derived: one per step / per decoded token",
+    "per_target_forward": 1.0393700787401574,
+    "by_kind": {
+      "cuda": 132
+    }
+  },
+  "nonfinite_logits": {
+    "scope": "not checked: a forward hook would force the compiled forward to recompile",
+    "prompt_id": "81"
+  },
+  "compile": {
+    "requested": true,
+    "effective": true
+  },
+  "greedy_token_match": {
+    "reference": "hf_greedy",
+    "prompts_matched": 10,
+    "n_prompts": 10,
+    "first_divergence": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  }
+}

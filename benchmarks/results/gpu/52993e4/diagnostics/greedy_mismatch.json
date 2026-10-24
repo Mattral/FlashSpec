@@ -1,0 +1,619 @@
+{
+  "device": "Tesla T4",
+  "torch": "2.11.0+cu130",
+  "cases": [
+    {
+      "target": "Qwen/Qwen2.5-1.5B-Instruct",
+      "drafter": "Qwen/Qwen2.5-0.5B-Instruct",
+      "dataset": "mt_bench",
+      "prompt_index": 8,
+      "prompt_id": "82",
+      "prompt_tokens": 75,
+      "dtype": "float32",
+      "gamma": 4,
+      "matches_hf_greedy": true,
+      "first_divergence": null,
+      "phase4_divergence": 97,
+      "at_first_divergence": null,
+      "at_phase4_divergence": {
+        "position": 97,
+        "same_prefix_before_position": true,
+        "hf_greedy": {
+          "ids": [
+            323,
+            11,
+            1741,
+            382,
+            304
+          ],
+          "logits": [
+            27.999704360961914,
+            27.99417495727539,
+            27.400728225708008,
+            25.874385833740234,
+            25.87082862854004
+          ],
+          "margin_top1_top2": 0.0055294036865234375
+        },
+        "flashspec": {
+          "ids": [
+            323,
+            11,
+            1741,
+            382,
+            304
+          ],
+          "logits": [
+            27.999710083007812,
+            27.994182586669922,
+            27.400737762451172,
+            25.87438201904297,
+            25.870819091796875
+          ],
+          "margin_top1_top2": 0.005527496337890625
+        },
+        "flashspec_logits_of_hf_top2": [
+          27.999710083007812,
+          27.994182586669922
+        ],
+        "max_abs_logit_difference": 1.9550323486328125e-05
+      },
+      "token0_paths": {
+        "hf_full_prefill": {
+          "ids": [
+            13019,
+            30665,
+            334,
+            13048,
+            58
+          ],
+          "logits": [
+            27.173425674438477,
+            20.65826988220215,
+            20.53160858154297,
+            20.512977600097656,
+            19.883960723876953
+          ],
+          "margin_top1_top2": 6.515155792236328
+        },
+        "prefix_held_back_path_before_fix": {
+          "ids": [
+            13019,
+            30665,
+            334,
+            13048,
+            58
+          ],
+          "logits": [
+            27.17343521118164,
+            20.658262252807617,
+            20.531612396240234,
+            20.51297378540039,
+            19.883953094482422
+          ],
+          "margin_top1_top2": 6.515172958374023
+        },
+        "max_abs_logit_difference": 4.38690185546875e-05,
+        "argmax_agrees": true
+      }
+    },
+    {
+      "target": "Qwen/Qwen2.5-1.5B-Instruct",
+      "drafter": "Qwen/Qwen2.5-0.5B-Instruct",
+      "dataset": "mt_bench",
+      "prompt_index": 8,
+      "prompt_id": "82",
+      "prompt_tokens": 75,
+      "dtype": "float16",
+      "gamma": 4,
+      "matches_hf_greedy": true,
+      "first_divergence": null,
+      "phase4_divergence": 97,
+      "at_first_divergence": null,
+      "at_phase4_divergence": {
+        "position": 97,
+        "same_prefix_before_position": true,
+        "hf_greedy": {
+          "ids": [
+            323,
+            11,
+            1741,
+            382,
+            304
+          ],
+          "logits": [
+            28.0,
+            27.984375,
+            27.40625,
+            25.890625,
+            25.875
+          ],
+          "margin_top1_top2": 0.015625
+        },
+        "flashspec": {
+          "ids": [
+            323,
+            11,
+            1741,
+            382,
+            304
+          ],
+          "logits": [
+            28.0,
+            27.984375,
+            27.40625,
+            25.890625,
+            25.875
+          ],
+          "margin_top1_top2": 0.015625
+        },
+        "flashspec_logits_of_hf_top2": [
+          28.0,
+          27.984375
+        ],
+        "max_abs_logit_difference": 0.03125
+      },
+      "token0_paths": {
+        "hf_full_prefill": {
+          "ids": [
+            13019,
+            30665,
+            334,
+            13048,
+            58
+          ],
+          "logits": [
+            27.15625,
+            20.640625,
+            20.53125,
+            20.5,
+            19.890625
+          ],
+          "margin_top1_top2": 6.515625
+        },
+        "prefix_held_back_path_before_fix": {
+          "ids": [
+            13019,
+            30665,
+            334,
+            13048,
+            58
+          ],
+          "logits": [
+            27.15625,
+            20.640625,
+            20.53125,
+            20.5,
+            19.875
+          ],
+          "margin_top1_top2": 6.515625
+        },
+        "max_abs_logit_difference": 0.03125,
+        "argmax_agrees": true
+      }
+    },
+    {
+      "target": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+      "drafter": "Felladrin/Llama-160M-Chat-v1",
+      "dataset": "humaneval",
+      "prompt_index": 7,
+      "prompt_id": "HumanEval/47",
+      "prompt_tokens": 97,
+      "dtype": "float32",
+      "gamma": 4,
+      "matches_hf_greedy": true,
+      "first_divergence": null,
+      "phase4_divergence": 61,
+      "at_first_divergence": null,
+      "at_phase4_divergence": {
+        "position": 61,
+        "same_prefix_before_position": true,
+        "hf_greedy": {
+          "ids": [
+            29901,
+            310,
+            8744,
+            773,
+            5314
+          ],
+          "logits": [
+            15.201557159423828,
+            15.191625595092773,
+            14.10643196105957,
+            13.267841339111328,
+            13.012086868286133
+          ],
+          "margin_top1_top2": 0.009931564331054688
+        },
+        "flashspec": {
+          "ids": [
+            29901,
+            310,
+            8744,
+            773,
+            5314
+          ],
+          "logits": [
+            15.201554298400879,
+            15.19162368774414,
+            14.106432914733887,
+            13.267839431762695,
+            13.012090682983398
+          ],
+          "margin_top1_top2": 0.009930610656738281
+        },
+        "flashspec_logits_of_hf_top2": [
+          15.201554298400879,
+          15.19162368774414
+        ],
+        "max_abs_logit_difference": 8.58306884765625e-06
+      },
+      "token0_paths": {
+        "hf_full_prefill": {
+          "ids": [
+            1576,
+            1762,
+            8241,
+            797,
+            8439
+          ],
+          "logits": [
+            17.515262603759766,
+            15.674148559570312,
+            14.679426193237305,
+            14.149641036987305,
+            13.769063949584961
+          ],
+          "margin_top1_top2": 1.8411140441894531
+        },
+        "prefix_held_back_path_before_fix": {
+          "ids": [
+            1576,
+            1762,
+            8241,
+            797,
+            8439
+          ],
+          "logits": [
+            17.515260696411133,
+            15.674156188964844,
+            14.679426193237305,
+            14.149642944335938,
+            13.769071578979492
+          ],
+          "margin_top1_top2": 1.841104507446289
+        },
+        "max_abs_logit_difference": 2.251565456390381e-05,
+        "argmax_agrees": true
+      }
+    },
+    {
+      "target": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+      "drafter": "Felladrin/Llama-160M-Chat-v1",
+      "dataset": "humaneval",
+      "prompt_index": 7,
+      "prompt_id": "HumanEval/47",
+      "prompt_tokens": 97,
+      "dtype": "float16",
+      "gamma": 4,
+      "matches_hf_greedy": false,
+      "first_divergence": 61,
+      "phase4_divergence": 61,
+      "at_first_divergence": {
+        "position": 61,
+        "same_prefix_before_position": true,
+        "hf_greedy": {
+          "ids": [
+            310,
+            29901,
+            8744,
+            773,
+            5314
+          ],
+          "logits": [
+            15.1953125,
+            15.1953125,
+            14.1015625,
+            13.265625,
+            13.0078125
+          ],
+          "margin_top1_top2": 0.0
+        },
+        "flashspec": {
+          "ids": [
+            29901,
+            310,
+            8744,
+            773,
+            5314
+          ],
+          "logits": [
+            15.203125,
+            15.1875,
+            14.09375,
+            13.2734375,
+            13.0078125
+          ],
+          "margin_top1_top2": 0.015625
+        },
+        "flashspec_logits_of_hf_top2": [
+          15.1875,
+          15.203125
+        ],
+        "max_abs_logit_difference": 0.015625
+      },
+      "at_phase4_divergence": {
+        "position": 61,
+        "same_prefix_before_position": true,
+        "hf_greedy": {
+          "ids": [
+            310,
+            29901,
+            8744,
+            773,
+            5314
+          ],
+          "logits": [
+            15.1953125,
+            15.1953125,
+            14.1015625,
+            13.265625,
+            13.0078125
+          ],
+          "margin_top1_top2": 0.0
+        },
+        "flashspec": {
+          "ids": [
+            29901,
+            310,
+            8744,
+            773,
+            5314
+          ],
+          "logits": [
+            15.203125,
+            15.1875,
+            14.09375,
+            13.2734375,
+            13.0078125
+          ],
+          "margin_top1_top2": 0.015625
+        },
+        "flashspec_logits_of_hf_top2": [
+          15.1875,
+          15.203125
+        ],
+        "max_abs_logit_difference": 0.015625
+      },
+      "token0_paths": {
+        "hf_full_prefill": {
+          "ids": [
+            1576,
+            1762,
+            8241,
+            797,
+            8439
+          ],
+          "logits": [
+            17.515625,
+            15.6796875,
+            14.703125,
+            14.1484375,
+            13.7734375
+          ],
+          "margin_top1_top2": 1.8359375
+        },
+        "prefix_held_back_path_before_fix": {
+          "ids": [
+            1576,
+            1762,
+            8241,
+            797,
+            8439
+          ],
+          "logits": [
+            17.5,
+            15.6796875,
+            14.6953125,
+            14.140625,
+            13.765625
+          ],
+          "margin_top1_top2": 1.8203125
+        },
+        "max_abs_logit_difference": 0.017578125,
+        "argmax_agrees": true
+      }
+    },
+    {
+      "target": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+      "drafter": "Felladrin/Llama-160M-Chat-v1",
+      "dataset": "mt_bench",
+      "prompt_index": 5,
+      "prompt_id": "131",
+      "prompt_tokens": 199,
+      "dtype": "float32",
+      "gamma": 4,
+      "matches_hf_greedy": true,
+      "first_divergence": null,
+      "phase4_divergence": 0,
+      "at_first_divergence": null,
+      "at_phase4_divergence": {
+        "position": 0,
+        "same_prefix_before_position": true,
+        "hf_greedy": {
+          "ids": [
+            1762,
+            10605,
+            29902,
+            5103,
+            16963
+          ],
+          "logits": [
+            15.88587760925293,
+            15.884531021118164,
+            15.008980751037598,
+            14.284706115722656,
+            13.427654266357422
+          ],
+          "margin_top1_top2": 0.001346588134765625
+        },
+        "flashspec": {
+          "ids": [
+            1762,
+            10605,
+            29902,
+            5103,
+            16963
+          ],
+          "logits": [
+            15.88587760925293,
+            15.884531021118164,
+            15.008980751037598,
+            14.284706115722656,
+            13.427654266357422
+          ],
+          "margin_top1_top2": 0.001346588134765625
+        },
+        "flashspec_logits_of_hf_top2": [
+          15.88587760925293,
+          15.884531021118164
+        ],
+        "max_abs_logit_difference": 0.0
+      },
+      "token0_paths": {
+        "hf_full_prefill": {
+          "ids": [
+            1762,
+            10605,
+            29902,
+            5103,
+            16963
+          ],
+          "logits": [
+            15.88587760925293,
+            15.884531021118164,
+            15.008980751037598,
+            14.284706115722656,
+            13.427654266357422
+          ],
+          "margin_top1_top2": 0.001346588134765625
+        },
+        "prefix_held_back_path_before_fix": {
+          "ids": [
+            1762,
+            10605,
+            29902,
+            5103,
+            16963
+          ],
+          "logits": [
+            15.88587760925293,
+            15.884530067443848,
+            15.008976936340332,
+            14.284706115722656,
+            13.427651405334473
+          ],
+          "margin_top1_top2": 0.0013475418090820312
+        },
+        "max_abs_logit_difference": 1.1205673217773438e-05,
+        "argmax_agrees": true
+      }
+    },
+    {
+      "target": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+      "drafter": "Felladrin/Llama-160M-Chat-v1",
+      "dataset": "mt_bench",
+      "prompt_index": 5,
+      "prompt_id": "131",
+      "prompt_tokens": 199,
+      "dtype": "float16",
+      "gamma": 4,
+      "matches_hf_greedy": true,
+      "first_divergence": null,
+      "phase4_divergence": 0,
+      "at_first_divergence": null,
+      "at_phase4_divergence": {
+        "position": 0,
+        "same_prefix_before_position": true,
+        "hf_greedy": {
+          "ids": [
+            10605,
+            1762,
+            29902,
+            5103,
+            16963
+          ],
+          "logits": [
+            15.890625,
+            15.890625,
+            15.0078125,
+            14.28125,
+            13.4375
+          ],
+          "margin_top1_top2": 0.0
+        },
+        "flashspec": {
+          "ids": [
+            10605,
+            1762,
+            29902,
+            5103,
+            16963
+          ],
+          "logits": [
+            15.890625,
+            15.890625,
+            15.0078125,
+            14.28125,
+            13.4375
+          ],
+          "margin_top1_top2": 0.0
+        },
+        "flashspec_logits_of_hf_top2": [
+          15.890625,
+          15.890625
+        ],
+        "max_abs_logit_difference": 0.0
+      },
+      "token0_paths": {
+        "hf_full_prefill": {
+          "ids": [
+            10605,
+            1762,
+            29902,
+            5103,
+            16963
+          ],
+          "logits": [
+            15.890625,
+            15.890625,
+            15.0078125,
+            14.28125,
+            13.4375
+          ],
+          "margin_top1_top2": 0.0
+        },
+        "prefix_held_back_path_before_fix": {
+          "ids": [
+            10605,
+            1762,
+            29902,
+            5103,
+            16963
+          ],
+          "logits": [
+            15.8828125,
+            15.875,
+            15.0078125,
+            14.28125,
+            13.4375
+          ],
+          "margin_top1_top2": 0.0078125
+        },
+        "max_abs_logit_difference": 0.0390625,
+        "argmax_agrees": false
+      }
+    }
+  ],
+  "fp32_all_match": true
+}

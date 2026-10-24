@@ -11,6 +11,28 @@ Versioning follows [Semantic Versioning 2.0.0](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- Phase 5 (no GPU numbers yet): `FlashSpecConfig.compile` runs the
+  batch-1 path on a preallocated static KV cache
+  (`flashspec/engine/static_cache.py`) and captures the fixed-shape
+  drafter decode and target verify calls with
+  `torch.compile(mode="reduce-overhead")` CUDA graphs, using the same
+  `CompileConfig()` HuggingFace `generate` uses for a static cache.
+  Cropping moves the cache write position; `cache_position` is computed
+  on the device; the prefill stays eager; a compile failure falls back to
+  eager and is recorded. CUDA only; on other devices the flag logs a
+  warning and changes nothing. The static path is checked eagerly on CPU
+  (same logits as the dynamic cache, greedy equal to `generate`, same
+  sampled tokens as the cache-free engine).
+- Benchmark methods `flashspec_compiled`, `hf_greedy_compiled` and
+  `hf_sample_compiled` (HuggingFace `generate` on a reused `StaticCache`,
+  compiled with `CompileConfig()`), so a graph-captured FlashSpec is
+  compared with a graph-captured HuggingFace. Every result records
+  `forward_cost` (c = drafter 1-token forward ms / target verify forward
+  ms, timed eager and compiled); FlashSpec results also record
+  `step_cost` (c from the step profile) and `compile` (requested,
+  effective, fallback reason). `benchmarks/configs/qwen_t4_compile.yaml`
+  and notebook cell 3b run the Qwen pair with every method, plus the
+  greedy-mismatch diagnostic, into one bundle.
 - Phase 4 GPU measurement setup (no GPU numbers yet).
   - `benchmarks/configs/qwen_t4.yaml` (Qwen2.5-1.5B-Instruct verified,
     Qwen2.5-0.5B-Instruct drafting) and `benchmarks/configs/tinyllama_t4.yaml`

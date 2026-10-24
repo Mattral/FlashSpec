@@ -75,6 +75,7 @@ def _hf_greedy(target: Any, prompt: torch.Tensor) -> tuple[list[int], list[torch
     with torch.no_grad():
         out = target.generate(
             prompt,
+            attention_mask=torch.ones_like(prompt),
             do_sample=False,
             max_new_tokens=_NEW_TOKENS,
             min_new_tokens=_NEW_TOKENS,
@@ -101,7 +102,7 @@ def _flashspec_greedy(
     verify_rows = target._verify_rows
 
     def _capture(draft: torch.Tensor) -> torch.Tensor:
-        kv = target._kv
+        kv = target._inc
         committed = kv.cached_length + kv.pending_length
         rows = verify_rows(draft)
         first = committed - prompt_len

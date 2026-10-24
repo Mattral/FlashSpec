@@ -72,6 +72,7 @@ def _hf_greedy(model: Any, prompt: torch.Tensor) -> torch.Tensor:  # noqa: ANN40
     with torch.no_grad():
         out = model.generate(
             prompt,
+            attention_mask=torch.ones_like(prompt),
             do_sample=False,
             max_new_tokens=_NEW_TOKENS,
             min_new_tokens=_NEW_TOKENS,
