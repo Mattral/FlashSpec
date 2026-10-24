@@ -285,11 +285,19 @@ def _patch_server_loaders(monkeypatch: pytest.MonkeyPatch, n_drafters: int) -> o
 
     monkeypatch.setattr(cli, "load_drafters", lambda *args, **kwargs: [object()] * n_drafters)
     monkeypatch.setattr(cli, "TargetModel", lambda *args, **kwargs: object())
-    monkeypatch.setattr(cli, "SpeculativeEngine", lambda *args, **kwargs: object())
+    configs: list[object] = []
+
+    def _engine(config: object, *args: object, **kwargs: object) -> object:
+        configs.append(config)
+        return object()
+
+    monkeypatch.setattr(cli, "SpeculativeEngine", _engine)
+    monkeypatch.setattr(cli, "_seen_configs", configs, raising=False)
 
     class _Tok:
         pad_token = None
         eos_token = "<eos>"
+        eos_token_id = 2
 
         def encode(self, text: str, add_special_tokens: bool = False) -> list[int]:
             return [3, 4]
@@ -337,6 +345,9 @@ def test_main_wires_thompson_without_loading_weights(
     assert seen["host"] == "127.0.0.1"
     assert seen["port"] == 9
     assert seen["app"] is not None
+    # Completions stop at the tokenizer's EOS.
+    (config,) = cli._seen_configs  # type: ignore[attr-defined]
+    assert config.eos_token_ids == (2,)
 
 
 def test_main_one_drafter_warns_and_missing_uvicorn_raises(

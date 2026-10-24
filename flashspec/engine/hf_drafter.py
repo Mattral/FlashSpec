@@ -179,6 +179,8 @@ class HuggingFaceDrafter:
         self,
         input_ids: torch.Tensor,
         gamma: int,
+        *,
+        generator: torch.Generator | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """Sample ``gamma`` draft tokens and their full-vocab log-probs.
 
@@ -188,6 +190,8 @@ class HuggingFaceDrafter:
             Context. Shape ``(batch, seq_len)``, dtype int64.
         gamma : int
             Number of draft tokens. Must be ``>= 1``.
+        generator : torch.Generator or None
+            Source of the draft draws. ``None`` uses the global RNG.
 
         Returns
         -------
@@ -214,8 +218,8 @@ class HuggingFaceDrafter:
             except CacheUnavailableError:
                 self._kv.disable()
             else:
-                return self._sample_cached(next_logits, gamma)
-        return self._sample_uncached(context, gamma)
+                return self._sample_cached(next_logits, gamma, generator)
+        return self._sample_uncached(context, gamma, generator)
 
     # ── Incremental batch-1 path (gamma forwards per step) ──────────────
 
@@ -248,7 +252,11 @@ class HuggingFaceDrafter:
         return True
 
     def draft(
-        self, gamma: int, *, greedy: bool | None = None
+        self,
+        gamma: int,
+        *,
+        greedy: bool | None = None,
+        generator: torch.Generator | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor | None]:
         """Propose ``gamma`` tokens with ``gamma`` forwards.
 
@@ -265,6 +273,8 @@ class HuggingFaceDrafter:
             True takes the argmax of the raw logits: no softmax, no
             randomness, and no log-probs are built. ``None`` means greedy
             when this drafter's temperature is 0.
+        generator : torch.Generator or None
+            Source of the draft draws. ``None`` uses the global RNG.
 
         Returns
         -------
@@ -294,7 +304,9 @@ class HuggingFaceDrafter:
                 next_ids = next_logits.argmax(dim=-1, keepdim=True)
             else:
                 step_logprobs = scaled_log_softmax(next_logits, self._score_temperature)
-                next_ids = torch.multinomial(step_logprobs.exp(), num_samples=1)
+                next_ids = torch.multinomial(
+                    step_logprobs.exp(), num_samples=1, generator=generator
+                )
                 logprob_steps.append(step_logprobs.unsqueeze(1))
             token_steps.append(next_ids)
         self._forwarded_drafts = gamma - 1
@@ -370,23 +382,26 @@ class HuggingFaceDrafter:
         except CacheUnavailableError:
             self._kv.disable()
 
-    def _pick(self, step_logprobs: torch.Tensor) -> torch.Tensor:
+    def _pick(
+        self, step_logprobs: torch.Tensor, generator: torch.Generator | None = None
+    ) -> torch.Tensor:
         """Sample one token per row, or take the argmax at temperature 0."""
         if self._temperature == 0.0:
             return step_logprobs.argmax(dim=-1, keepdim=True)
-        return torch.multinomial(step_logprobs.exp(), num_samples=1)
+        return torch.multinomial(step_logprobs.exp(), num_samples=1, generator=generator)
 
     def _sample_cached(
         self,
         next_logits: torch.Tensor,
         gamma: int,
+        generator: torch.Generator | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """Sample ``gamma`` tokens, forwarding one new token at a time."""
         token_steps: list[torch.Tensor] = []
         logprob_steps: list[torch.Tensor] = []
         for _ in range(gamma):
             step_logprobs = scaled_log_softmax(next_logits, self._score_temperature)
-            next_id = self._pick(step_logprobs)
+            next_id = self._pick(step_logprobs, generator)
             token_steps.append(next_id)
             logprob_steps.append(step_logprobs.unsqueeze(1))
             next_logits = self._kv.append(next_id)[:, -1, :]
@@ -396,6 +411,7 @@ class HuggingFaceDrafter:
         self,
         context: torch.Tensor,
         gamma: int,
+        generator: torch.Generator | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """Sample ``gamma`` tokens, forwarding the growing context each step."""
         token_steps: list[torch.Tensor] = []
@@ -403,7 +419,7 @@ class HuggingFaceDrafter:
         for _ in range(gamma):
             step_logits = self._next_logits(context)
             step_logprobs = scaled_log_softmax(step_logits, self._score_temperature)
-            next_id = self._pick(step_logprobs)
+            next_id = self._pick(step_logprobs, generator)
             token_steps.append(next_id)
             logprob_steps.append(step_logprobs.unsqueeze(1))
             context = torch.cat([context, next_id], dim=1)

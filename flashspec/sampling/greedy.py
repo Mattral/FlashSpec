@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import torch
 
-__all__ = ["greedy_verify"]
+__all__ = ["greedy_step", "greedy_verify"]
 
 
 def greedy_verify(
@@ -73,3 +73,30 @@ def greedy_verify(
     accepted = torch.where(positions <= first.unsqueeze(1), target_argmax[:, :gamma], -1)
     bonus = target_argmax[:, gamma] if target_argmax.shape[1] == gamma + 1 else None
     return accepted, first.to(torch.int32), bonus
+
+
+def greedy_step(draft_token_ids: torch.Tensor, target_argmax: torch.Tensor) -> torch.Tensor:
+    """Greedy verification as ``[n_accepted, next_token]``, with no host sync.
+
+    Parameters
+    ----------
+    draft_token_ids : torch.Tensor
+        Shape ``(batch, gamma)``, int64.
+    target_argmax : torch.Tensor
+        Shape ``(batch, gamma + 1)``, or ``(batch, gamma)`` when there is no
+        bonus row; a full accept then returns ``-1`` as the next token.
+
+    Returns
+    -------
+    torch.Tensor
+        Shape ``(batch, 2)``, int64: accepted draft count, then
+        ``target_argmax[n_accepted]``.
+    """
+    _, first, _ = greedy_verify(draft_token_ids, target_argmax)
+    first = first.long()
+    target_argmax = target_argmax.to(device=draft_token_ids.device, dtype=torch.long)
+    if target_argmax.shape[1] == draft_token_ids.shape[1]:
+        padded = torch.full_like(target_argmax[:, :1], -1)
+        target_argmax = torch.cat([target_argmax, padded], dim=1)
+    next_token = target_argmax.gather(1, first.unsqueeze(1)).squeeze(1)
+    return torch.stack([first, next_token], dim=-1)

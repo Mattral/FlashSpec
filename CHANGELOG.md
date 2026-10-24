@@ -34,13 +34,34 @@ Versioning follows [Semantic Versioning 2.0.0](https://semver.org/).
   `tests/integration/test_greedy_gold_gpu.py`, runnable from
   `notebooks/04_gpu_measurement.ipynb`). Sampling at temperature > 0 is
   unchanged.
+  The GPU gold test was run on Colab on `perf/phase-2-greedy`
+  (2026-10-24; GPU: Tesla T4, torch 2.11.0+cu130, CUDA 13.0):
+  `test_tinyllama_greedy_matches_generate_fp32` PASSED,
+  `test_tinyllama_greedy_matches_generate_fp16` XPASS (fp16 also matched
+  token for token); 1 passed, 1 xpassed in 126.04s. That run covered
+  4 HumanEval prompts, not the 5 the test asks for: only 4 were vendored
+  and the test sliced `[:5]` without checking. The test now asserts the
+  prompt count.
 - The harness runs greedy configs (`temperature: 0`,
   `benchmarks/configs/tiny_llama_cpu_greedy.yaml`): `vanilla_ar` decodes
   greedily, `hf_sample` is skipped, every result records `decoding`, and
   the FlashSpec result records `greedy_token_match` against the greedy
   baseline for each measured prompt.
 
+- Stop tokens: `FlashSpecConfig.eos_token_ids` and
+  `SpeculativeEngine.generate(..., eos_token_ids=...)`. A row stops right
+  after its first stop token (kept); the rest of the row is `-1`. The
+  serve CLI sets it from the tokenizer, so completions end at EOS.
+
 ### Fixed
+- `SamplingConfig.seed` is applied. Each `generate` call seeds a private
+  `torch.Generator` used for every draw (drafts, acceptance uniforms,
+  residual, bonus), so one seed reproduces one output and the global RNG
+  is not touched. `seed=None` keeps the global RNG, as before.
+- The bandit reward is emitted tokens (accepted drafts plus the residual
+  or bonus token) per step-second. It used to count accepted drafts only,
+  which ignored the token every step emits and penalised larger gamma.
+  The accept count passed to the bandit is unchanged.
 - `test_adversarial_swap_recovery_within_200_rounds` checked the wrong
   quantity ([issue 27](https://github.com/Mattral/FlashSpec/issues/27)).
   UCB1 does switch: at seed 55 it picks the new best arm in 197 of the 200
@@ -54,6 +75,14 @@ The v0.2.0 H100 run is skipped unless a specific reason comes up. Do not
 tag 0.2.0.
 
 ### Changed
+- Batch-1 fast path (`variant` `"rejection"` or `"greedy"`): one
+  device-to-host read per step instead of several, no
+  `torch.cuda.synchronize()` per step, `exp()` only on the one vocab row
+  the residual or bonus needs, a preallocated sequence buffer instead of
+  `torch.cat` growth. `rejection_step` keeps Algorithm 1's acceptance
+  test and residual formula; with a fixed seed the emitted tokens are
+  unchanged. Batches > 1 and `variant="typical"` keep the context-based
+  loop.
 - Batch-1 speculative steps run one target forward instead of two, and
   `gamma` drafter forwards instead of `gamma + 1`. The target used to
   re-forward the residual or bonus token alone after every verify to

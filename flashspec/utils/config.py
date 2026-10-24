@@ -159,6 +159,10 @@ class FlashSpecConfig(BaseModel):
         Compute dtype for model forward passes.
     max_new_tokens : int
         Maximum tokens to generate per call.
+    eos_token_ids : tuple[int, ...]
+        Token ids that end a sequence. Generation of a row stops right
+        after it emits one of them; the stop token is kept. Empty (the
+        default) always generates ``max_new_tokens``.
     bandit : BanditConfig
         Bandit algorithm settings.
     sampling : SamplingConfig
@@ -177,6 +181,7 @@ class FlashSpecConfig(BaseModel):
     device: str = "cuda:0"
     dtype: Literal["float32", "bfloat16", "float16"] = "bfloat16"
     max_new_tokens: int = Field(default=512, ge=1)
+    eos_token_ids: tuple[int, ...] = ()
     bandit: BanditConfig = Field(default_factory=BanditConfig)
     sampling: SamplingConfig = Field(default_factory=SamplingConfig)
     metrics: MetricsConfig = Field(default_factory=MetricsConfig)

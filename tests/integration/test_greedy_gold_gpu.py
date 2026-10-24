@@ -60,6 +60,10 @@ def _load(dtype: torch.dtype) -> tuple[Any, Any, list[torch.Tensor]]:
     drafter = AutoModelForCausalLM.from_pretrained(_DRAFTER, torch_dtype=dtype).to(device).eval()
     tokenizer = AutoTokenizer.from_pretrained(_TARGET)
     records = load_prompt_set("humaneval")[:_N_PROMPTS]
+    if len(records) != _N_PROMPTS:
+        raise AssertionError(
+            f"humaneval has {len(records)} vendored prompts; this test needs {_N_PROMPTS}."
+        )
     prompts = tokenize_prompts(records, tokenizer, device, None)
     return target, drafter, prompts
 

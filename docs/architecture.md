@@ -69,6 +69,20 @@ where the model supports it, and that last token is the first pending
 token. `FLASHSPEC_DEBUG_CACHE=1` keeps the cached ids as well and asserts
 after every step that cache plus pending equals the accepted sequence.
 
+With `variant` `"rejection"` or `"greedy"`, batch 1 runs a dedicated
+loop (`SpeculativeEngine._generate_single`) that reads the device once
+per step. `rejection_step` / `greedy_step` leave `[n_accepted,
+next_token]` on the device (`exp()` only on the one row the residual or
+the bonus needs, one `multinomial` that is either the residual or the
+bonus, selected with `torch.where`). A single `tolist()` of that pair
+plus the draft ids gives the host what it needs for EOS, the length
+check and the cache crop. Accepted tokens are written by index into a
+buffer preallocated to `prompt + max_new_tokens + gamma + 1`. The step
+latency and the bandit reward (emitted tokens per step-second) use the
+clock read right after that `tolist()`, so no `torch.cuda.synchronize()`
+runs inside the loop. `config.sampling.seed` seeds a per-call
+`torch.Generator`; `seed=None` keeps the global RNG.
+
 When the batch has more than one row, the drafter and the target roll
 their caches by comparing token ids, and only when the group that runs
 has one row (`len(idxs) == 1` in `flashspec/engine/speculative.py`). A
