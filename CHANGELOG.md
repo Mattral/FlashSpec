@@ -34,6 +34,11 @@ Versioning follows [Semantic Versioning 2.0.0](https://semver.org/).
   `tests/integration/test_greedy_gold_gpu.py`, runnable from
   `notebooks/04_gpu_measurement.ipynb`). Sampling at temperature > 0 is
   unchanged.
+  The GPU gold test was run on Colab on `perf/phase-2-greedy`
+  (2026-10-24; GPU: Tesla T4, torch 2.11.0+cu130, CUDA 13.0):
+  `test_tinyllama_greedy_matches_generate_fp32` PASSED,
+  `test_tinyllama_greedy_matches_generate_fp16` XPASS (fp16 also matched
+  token for token); 1 passed, 1 xpassed in 126.04s.
 - The harness runs greedy configs (`temperature: 0`,
   `benchmarks/configs/tiny_llama_cpu_greedy.yaml`): `vanilla_ar` decodes
   greedily, `hf_sample` is skipped, every result records `decoding`, and
