@@ -85,6 +85,19 @@ clock read right after that `tolist()`, so no `torch.cuda.synchronize()`
 runs inside the loop. `config.sampling.seed` seeds a per-call
 `torch.Generator`; `seed=None` keeps the global RNG.
 
+With `FlashSpecConfig.compile` on a CUDA device, the same incremental
+path runs on `StaticKvSession` (`flashspec/engine/static_cache.py`): a
+HuggingFace `StaticCache` allocated once per model at
+`compile_max_cache_len` tokens and reused across calls, so its tensors
+keep their addresses. A crop moves each layer's write position back
+instead of slicing tensors (stale entries past it are masked by the
+causal mask and overwritten by the next forward), and `cache_position`
+is computed on the device from that position. The prompt prefill runs
+eagerly; the fixed-shape calls (drafter decode of 1 or 2 tokens, target
+verify of `gamma` or `1 + gamma` tokens) go through
+`torch.compile(model.__call__, mode="reduce-overhead")`, which replays
+them as CUDA graphs.
+
 When the batch has more than one row, the drafter and the target roll
 their caches by comparing token ids, and only when the group that runs
 has one row (`len(idxs) == 1` in `flashspec/engine/speculative.py`). A
