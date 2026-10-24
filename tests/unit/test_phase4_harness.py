@@ -407,6 +407,16 @@ class TestPhase5Methods:
             assert eager["c"] is not None and eager["c"] > 0
             assert forward_cost["compiled"] is None
 
+    def test_sampled_mode_runs_hf_sample_compiled(self) -> None:
+        """At T > 0 the compiled plain baseline is hf_sample_compiled."""
+        methods = ["flashspec_ucb", "hf_sample", "hf_sample_compiled", "hf_greedy_compiled"]
+        paired = run_paired_generations(_toy_config(temperature=0.7, methods=methods))
+        assert set(paired) == {"flashspec_ucb", "hf_sample", "hf_sample_compiled"}
+
+
+class TestOutputs:
+    """Per-prompt output token ids and hashes in every result document."""
+
     def test_every_document_stores_per_prompt_outputs(self) -> None:
         """Token ids and their sha256 per prompt, in prompt order, for every method."""
         methods = ["flashspec_ucb", "flashspec_compiled", "hf_greedy", "hf_greedy_compiled"]
@@ -432,9 +442,3 @@ class TestPhase5Methods:
 
         assert harness.token_sha256([3, 14, 15]) == hashlib.sha256(b"3,14,15").hexdigest()
         assert harness.token_sha256([]) == hashlib.sha256(b"").hexdigest()
-
-    def test_sampled_mode_runs_hf_sample_compiled(self) -> None:
-        """At T > 0 the compiled plain baseline is hf_sample_compiled."""
-        methods = ["flashspec_ucb", "hf_sample", "hf_sample_compiled", "hf_greedy_compiled"]
-        paired = run_paired_generations(_toy_config(temperature=0.7, methods=methods))
-        assert set(paired) == {"flashspec_ucb", "hf_sample", "hf_sample_compiled"}
