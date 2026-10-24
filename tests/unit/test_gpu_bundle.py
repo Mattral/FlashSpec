@@ -170,7 +170,14 @@ class TestValidate:
     @pytest.mark.parametrize(
         ("label", "kwargs", "needle"),
         [
-            ("dirty", {"edit_doc": _as_gpu_run}, "tracked files were modified"),
+            (
+                "dirty",
+                {
+                    "edit_doc": _as_gpu_run,
+                    "edit_manifest": lambda m: m.update(tracked_files_modified=True),
+                },
+                "tracked files were modified",
+            ),
             (
                 "hash",
                 {"edit_doc": _as_gpu_run, "edit_manifest": _clean, "rehash": False},
