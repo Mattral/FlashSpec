@@ -212,6 +212,15 @@ tag 0.2.0.
   Release titles for v0.1.0, v0.1.1, v0.1.3, v0.1.4, and v0.1.5 use the
   form `FlashSpec vX.Y.Z — short title`. The tag commits did not move.
 
+### Added (0.2.0 measurement setup, no numbers yet)
+- `benchmarks/configs/qwen_t4_compile_auto.yaml`: `qwen_t4_compile.yaml`
+  plus `flashspec_compile: auto`, so `flashspec_compiled` runs the way a
+  default user gets it. Notebook cell 1 takes `COMMIT` (a commit on
+  `main`, checked out exactly and verified to be on `main`), and cell 3c
+  runs this config into one bundle. It refuses to download unless every
+  `flashspec_compiled` result records `requested: auto`, `effective: true`
+  and no eager fallback. The 0.2.0 README tables come from that bundle.
+
 ## [0.1.5] — 2026-10-16 — Honest CPU path, optional ASM, small server
 
 Development status stays Alpha. This version does not claim a production
