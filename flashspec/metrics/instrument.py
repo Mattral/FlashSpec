@@ -23,7 +23,7 @@ from typing import Any
 import torch
 from torch import nn
 
-__all__ = ["ForwardRecorder", "SyncCounter", "count_host_syncs"]
+__all__ = ["ForwardRecorder", "NonFiniteLogits", "SyncCounter", "count_host_syncs"]
 
 _SYNC_METHODS: tuple[str, ...] = ("item", "tolist", "__bool__", "__int__", "__float__")
 
@@ -83,6 +83,52 @@ class ForwardRecorder:
 
     def __exit__(self, *_exc: object) -> None:
         self.detach()
+
+
+class NonFiniteLogits:
+    """Count NaN and inf entries in the logits a module returns.
+
+    The count is accumulated in a device tensor, so the hook adds no host
+    sync; :attr:`count` reads it once.
+
+    Parameters
+    ----------
+    module : nn.Module
+        Model whose ``forward`` output has a ``logits`` attribute.
+    """
+
+    def __init__(self, module: nn.Module) -> None:
+        self._module = module
+        self._handle: torch.utils.hooks.RemovableHandle | None = None
+        self._total: torch.Tensor | None = None
+        self._calls = 0
+
+    def _hook(self, _module: nn.Module, _args: tuple[Any, ...], output: Any) -> None:  # noqa: ANN401
+        logits = getattr(output, "logits", None)
+        if not isinstance(logits, torch.Tensor):
+            return
+        bad = torch.isfinite(logits).logical_not().sum()
+        self._total = bad if self._total is None else self._total + bad
+        self._calls += 1
+
+    def __enter__(self) -> NonFiniteLogits:
+        self._handle = self._module.register_forward_hook(self._hook)
+        return self
+
+    def __exit__(self, *_exc: object) -> None:
+        if self._handle is not None:
+            self._handle.remove()
+            self._handle = None
+
+    @property
+    def calls(self) -> int:
+        """Forwards whose logits were checked."""
+        return self._calls
+
+    @property
+    def count(self) -> int:
+        """NaN or inf logit entries seen so far (one device read)."""
+        return 0 if self._total is None else int(self._total.item())
 
 
 @dataclass(slots=True)

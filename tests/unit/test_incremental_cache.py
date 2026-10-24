@@ -233,15 +233,15 @@ class TestPrefill:
         assert session.cached_length == 12
         assert session.pending_length == 0
 
-    def test_one_token_prompt_is_not_prefilled(self) -> None:
-        """A one-token prompt is only pending; the first verify creates the cache."""
+    def test_one_token_prompt(self) -> None:
+        """A one-token prompt is prefilled like any other; the verify scores against it."""
         model = _llama(1, 8)
         target = TargetModel("t", torch.device("cpu"), torch.float32, model=model)
         prompt = torch.tensor([[3]])
         with ForwardRecorder(model) as recorder:
             assert target.begin(prompt)
             scored = target.verify(torch.tensor([[4, 5]]))
-        assert recorder.lengths == [3]
+        assert recorder.lengths == [1, 2]
         expected = _full_logprobs(model, torch.tensor([[3, 4, 5]]))
         assert torch.allclose(scored, expected, rtol=1e-4, atol=1e-5)
 

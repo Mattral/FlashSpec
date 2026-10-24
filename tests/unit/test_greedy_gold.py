@@ -251,7 +251,7 @@ def test_greedy_step_is_one_target_forward_and_builds_no_softmax(
     assert calls == []
     assert result.step_profile is not None
     n_steps = len(result.step_profile)
-    assert t_rec.lengths == [prompt.shape[1] - 1] + [1 + gamma] * n_steps
+    assert t_rec.lengths == [prompt.shape[1], gamma] + [1 + gamma] * (n_steps - 1)
     assert len(d_rec.lengths) == 1 + gamma * n_steps
 
 

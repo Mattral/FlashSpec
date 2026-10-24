@@ -1,0 +1,94 @@
+{
+  "bundle_format": 1,
+  "git_commit": "36134c0",
+  "tracked_files_modified": false,
+  "started_utc": "2026-10-24T10:00:00.462001+00:00",
+  "finished_utc": "2026-10-24T10:30:38.191319+00:00",
+  "duration_s": 1837.72934013,
+  "configs": [
+    {
+      "path": "benchmarks/configs/qwen_t4.yaml",
+      "sha256": "06b8f2c2c4666a5eb75d298ef0a84647b724b50acdae58625e6f44f94c2e25de",
+      "status": "ok",
+      "files": [
+        "qwen_t4_mt_bench_greedy_flashspec_ucb_36134c0.json",
+        "qwen_t4_mt_bench_greedy_hf_greedy_36134c0.json",
+        "qwen_t4_mt_bench_greedy_hf_assisted_36134c0.json",
+        "qwen_t4_mt_bench_t0.7_flashspec_ucb_36134c0.json",
+        "qwen_t4_mt_bench_t0.7_hf_sample_36134c0.json",
+        "qwen_t4_mt_bench_t0.7_hf_assisted_36134c0.json",
+        "qwen_t4_humaneval_greedy_flashspec_ucb_36134c0.json",
+        "qwen_t4_humaneval_greedy_hf_greedy_36134c0.json",
+        "qwen_t4_humaneval_greedy_hf_assisted_36134c0.json",
+        "qwen_t4_humaneval_t0.7_flashspec_ucb_36134c0.json",
+        "qwen_t4_humaneval_t0.7_hf_sample_36134c0.json",
+        "qwen_t4_humaneval_t0.7_hf_assisted_36134c0.json"
+      ],
+      "duration_s": 1031.437759061
+    },
+    {
+      "path": "benchmarks/configs/tinyllama_t4.yaml",
+      "sha256": "6069fca166a38e223e739fd9597642e56b1171528b1d92ce4dddb28ab79e4a5e",
+      "status": "ok",
+      "files": [
+        "tinyllama_t4_mt_bench_greedy_flashspec_ucb_36134c0.json",
+        "tinyllama_t4_mt_bench_greedy_hf_greedy_36134c0.json",
+        "tinyllama_t4_mt_bench_greedy_hf_assisted_36134c0.json",
+        "tinyllama_t4_mt_bench_t0.7_flashspec_ucb_36134c0.json",
+        "tinyllama_t4_mt_bench_t0.7_hf_sample_36134c0.json",
+        "tinyllama_t4_mt_bench_t0.7_hf_assisted_36134c0.json",
+        "tinyllama_t4_humaneval_greedy_flashspec_ucb_36134c0.json",
+        "tinyllama_t4_humaneval_greedy_hf_greedy_36134c0.json",
+        "tinyllama_t4_humaneval_greedy_hf_assisted_36134c0.json",
+        "tinyllama_t4_humaneval_t0.7_flashspec_ucb_36134c0.json",
+        "tinyllama_t4_humaneval_t0.7_hf_sample_36134c0.json",
+        "tinyllama_t4_humaneval_t0.7_hf_assisted_36134c0.json"
+      ],
+      "duration_s": 805.5452547289999
+    }
+  ],
+  "hardware": {
+    "platform": "Linux",
+    "machine": "x86_64",
+    "python": "3.13.16",
+    "torch": "2.11.0+cu130",
+    "avx2": true,
+    "gpu": "Tesla T4",
+    "cuda": "13.0",
+    "gpu_count": 1
+  },
+  "versions": {
+    "python": "3.13.16",
+    "torch": "2.11.0+cu130",
+    "transformers": "5.20.2",
+    "flashspec": "0.1.5"
+  },
+  "files": {
+    "results/qwen_t4_humaneval_greedy_flashspec_ucb_36134c0.json": "5079786987cc90cab9e0caf270b65bacc3fbd7bc8ca0aac152e0814a4ae04873",
+    "results/qwen_t4_humaneval_greedy_hf_assisted_36134c0.json": "c2ed39664e4ed8da74eb3e305244345eefb217fa9229ebc605e9e2fb42f3ceea",
+    "results/qwen_t4_humaneval_greedy_hf_greedy_36134c0.json": "c001cc43ba3671b361f7254901539296ba857bd8fc24bb772a54887de1d00a7f",
+    "results/qwen_t4_humaneval_t0.7_flashspec_ucb_36134c0.json": "466c50dfba63307ccab95a3b483fe27e9d733e072039009c2fbf41c9757ab699",
+    "results/qwen_t4_humaneval_t0.7_hf_assisted_36134c0.json": "cd95e1c7e99124469cf1e3a9cc9a385058c5accbb18b09faa79b5f9160bac802",
+    "results/qwen_t4_humaneval_t0.7_hf_sample_36134c0.json": "91ed1ce1a36a165e1ef694ab6075216dd565bcfcc9962d5f56c1a9cb3aec13d9",
+    "results/qwen_t4_mt_bench_greedy_flashspec_ucb_36134c0.json": "df496cd0c7f5efde54dbefb93b7a2a5cefc1028065f300315f8a9a5c7102b597",
+    "results/qwen_t4_mt_bench_greedy_hf_assisted_36134c0.json": "5485779f393b35babc74ef1a27b00bddd0f4643d46e3a18725431868fa03736c",
+    "results/qwen_t4_mt_bench_greedy_hf_greedy_36134c0.json": "eb02e0f5b14ae2111cd756108201cc29543f4594dafb51b3314ac61c7ea35f3e",
+    "results/qwen_t4_mt_bench_t0.7_flashspec_ucb_36134c0.json": "a5c0286353f0cd7c4bf8c4ffcd72e1641f2086a73eccbb56513d7e352ec595e2",
+    "results/qwen_t4_mt_bench_t0.7_hf_assisted_36134c0.json": "289788345622cc496833d93bef5848907b7a0512e69e97ed627335de66284954",
+    "results/qwen_t4_mt_bench_t0.7_hf_sample_36134c0.json": "2a18453399ee86b2573df1ccfc05a45c933b0f95ab1fd2dacf003622d49404d6",
+    "results/tinyllama_t4_humaneval_greedy_flashspec_ucb_36134c0.json": "d836f4d8665abd77d0753aba99237e692c08ac8b1b329481eabc3068f0ca779c",
+    "results/tinyllama_t4_humaneval_greedy_hf_assisted_36134c0.json": "a09d469f3c02ae7bb36ef48fa002339da162bb0d65718fd50e39bd4e60e1831f",
+    "results/tinyllama_t4_humaneval_greedy_hf_greedy_36134c0.json": "b349d865ed6edede2e197ac9e472a1f9448ebcf8f2ec41f0b6b487c6f7a21e2a",
+    "results/tinyllama_t4_humaneval_t0.7_flashspec_ucb_36134c0.json": "163e64617593548e869a82ad3ae8b4fa909595c252f0226eacc85e37262acba7",
+    "results/tinyllama_t4_humaneval_t0.7_hf_assisted_36134c0.json": "182a618b5006ec511fbf20077a83508d4b0e7077a3fb0b3fe822525fdce9cebc",
+    "results/tinyllama_t4_humaneval_t0.7_hf_sample_36134c0.json": "d02daf8c34c5999a6773953ba8182cddc7e49eebf5c55f221d9c5eda8058399c",
+    "results/tinyllama_t4_mt_bench_greedy_flashspec_ucb_36134c0.json": "647e54d966fbc03e9fa1aa1190a8584d7a8cbd6bd821b20d1c307205c001496f",
+    "results/tinyllama_t4_mt_bench_greedy_hf_assisted_36134c0.json": "0477282bde9d1039f470eb19a17493dec817636cd4d151e784c667d2f711fa7b",
+    "results/tinyllama_t4_mt_bench_greedy_hf_greedy_36134c0.json": "909b359bf81c0d619c9853ac5af302abae6431bc2d8494827ae94913a58bdd28",
+    "results/tinyllama_t4_mt_bench_t0.7_flashspec_ucb_36134c0.json": "b096ca356d12c551a4969df825f4e170125d56393715295a0c7e63afa49500a7",
+    "results/tinyllama_t4_mt_bench_t0.7_hf_assisted_36134c0.json": "7703ebf579437e1e5d2ee20edd5f5e6a2d5b3070bd119058afb9d7bbdae69726",
+    "results/tinyllama_t4_mt_bench_t0.7_hf_sample_36134c0.json": "1c51404893666847b8f4eed602def9a049a86ec8ccb9b04c9ba1340a257923d6",
+    "profile.txt": "1971eec0dcbeb0c657618a94247f7a0a0a044deb350df16cdbaaeb70fd4387b9",
+    "run.log": "5df29ba233e02c494893d74544b0c9ed01916fd4e6d5a9ad446fce7e175cbb41"
+  }
+}

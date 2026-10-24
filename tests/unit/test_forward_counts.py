@@ -6,10 +6,15 @@ not by how many tokens each forward carries. These tests record the
 
 Pattern pinned here:
 
-- Both models prefill ``prompt[:-1]``; the last prompt token is pending.
-- Target: exactly one forward per step, of the pending token plus the
-  ``gamma`` draft tokens (``1 + gamma``). Committing the residual or
-  bonus token queues it as the next pending token and never forwards.
+- The target prefills the whole prompt (``logits_to_keep=1``), as
+  HuggingFace ``generate`` does, so its first-token logits come from the
+  same computation. The drafter prefills ``prompt[:-1]`` and keeps the
+  last prompt token pending.
+- Target: exactly one forward per step. The first carries the ``gamma``
+  draft tokens (the prefill row scores the first one); later ones carry
+  the pending token plus the draft (``1 + gamma``). Committing the
+  residual or bonus token queues it as the next pending token and never
+  forwards.
 - Drafter: exactly ``gamma`` forwards per step. The first carries the
   pending tokens: one after a rejection, two after a full accept (the
   last draft token, never forwarded, then the bonus token). The others
@@ -98,13 +103,13 @@ _CASES = [(4, 0), (4, 7), (2, 3), (1, 5), (6, 9)]
 
 @pytest.mark.parametrize(("gamma", "seed"), _CASES)
 def test_target_forwards_per_step(gamma: int, seed: int) -> None:
-    """One prefill, then exactly one ``1 + gamma`` forward per step."""
+    """One full-prompt prefill, then exactly one forward per step: gamma, then 1 + gamma."""
     result, target_lengths, _ = _run(gamma, seed)
     assert result.step_profile is not None
     n_steps = len(result.step_profile)
     assert result.n_tokens_generated == _MAX_NEW
-    assert target_lengths[0] == _PROMPT_LEN - 1
-    assert target_lengths[1:] == [1 + gamma] * n_steps, target_lengths
+    assert target_lengths[0] == _PROMPT_LEN
+    assert target_lengths[1:] == [gamma] + [1 + gamma] * (n_steps - 1), target_lengths
     assert len(target_lengths) == 1 + n_steps
 
 

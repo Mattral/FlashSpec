@@ -1,0 +1,34 @@
+# Phase 4 second, smaller pair on a Colab Tesla T4: TinyLlama-1.1B-Chat
+# verified by FlashSpec with Llama-160M-Chat drafting (same 32,000-token
+# Llama tokenizer; checked at load). Same prompts, modes, methods and
+# lengths as qwen_t4.yaml. The prompt is rendered with the target's
+# (TinyLlama's) chat template.
+#
+# Run it through notebooks/04_gpu_measurement.ipynb, which writes the
+# results bundle. Do not fill a result JSON by hand if the run fails.
+
+model: TinyLlama/TinyLlama-1.1B-Chat-v1.0
+drafter: Felladrin/Llama-160M-Chat-v1
+device: cuda:0
+dtype: float16
+gamma: 4
+batch_size: 1
+max_new_tokens: 128
+n_warmup: 2
+n_samples: 10
+seed: 0
+chat_template: true
+
+datasets:
+  - mt_bench
+  - humaneval
+
+temperatures:
+  - 0.0
+  - 0.7
+
+methods:
+  - flashspec_ucb
+  - hf_greedy
+  - hf_sample
+  - hf_assisted

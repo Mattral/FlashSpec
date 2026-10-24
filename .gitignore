@@ -90,3 +90,7 @@ Thumbs.db
 *.key
 *.pem
 secrets/
+
+# GPU result bundles waiting for scripts/ingest_gpu_bundle.py. The
+# unpacked, validated copy lives in benchmarks/results/gpu/<commit>/.
+benchmarks/results/incoming/*.zip

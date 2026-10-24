@@ -162,8 +162,10 @@ def test_toy_llama_records_profile_forward_counts_and_hf_baselines() -> None:
     """A random tiny Llama run writes the step profile, forward counts and HF baselines."""
     config = load_benchmark_config(Path("benchmarks/configs/tiny_llama_cpu.yaml"))
     config.update({"max_new_tokens": 12, "n_warmup": 0, "n_samples": 2, "prompt_length": 6})
+    config["methods"] = [*config["methods"], "hf_greedy"]
     paired = run_paired_generations(config)
-    assert set(paired) == {"flashspec_ucb", "vanilla_ar", "hf_greedy", "hf_sample", "hf_assisted"}
+    # Sampling at T=1: hf_sample is the matching baseline, so hf_greedy is skipped.
+    assert set(paired) == {"flashspec_ucb", "vanilla_ar", "hf_sample", "hf_assisted"}
     spec = paired["flashspec_ucb"]
     assert spec["measurement_kind"] == "toy_random_init_llama"
     profile = spec["step_profile"]
@@ -175,9 +177,9 @@ def test_toy_llama_records_profile_forward_counts_and_hf_baselines() -> None:
     assert counts["n_generations"] == 2
     lengths = counts["target_input_lengths_first_generation"]
     assert isinstance(lengths, list)
-    # Prefill is the prompt minus its last token, which the first verify carries.
-    assert lengths[0] == 5
-    assert lengths[1:] == [1 + 4] * (len(lengths) - 1)
+    # The target prefills the whole prompt; the first verify carries only the draft.
+    assert lengths[0] == 6
+    assert lengths[1:] == [4] + [1 + 4] * (len(lengths) - 2)
     assert counts["target_forwards_per_step"] == 1.0
     assert counts["drafter_forwards_per_step"] == 4.0
     syncs = spec["host_syncs"]
@@ -185,7 +187,7 @@ def test_toy_llama_records_profile_forward_counts_and_hf_baselines() -> None:
     assert syncs["counter"] == "cpu_tensor_read_proxy"
     metrics = spec["metrics"]
     assert isinstance(metrics, dict)
-    for name in ("hf_greedy", "hf_sample", "hf_assisted"):
+    for name in ("hf_sample", "hf_assisted"):
         assert metrics[f"speedup_vs_{name}_mean"] > 0
         baseline = paired[name]
         assert baseline["method"] == name
@@ -246,8 +248,9 @@ def test_toy_llama_greedy_records_token_match_and_skips_hf_sample(
     assert set(paired) == {"flashspec_ucb", "vanilla_ar", "hf_greedy", "hf_assisted"}
     assert "Skipping hf_sample" in capsys.readouterr().out
     spec = paired["flashspec_ucb"]
-    assert spec["decoding"] == {"mode": "greedy", "temperature": 0.0}
-    assert paired["hf_greedy"]["decoding"] == {"mode": "greedy", "temperature": 0.0}
+    expected = {"mode": "greedy", "temperature": 0.0, "stop_at_eos": False, "max_new_tokens": 12}
+    assert spec["decoding"] == expected
+    assert paired["hf_greedy"]["decoding"] == expected
     match = spec["greedy_token_match"]
     assert isinstance(match, dict)
     assert match["prompts_matched"] == match["n_prompts"] == 2

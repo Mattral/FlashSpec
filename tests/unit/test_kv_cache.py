@@ -205,8 +205,10 @@ def test_engine_steps_do_not_reforward_the_prompt() -> None:
         drafter_hook.remove()
         target_hook.remove()
     assert result.n_tokens_generated == 6
-    # Each model prefills the prompt minus its last token once. After
-    # that the target forwards 1 + gamma and the drafter 1 or 2 tokens.
-    assert lengths.count(_PROMPT_LEN - 1) == 2, lengths
-    assert max(lengths) == _PROMPT_LEN - 1, lengths
+    # The target prefills the whole prompt once and the drafter all but its
+    # last token. After that the target forwards at most 1 + gamma tokens
+    # and the drafter 1 or 2.
+    assert lengths.count(_PROMPT_LEN) == 1, lengths
+    assert lengths.count(_PROMPT_LEN - 1) == 1, lengths
+    assert max(lengths) == _PROMPT_LEN, lengths
     assert 1 in lengths

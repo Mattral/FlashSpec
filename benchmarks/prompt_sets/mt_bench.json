@@ -24,6 +24,36 @@
       "id": "121",
       "category": "coding",
       "text": "Develop a Python program that reads all the text files under a directory and returns top-5 words with the most number of occurrences."
+    },
+    {
+      "id": "91",
+      "category": "roleplay",
+      "text": "Pretend yourself to be Elon Musk in all the following conversations. Speak like Elon Musk as much as possible. Why do we need to go to Mars?"
+    },
+    {
+      "id": "131",
+      "category": "extraction",
+      "text": "Evaluate the following movie reviews on a scale of 1 to 5, with 1 being very negative, 3 being neutral, and 5 being very positive:\n1. This movie released on Nov. 18, 2019, was phenomenal. The cinematography, the acting, the plot - everything was top-notch.\n2. Never before have I been so disappointed with a movie. The plot was predictable and the characters were one-dimensional. In my opinion, this movie is the worst one to have been released in 2022.\n3. The movie was okay. There were some parts I  enjoyed, but there were also parts that felt lackluster. This is a movie that was released in Feb 2018 and seems to be quite ordinary.\nReturn the answer as a JSON array of integers."
+    },
+    {
+      "id": "141",
+      "category": "stem",
+      "text": "In the field of quantum physics, what is superposition, and how does it relate to the phenomenon of quantum entanglement?"
+    },
+    {
+      "id": "151",
+      "category": "humanities",
+      "text": "Provide insights into the correlation between economic indicators such as GDP, inflation, and unemployment rates. Explain how fiscal and monetary policies affect those indicators."
+    },
+    {
+      "id": "82",
+      "category": "writing",
+      "text": "Draft a professional email seeking your supervisor's feedback on the 'Quarterly Financial Report' you prepared. Ask specifically about the data analysis, presentation style, and the clarity of conclusions drawn. Keep the email short and to the point."
+    },
+    {
+      "id": "92",
+      "category": "roleplay",
+      "text": "Embrace the role of Sheldon from \"The Big Bang Theory\" as we delve into our conversation. Don’t start with phrases like \"As Sheldon\". Let's kick things off with the following question: \"What is your opinion on hand dryers?\""
     }
   ]
 }
