@@ -3,8 +3,9 @@ name: CI
 on:
   push:
     branches: [main, dev]
+  # Every PR, whatever its base: stacked PRs (base = another feature
+  # branch) get CI too.
   pull_request:
-    branches: [main, dev]
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -12,15 +13,14 @@ concurrency:
 
 jobs:
   # ── Job 1: lint ──────────────────────────────────────────────────────────────
-  # ruff check, ruff format --check, and import-linter.
-  # mypy --strict is `make typecheck`. It is not part of this job.
+  # ruff check, ruff format --check, import-linter, and mypy --strict.
   # pip-audit fails the job only when its output contains CRITICAL.
   lint:
     name: lint
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.11"
           cache: pip
@@ -28,7 +28,9 @@ jobs:
         run: pip install -e ".[dev,gpu]" --extra-index-url https://download.pytorch.org/whl/cpu
       - name: make lint
         run: make lint
-      - name: pip-audit (fail on CRITICAL CVE — §15)
+      - name: make typecheck
+        run: make typecheck
+      - name: pip-audit (fail on CRITICAL CVE)
         run: |
           pip install pip-audit
           set +e
@@ -46,8 +48,8 @@ jobs:
     env:
       TRITON_CPU_BACKEND: "1"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.11"
           cache: pip
@@ -64,8 +66,8 @@ jobs:
     env:
       TRITON_CPU_BACKEND: "1"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.11"
           cache: pip
@@ -82,8 +84,8 @@ jobs:
     env:
       TRITON_CPU_BACKEND: "1"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.11"
           cache: pip
@@ -100,8 +102,8 @@ jobs:
     runs-on: ubuntu-22.04
     needs: lint
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.11"
           cache: pip
@@ -116,14 +118,14 @@ jobs:
     name: paper
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Build the draft PDF
-        uses: xu-cheng/latex-action@v3
+        uses: xu-cheng/latex-action@e2f99d4b3685b0da93f97e1b86ad8fab81105098 # v3.3.0
         with:
           root_file: flashspec.tex
           working_directory: paper
       - name: Upload the draft PDF
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: flashspec-draft
           path: paper/flashspec.pdf

@@ -193,7 +193,7 @@ class TestRejectionSample:
             )
 
 
-# ── Hypothesis property-based tests (§5.1) ───────────────────────────────────
+# ── Hypothesis property-based tests ───────────────────────────────────
 
 
 @given(

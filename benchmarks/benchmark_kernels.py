@@ -1,8 +1,5 @@
 """Kernel benchmarks with roofline analysis for FlashSpec Triton kernels.
 
-This module satisfies §13.5 requirement:
-  "Kernel is benchmarked in benchmarks/ with roofline analysis."
-
 The roofline model identifies whether each kernel is memory-bandwidth bound
 or compute bound on the current GPU.  See docs/kernels.md for analysis.
 
@@ -24,7 +21,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-# ── Benchmark shapes (§13.5: representative of production use) ─────────────
+# ── Benchmark shapes (representative of production use) ─────────────
 # Each entry: (label, batch_size, gamma, vocab_size)
 KERNEL_SHAPES: list[tuple[str, int, int, int]] = [
     ("B=1  γ=4  V=32k", 1, 4, 32_000),
@@ -290,7 +287,7 @@ def run_roofline_benchmark(
 
     sys.stdout.write("-" * 96 + "\n")
     sys.stdout.write(
-        "Ratio = roofline / triton.  Target ≥ 0.5 (§6: ≤ 0.5 ms per step on H100).\n"
+        "Ratio = roofline / triton.  Target ≥ 0.5 (design target: ≤ 0.5 ms per step on H100).\n"
         "Ratio close to 1.0 means kernel is operating at the HBM bandwidth limit.\n"
     )
     return results
@@ -299,7 +296,7 @@ def run_roofline_benchmark(
 def main() -> None:
     """Parse CLI arguments and run the kernel roofline benchmark."""
     parser = argparse.ArgumentParser(
-        description="FlashSpec kernel roofline benchmark (§13.5)",
+        description="FlashSpec kernel roofline benchmark",
     )
     parser.add_argument(
         "--toy",

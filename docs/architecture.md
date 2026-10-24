@@ -118,7 +118,7 @@ unequal prompts into one batch and does not build a padding mask.
 graph TD
     U[utils<br/>config · logging · device]
     K[kernels<br/>verify_kernel · gather_kernel<br/>_reference]
-    SA[sampling<br/>rejection · typical]
+    SA[sampling<br/>rejection · greedy · typical (lossy)]
     BA[bandit<br/>UCB1 · Thompson · Oracle]
     ME[metrics<br/>acceptance · throughput · latency]
     EX[export<br/>onnx]
@@ -153,7 +153,7 @@ No layer may import from a layer above it.  Enforced by `import-linter` in CI.
 flashspec/
 ├── utils/          Low-level: config (Pydantic v2), logging (JSON), device
 ├── kernels/        Triton verify_kernel, gather_kernel; _reference (tests only)
-├── sampling/       rejection.py (Algorithm 1), typical.py
+├── sampling/       rejection.py (Algorithm 1), greedy.py, typical.py (lossy)
 ├── bandit/         base.py (ABC), ucb.py, thompson.py, oracle.py
 ├── metrics/        acceptance.py, throughput.py, latency.py
 ├── export/         onnx.py

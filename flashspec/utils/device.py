@@ -43,7 +43,7 @@ def get_device(device_str: str) -> torch.device:
     -----
     This is the single authoritative entry-point for device creation in
     FlashSpec.  Direct calls to ``torch.device()`` in library code are
-    banned (§3.1); always use this function instead.  The CUDA availability
+    avoided; always use this function instead.  The CUDA availability
     check prevents silent CPU fallback on misconfigured systems.
 
     Examples

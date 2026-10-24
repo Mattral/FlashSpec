@@ -44,7 +44,7 @@ def _verify_parity(
     batch_sizes : list[int]
         Batch sizes to test.
     atol : float
-        Absolute tolerance for logit comparison (default 1e-5, AGENTS.md §2.4).
+        Absolute tolerance for logit comparison (default 1e-5).
 
     Returns
     -------
@@ -83,7 +83,7 @@ def _verify_parity(
 def main() -> None:
     """Parse CLI arguments and run the ONNX export."""
     parser = argparse.ArgumentParser(
-        description="Export a FlashSpec draft model to ONNX (AGENTS.md §2.4)",
+        description="Export a FlashSpec draft model to ONNX",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
@@ -120,7 +120,7 @@ def main() -> None:
         "--opset",
         type=int,
         default=17,
-        help="ONNX opset version (minimum 17, AGENTS.md §2.4; default: 17).",
+        help="ONNX opset version (minimum 17; default: 17).",
     )
     parser.add_argument(
         "--verify",

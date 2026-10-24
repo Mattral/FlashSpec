@@ -1,8 +1,7 @@
 """Check for performance regressions against the committed baseline.
 
-Implements the exact per-model, per-metric regression thresholds from
-AGENTS.md §6.  Exits with code 0 if no regressions; code 1 if any
-threshold is violated.
+Implements per-model, per-metric regression thresholds.  Exits with code 0
+if no regressions; code 1 if any threshold is violated.
 
 Usage
 -----
@@ -18,7 +17,7 @@ import json
 import sys
 from pathlib import Path
 
-# ── Per-model regression thresholds (AGENTS.md §6) ───────────────────────────
+# ── Per-model regression thresholds ───────────────────────────
 # Key: substring that must appear in the result's "model" field.
 # Value: dict of metric → minimum acceptable value (or maximum for latency).
 # A result file is matched to the first key whose substring appears in model name.
@@ -29,9 +28,9 @@ _SPEEDUP_FLOORS: dict[str, float] = {
 }
 
 # Kernel and bandit overhead ceilings are stored as separate result methods.
-_KERNEL_LATENCY_CEILING_MS: float = 1.0  # > 1 ms fails (§6)
-_BANDIT_LATENCY_CEILING_US: float = 200.0  # > 200 µs fails (§6)
-_GPU_MEMORY_OVERHEAD_CEILING: float = 0.25  # > 25% overhead fails (§6)
+_KERNEL_LATENCY_CEILING_MS: float = 1.0  # > 1 ms fails
+_BANDIT_LATENCY_CEILING_US: float = 200.0  # > 200 µs fails
+_GPU_MEMORY_OVERHEAD_CEILING: float = 0.25  # > 25% overhead fails
 
 
 def _load_results(results_dir: Path) -> list[dict]:
@@ -79,10 +78,10 @@ def _match_model(model_field: str) -> str | None:
 
 
 def check_regressions(results_dir: Path) -> bool:
-    """Compare the latest results against §6 thresholds.
+    """Compare the latest results against the thresholds.
 
     Checks:
-    - Per-model ``speedup_vs_ar_mean`` against §6 regression floors.
+    - Per-model ``speedup_vs_ar_mean`` against the regression floors.
     - ``p99_latency_ms`` for the kernel overhead ceiling (method == "kernel_profile").
     - ``gpu_memory_gb`` overhead ceiling.
 
@@ -100,7 +99,7 @@ def check_regressions(results_dir: Path) -> bool:
     if not baseline_path.exists():
         sys.stderr.write(
             "Warning: baseline.json not found — cannot compute relative regressions.\n"
-            "Checking absolute §6 thresholds only.\n"
+            "Checking absolute thresholds only.\n"
         )
 
     results = _load_results(results_dir)
@@ -115,7 +114,7 @@ def check_regressions(results_dir: Path) -> bool:
         method = result.get("method", "")
         metrics = result.get("metrics", {})
 
-        # ── Speedup regression (per-model floor from §6) ──────────────────
+        # ── Speedup regression (per-model floor) ──────────────────
         threshold_key = _match_model(model)
         if threshold_key is not None and method not in ("vanilla_ar",):
             speedup = metrics.get("speedup_vs_ar_mean", None)
@@ -124,19 +123,19 @@ def check_regressions(results_dir: Path) -> bool:
                 if speedup < floor:
                     regressions.append(
                         f"[{model} / {method}] speedup_vs_ar_mean={speedup:.3f} "
-                        f"< regression floor {floor:.1f}× (§6)"
+                        f"< regression floor {floor:.1f}×"
                     )
 
-        # ── Kernel latency ceiling (§6: ≤ 0.5 ms target, > 1 ms fails) ───
+        # ── Kernel latency ceiling (≤ 0.5 ms target, > 1 ms fails) ───
         if method == "kernel_profile":
             p99_ms = metrics.get("p99_latency_ms", None)
             if p99_ms is not None and p99_ms > _KERNEL_LATENCY_CEILING_MS:
                 regressions.append(
                     f"[{model} / kernel_profile] p99_latency_ms={p99_ms:.2f} "
-                    f"> ceiling {_KERNEL_LATENCY_CEILING_MS} ms (§6)"
+                    f"> ceiling {_KERNEL_LATENCY_CEILING_MS} ms"
                 )
 
-        # ── GPU memory overhead ceiling (§6: > 25% overhead fails) ────────
+        # ── GPU memory overhead ceiling (> 25% overhead fails) ────────
         # Compare against the baseline model's gpu_memory_gb if available.
         if baseline_path.exists():
             try:
@@ -150,7 +149,7 @@ def check_regressions(results_dir: Path) -> bool:
                         regressions.append(
                             f"[{model} / {method}] GPU memory overhead="
                             f"{overhead * 100:.1f}% > "
-                            f"{_GPU_MEMORY_OVERHEAD_CEILING * 100:.0f}% (§6)"
+                            f"{_GPU_MEMORY_OVERHEAD_CEILING * 100:.0f}%"
                         )
             except (json.JSONDecodeError, OSError):
                 pass  # baseline unreadable — skip relative memory check
@@ -162,7 +161,7 @@ def check_regressions(results_dir: Path) -> bool:
         return False
 
     sys.stdout.write(
-        f"No regressions detected against §6 thresholds ({len(results)} result file(s) checked).\n"
+        f"No regressions detected against the thresholds ({len(results)} result file(s) checked).\n"
     )
     return True
 
@@ -170,7 +169,7 @@ def check_regressions(results_dir: Path) -> bool:
 def main() -> None:
     """Parse CLI arguments and run the regression check."""
     parser = argparse.ArgumentParser(
-        description="FlashSpec performance regression checker (AGENTS.md §6)",
+        description="FlashSpec performance regression checker",
     )
     parser.add_argument(
         "--results-dir",

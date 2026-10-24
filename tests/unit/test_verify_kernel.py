@@ -18,7 +18,7 @@ from hypothesis import strategies as st
 from flashspec.kernels._reference import verify_tokens_reference
 from flashspec.utils.device import set_seed
 
-# ── Tolerances (AGENTS.md §2.2) ───────────────────────────────────────────────
+# ── Tolerances ───────────────────────────────────────────────
 _ATOL_FLOAT32: float = 1e-5
 _ATOL_BFLOAT16: float = 1e-3
 
@@ -170,7 +170,7 @@ class TestVerifyTokensReference:
         )
 
     def test_reference_bfloat16_parity_dtypes_match_float32(self) -> None:
-        """bfloat16 and float32 references return the same output dtypes (§2.2)."""
+        """bfloat16 and float32 references return the same output dtypes."""
         batch_size, gamma, vocab = 4, 4, 500
         set_seed(20)
         u = torch.rand(batch_size, gamma)
@@ -197,7 +197,7 @@ class TestVerifyTokensReference:
         )
 
     def test_reference_canonical_shape_batch8_gamma8_vocab32000(self) -> None:
-        """Reference handles canonical shape (batch=8, gamma=8, vocab=32000) per §2.2."""
+        """Reference handles canonical shape (batch=8, gamma=8, vocab=32000)."""
         dlp, tlp, u, ids = _make_inputs(batch_size=8, gamma=8, vocab_size=32_000, seed=77)
         accepted, first_rej = verify_tokens_reference(dlp, tlp, u, ids)
         assert accepted.shape == (8, 8), (
@@ -227,7 +227,7 @@ def test_reference_first_rejection_always_in_valid_range(batch_size: int, gamma:
     assert (first_rej <= gamma).all(), f"first_rej exceeds gamma={gamma}: {first_rej}"
 
 
-# ── GPU parity tests: Triton kernel vs reference (§2.2) ──────────────────────
+# ── GPU parity tests: Triton kernel vs reference ──────────────────────
 
 
 @pytest.mark.gpu
@@ -240,7 +240,7 @@ class TestVerifyTokensTritonParity:
     """
 
     def test_triton_parity_float32_canonical_shape_matches_reference(self) -> None:
-        """Triton kernel accepted mask and first_rejection match reference (float32, §2.2)."""
+        """Triton kernel accepted mask and first_rejection match reference (float32)."""
         from flashspec.kernels import verify_tokens
 
         device = torch.device("cuda")
@@ -265,7 +265,7 @@ class TestVerifyTokensTritonParity:
         )
 
     def test_triton_parity_bfloat16_canonical_shape_matches_reference(self) -> None:
-        """Triton kernel accepted mask and first_rejection match reference (bfloat16, §2.2)."""
+        """Triton kernel accepted mask and first_rejection match reference (bfloat16)."""
         from flashspec.kernels import verify_tokens
 
         device = torch.device("cuda")

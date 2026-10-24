@@ -15,8 +15,8 @@ flashspec.kernels._reference : Pure-PyTorch reference ``gather_accepted_referenc
 from __future__ import annotations
 
 import torch
-import triton  # type: ignore[import]  # triton ships no py.typed; stubs unavailable
-import triton.language as tl  # type: ignore[import]  # same as above
+import triton  # untyped; see [tool.mypy.overrides] in pyproject.toml
+import triton.language as tl
 
 __all__ = ["gather_accepted"]
 
@@ -44,7 +44,7 @@ def _gather_accepted_kernel(
     Each element writes the token ID if its gamma-position is before
     ``first_rejection[batch_idx]``, otherwise writes ``-1``.
 
-    See docs/kernels.md §2.2 for tiling and SRAM analysis.
+    See docs/kernels.md for tiling and SRAM analysis.
     """
     pid = tl.program_id(0)
     offsets = pid * BLOCK_SIZE + tl.arange(0, BLOCK_SIZE)
@@ -101,7 +101,7 @@ def gather_accepted(
     token ID if ``gamma_pos < first_rejection``, otherwise writes ``-1``.
     SRAM footprint is O(BLOCK_SIZE) — constant in vocab size.
 
-    See ``docs/kernels.md §2.2`` for the full tiling strategy.
+    See ``docs/kernels.md`` for the full tiling strategy.
 
     Examples
     --------

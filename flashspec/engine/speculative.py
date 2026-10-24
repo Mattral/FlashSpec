@@ -328,6 +328,12 @@ class SpeculativeEngine:
                 "gain over a fixed drafter.",
                 extra={"n_arms": config.bandit.n_arms},
             )
+        if config.sampling.variant == "typical":
+            logger.warning(
+                "sampling.variant='typical' is lossy: the output distribution differs "
+                "from the target model's. Use 'rejection' (or temperature 0) for "
+                "lossless speculative decoding."
+            )
         self._config = config
         self._drafters = drafters
         self._target = target
@@ -410,7 +416,7 @@ class SpeculativeEngine:
         1. Bandit selects a draft model arm.
         2. Draft model proposes ``gamma`` tokens autoregressively.
         3. Target model scores all ``gamma`` positions in one forward pass
-           with temperature applied before log-softmax (§7).
+           with temperature applied before log-softmax.
         4. Rejection sampling accepts/rejects tokens (Algorithm 1).
         5. Accepted tokens are appended to the context. For a batch of one,
            the drafter and verifier crop their KV caches by the number of

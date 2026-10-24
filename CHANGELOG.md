@@ -10,6 +10,34 @@ Versioning follows [Semantic Versioning 2.0.0](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed (release hygiene)
+- `publish.yml` must run on a `v<version>` tag: a `verify` job checks
+  that the ref is a tag, that it equals `"v"` + the `pyproject.toml`
+  version, that the tagged commit is on `main`, runs
+  `pytest tests/unit tests/integration -m "not gpu"`, and builds the
+  sdist and wheel; the `publish` job keeps the `pypi` environment
+  reviewer gate and Trusted Publishing. `PUBLISHING.md` has the steps.
+- Every action in every workflow is pinned to a commit SHA (the SHA each
+  tag in use pointed to, so behaviour is unchanged).
+- Removed `gpu_tests.yml` and `benchmark.yml`: they targeted self-hosted
+  A10G/H100 runners that don't exist. GPU checks run by hand on a Colab
+  T4 (`notebooks/04_gpu_measurement.ipynb`).
+- `ci.yml` runs on every pull request, including stacked PRs whose base
+  is another branch, and its lint job now runs `make typecheck`.
+- `mypy --strict flashspec` passes. Fixed: a non-Windows `ctypes.windll`
+  access, the serve CLI's selector type, the HF drafter's `.to()` and
+  logits types, and the Triton-unavailable stub's type (`NoReturn`).
+  Configured in `pyproject.toml`: Triton and onnx are typed as `Any`
+  whether or not they are installed, and Triton's `@jit`/`@autotune` are
+  allowed as untyped decorators in the two kernel modules. The stale
+  `type: ignore` comments are gone.
+- Removed the references to `AGENTS.md` and its section numbers (the file
+  was never in the repository); the rules they pointed at are stated
+  where they apply.
+- `sampling.variant="typical"` is labelled lossy in its module,
+  function and `SamplingConfig` docs, and the engine logs a warning when
+  it is selected.
+
 ### Added
 - Phase 5 (no GPU numbers yet): `FlashSpecConfig.compile` runs the
   batch-1 path on a preallocated static KV cache

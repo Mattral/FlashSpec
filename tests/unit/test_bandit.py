@@ -267,7 +267,7 @@ class TestArmStats:
         assert restored.n_accepted == stats.n_accepted, "n_accepted mismatch."
 
 
-# ── Hypothesis property-based tests (§5.1) ───────────────────────────────────
+# ── Hypothesis property-based tests ───────────────────────────────────
 
 
 @given(

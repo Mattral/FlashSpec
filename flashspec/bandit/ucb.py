@@ -1,8 +1,7 @@
 """UCB1 online bandit draft selector.
 
 Implements the UCB1 algorithm (Auer et al., 2002) for adaptive draft-model
-selection.  The expected cumulative regret satisfies O(√(K T log T)) as
-required by AGENTS.md §2.3.
+selection.  The expected cumulative regret satisfies O(√(K T log T)).
 """
 
 from __future__ import annotations

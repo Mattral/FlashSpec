@@ -5,7 +5,7 @@
 Committed result JSON follows the schema described in
 `benchmarks/README.md`. `benchmarks/results/baseline.json` is a template,
 not a measurement. Once a result JSON is committed, the config that
-produced it stays as it was committed. `AGENTS.md` is not in this checkout.
+produced it stays as it was committed.
 
 ### Hardware the paper configs were written for
 
@@ -94,4 +94,6 @@ and `benchmarks/results/tinyllama_cpu_humaneval_vanilla_ar_f59b5b4.json`.
 
 1. Create a YAML config in `benchmarks/configs/`.
 2. Do not modify existing configs after first commit.
-3. Add the config name to the benchmark workflow in `.github/workflows/benchmark.yml`.
+3. GPU configs run on a Colab T4 through `notebooks/04_gpu_measurement.ipynb`
+   (there is no GPU CI runner); ingest the bundle with
+   `scripts/ingest_gpu_bundle.py`.

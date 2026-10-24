@@ -175,7 +175,7 @@ class LatencyTracker:
         Notes
         -----
         High p95 values indicate tail latency from JIT compilation (Triton
-        first-run autotune) or CUDA sync overhead.  Warm-up steps (§6)
+        first-run autotune) or CUDA sync overhead.  Warm-up steps
         should be discarded before recording latencies.
 
         Examples
@@ -196,7 +196,7 @@ class LatencyTracker:
 
         Notes
         -----
-        The CI regression check (§6) fails if p99 for the kernel profile
+        ``scripts/check_regression.py`` fails if p99 for the kernel profile
         method exceeds 1.0 ms.  This property is what
         ``scripts/check_regression.py`` reads.
 

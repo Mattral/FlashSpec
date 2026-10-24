@@ -108,6 +108,18 @@ ignore_missing_imports = true
 warn_return_any = true
 warn_unused_configs = true
 
+# Optional dependencies (the [gpu] and [onnx] extras) are typed as Any
+# whether or not they are installed, so the result does not depend on the
+# machine. Triton's @jit/@autotune are untyped decorators by design.
+[[tool.mypy.overrides]]
+module = ["triton", "triton.*", "onnx"]
+ignore_missing_imports = true
+follow_imports = "skip"
+
+[[tool.mypy.overrides]]
+module = ["flashspec.kernels.verify_kernel", "flashspec.kernels.gather_kernel"]
+disallow_untyped_decorators = false
+
 # ── Pytest ────────────────────────────────────────────────────────────────────
 [tool.pytest.ini_options]
 testpaths = ["tests"]

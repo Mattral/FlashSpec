@@ -78,8 +78,7 @@ before submitting.
 ## Relationship to the Zenodo draft
 
 `paper/flashspec.tex` is the draft research preprint for a later Zenodo
-version. It is not an arXiv submission. `AGENTS.md` is not in this
-checkout. The citable archive is still
+version. It is not an arXiv submission. The citable archive is still
 [10.5281/zenodo.20766119](https://doi.org/10.5281/zenodo.20766119)
 (June 2026) until the maintainer deposits a new version.
 

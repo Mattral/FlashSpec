@@ -20,7 +20,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-# All models referenced in benchmarks/configs/*.yaml (AGENTS.md §17).
+# All models referenced in benchmarks/configs/*.yaml.
 BENCHMARK_MODELS: list[str] = [
     # Target models.
     "meta-llama/Llama-3-8B-Instruct",

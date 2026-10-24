@@ -1,7 +1,7 @@
 """Update committed benchmark results after a nightly run.
 
-Called by `.github/workflows/benchmark.yml` after `make bench`.
-Validates every JSON file in `benchmarks/results/` against the §14 schema,
+Run by hand after `make bench` (there is no benchmark CI workflow).
+Validates every JSON file in `benchmarks/results/` against the result schema,
 then stages and commits the directory.
 
 Usage
@@ -75,7 +75,7 @@ RESULTS_DIR: Path = Path("benchmarks/results")
 
 
 def _validate_result_file(path: Path) -> list[str]:
-    """Validate one result JSON file against the §14 schema.
+    """Validate one result JSON file against the result schema.
 
     Parameters
     ----------
@@ -182,7 +182,7 @@ def _git_run(*cmd: str) -> str:
 def main() -> None:
     """Validate result files, then commit and push benchmarks/results/."""
     parser = argparse.ArgumentParser(
-        description="Validate and commit nightly benchmark results (AGENTS.md §12.3)",
+        description="Validate and commit nightly benchmark results",
     )
     parser.add_argument(
         "--dry-run",

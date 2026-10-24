@@ -46,8 +46,7 @@ metrics, and the orchestration engine. It ships with a test suite: unit tests, i
 tests via Hypothesis, adversarial "chaos" tests for the bandit components,
 and a chi-squared check that emitted tokens follow the target distribution
 when the draft and target probabilities differ. The CPU test job runs that
-check. The lint job runs `ruff` and import-linter. `mypy --strict` is not
-part of the green lint job.
+check. The lint job runs `ruff`, import-linter and `mypy --strict`.
 
 # Statement of need
 

@@ -27,16 +27,13 @@ GPU::
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import NoReturn
 
 __all__ = [
     "gather_accepted",
     "verify_tokens",
     "TRITON_AVAILABLE",
 ]
-
-if TYPE_CHECKING:
-    import torch
 
 try:
     from flashspec.kernels.gather_kernel import gather_accepted
@@ -47,7 +44,7 @@ except ImportError as _exc:  # pragma: no cover — exercised on non-Linux CI
     _IMPORT_ERROR = _exc
     TRITON_AVAILABLE = False
 
-    def _triton_unavailable(*_args: object, **_kwargs: object) -> torch.Tensor:
+    def _triton_unavailable(*_args: object, **_kwargs: object) -> NoReturn:
         """Raise an actionable error explaining how to get Triton kernels.
 
         Raises

@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Any
 
 import torch
-from transformers import AutoModelForCausalLM  # type: ignore[import-untyped]
+from transformers import AutoModelForCausalLM
 
 from flashspec.engine.kv_cache import CacheUnavailableError, KvSession
 from flashspec.utils.logging import get_logger
@@ -51,7 +51,7 @@ class TargetModel:
 
     Notes
     -----
-    Model weights are never committed to the repository (AGENTS.md §15).
+    Model weights are never committed to the repository.
     Weights are fetched at runtime via HuggingFace Hub or a local path.
 
     Examples
@@ -116,7 +116,7 @@ class TargetModel:
         and only the draft tokens are forwarded. Any other batch
         concatenates ``draft_token_ids`` to ``input_ids`` and runs one
         full forward. Temperature is applied to the raw logits **before**
-        ``log_softmax`` as required by §7 of AGENTS.md.
+        ``log_softmax``.
 
         Parameters
         ----------
@@ -153,8 +153,8 @@ class TargetModel:
 
         Notes
         -----
-        Temperature scaling must be applied before ``log_softmax``, not after
-        (AGENTS.md §7).  This means the returned log-probs are
+        Temperature scaling must be applied before ``log_softmax``, not after.
+        This means the returned log-probs are
         ``log_softmax(logits / temperature)``, **not**
         ``log_softmax(logits) / temperature``.
 
@@ -201,7 +201,7 @@ class TargetModel:
         end = context_len + gamma if include_bonus else context_len + gamma - 1
         draft_logits = logits[:, context_len - 1 : end, :].float()
 
-        # §7: Apply temperature BEFORE log_softmax — never after.
+        # Apply temperature BEFORE log_softmax — never after.
         if temperature != 1.0:
             draft_logits = draft_logits / temperature
 
@@ -285,7 +285,7 @@ class TargetModel:
         draft_token_ids : torch.Tensor
             Shape ``(1, gamma)``, int64.
         temperature : float
-            Applied to the raw logits **before** ``log_softmax`` (§7). Must
+            Applied to the raw logits **before** ``log_softmax``. Must
             be > 0.
 
         Returns
