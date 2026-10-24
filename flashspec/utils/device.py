@@ -6,7 +6,10 @@ needs to set random seeds for reproducibility, should use this module.
 
 from __future__ import annotations
 
+import importlib.util
 import random
+from dataclasses import dataclass
+from typing import Literal
 
 import numpy as np
 import torch
@@ -16,6 +19,9 @@ __all__ = [
     "set_seed",
     "is_cuda_available",
     "device_memory_gb",
+    "CompileDecision",
+    "resolve_compile",
+    "triton_version",
 ]
 
 
@@ -161,3 +167,111 @@ def device_memory_gb(device: torch.device) -> float:
         return 0.0
     props = torch.cuda.get_device_properties(device)
     return props.total_memory / (1024**3)
+
+
+def triton_version() -> str | None:
+    """Return the installed Triton version, or ``None`` if Triton is not importable.
+
+    Only the package metadata is read; Triton itself is not imported.
+
+    Returns
+    -------
+    str or None
+        Version string such as ``"3.1.0"``, ``"unknown"`` when the package
+        exists without metadata, or ``None`` when it is not installed.
+    """
+    if importlib.util.find_spec("triton") is None:
+        return None
+    from importlib import metadata
+
+    for dist in ("triton", "pytorch-triton", "triton-windows"):
+        try:
+            return metadata.version(dist)
+        except metadata.PackageNotFoundError:
+            continue
+    return "unknown"
+
+
+@dataclass(frozen=True)
+class CompileDecision:
+    """Whether the static-cache + CUDA-graph path is used, and why.
+
+    Attributes
+    ----------
+    requested : bool or "auto"
+        The ``FlashSpecConfig.compile`` value.
+    enabled : bool
+        Whether the engine should switch to the compiled path.
+    reason : str
+        One human-readable sentence explaining ``enabled``.
+    """
+
+    requested: bool | Literal["auto"]
+    enabled: bool
+    reason: str
+
+
+def resolve_compile(
+    requested: bool | Literal["auto"],
+    device: torch.device,
+    *,
+    triton: str | None = None,
+    check_triton: bool = True,
+) -> CompileDecision:
+    """Decide whether ``FlashSpecConfig.compile`` turns the compiled path on.
+
+    ``"auto"`` is on when ``device`` is a CUDA device and Triton (the
+    backend ``torch.compile`` uses for CUDA) is importable, and off
+    otherwise. ``True`` is on for any CUDA device; without Triton
+    ``torch.compile`` is expected to fail on the first call, and the
+    static-cache session then falls back to eager and records why.
+    ``False`` is always off.
+
+    Parameters
+    ----------
+    requested : bool or "auto"
+        The configured value.
+    device : torch.device
+        The engine device.
+    triton : str or None
+        Triton version to assume. Only used when ``check_triton`` is
+        ``False`` (tests); otherwise :func:`triton_version` is called.
+    check_triton : bool
+        Look Triton up with :func:`triton_version`.
+
+    Returns
+    -------
+    CompileDecision
+        The decision and its reason.
+
+    Examples
+    --------
+    >>> resolve_compile("auto", torch.device("cpu")).enabled
+    False
+    """
+    if requested is False:
+        return CompileDecision(requested, False, "compile=False")
+    label = "compile=auto" if requested == "auto" else "compile=True"
+    if device.type != "cuda":
+        return CompileDecision(
+            requested,
+            False,
+            f"{label} needs a CUDA device for CUDA graphs; the device is {device.type}",
+        )
+    version = triton_version() if check_triton else triton
+    if version is None:
+        if requested == "auto":
+            return CompileDecision(
+                requested,
+                False,
+                f"{label}: Triton is not installed, and torch.compile needs it on CUDA",
+            )
+        return CompileDecision(
+            requested,
+            True,
+            f"{label} on {device}: Triton is not installed, so torch.compile may fail "
+            "and fall back to eager",
+        )
+    return CompileDecision(
+        requested, True, f"{label}: CUDA device {device} and Triton {version} are available"
+    )

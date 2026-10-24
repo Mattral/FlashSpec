@@ -8,6 +8,7 @@ than pretending a GPU result is possible.
 from __future__ import annotations
 
 import argparse
+from typing import Literal
 
 import torch
 
@@ -60,7 +61,17 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--temperature", type=float, default=1.0)
     parser.add_argument("--strategy", choices=("ucb1", "thompson"), default="ucb1")
     parser.add_argument("--dtype", choices=("float32", "bfloat16", "float16"), default="float32")
+    parser.add_argument(
+        "--compile",
+        choices=("auto", "on", "off"),
+        default="auto",
+        help="Static KV cache + CUDA graphs. auto: on with CUDA and Triton, off otherwise.",
+    )
     return parser
+
+
+#: ``--compile`` value -> ``FlashSpecConfig.compile``.
+_COMPILE_CHOICES: dict[str, bool | Literal["auto"]] = {"auto": "auto", "on": True, "off": False}
 
 
 def resolve_device(requested: str) -> torch.device:
@@ -139,6 +150,7 @@ def main(argv: list[str] | None = None) -> None:
         dtype=args.dtype,
         max_new_tokens=args.max_new_tokens,
         eos_token_ids=eos_ids,
+        compile=_COMPILE_CHOICES[args.compile],
         bandit=BanditConfig(n_arms=len(drafters), strategy=args.strategy, window_size=100),
         sampling=SamplingConfig(gamma=args.gamma, temperature=args.temperature),
     )

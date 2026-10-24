@@ -384,7 +384,12 @@ class TestPhase5Methods:
             assert isinstance(metrics, dict)
             assert "speedup_vs_hf_greedy_compiled_median" in metrics
         compiled = paired["flashspec_compiled"]
-        expected = {"requested": True, "effective": False, "fallback_reason": None}
+        expected = {
+            "requested": True,
+            "effective": False,
+            "decision": "compile=True needs a CUDA device for CUDA graphs; the device is cpu",
+            "fallback_reason": None,
+        }
         assert compiled["compile"] == expected
         assert "speedup_vs_flashspec_ucb_median" in compiled["metrics"]  # type: ignore[operator]
         hf_compiled = paired["hf_greedy_compiled"]
@@ -401,6 +406,25 @@ class TestPhase5Methods:
             assert isinstance(eager, dict)
             assert eager["c"] is not None and eager["c"] > 0
             assert forward_cost["compiled"] is None
+
+    def test_flashspec_compile_auto_is_recorded(self) -> None:
+        """flashspec_compile: auto runs the default-user decision and records its reason."""
+        methods = ["flashspec_ucb", "flashspec_compiled", "hf_greedy"]
+        config = _toy_config(temperature=0.0, methods=methods, flashspec_compile="auto")
+        compiled = run_paired_generations(config)["flashspec_compiled"]["compile"]
+        assert isinstance(compiled, dict)
+        assert compiled["requested"] == "auto"
+        assert compiled["effective"] is False
+        assert "needs a CUDA device" in str(compiled["decision"])
+
+    def test_compile_request_values(self) -> None:
+        """The config key defaults to True and accepts only True or 'auto'."""
+        assert harness._compile_request({}) is True
+        assert harness._compile_request({"flashspec_compile": True}) is True
+        assert harness._compile_request({"flashspec_compile": "auto"}) == "auto"
+        for bad in (False, "on", 1):
+            with pytest.raises(ValueError, match="flashspec_compile"):
+                harness._compile_request({"flashspec_compile": bad})
 
     def test_sampled_mode_runs_hf_sample_compiled(self) -> None:
         """At T > 0 the compiled plain baseline is hf_sample_compiled."""

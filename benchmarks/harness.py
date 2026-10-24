@@ -41,7 +41,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, Literal
 
 import torch
 import torch.nn as nn
@@ -557,6 +557,18 @@ def _coerce(value: str) -> bool | int | float | str | None:
         return float(token)
     except ValueError:
         return token
+
+
+def _compile_request(config: dict[str, object]) -> bool | Literal["auto"]:
+    """``FlashSpecConfig.compile`` for ``flashspec_compiled``: config key ``flashspec_compile``.
+
+    ``true`` (the default, and what the Phase 5 bundles used) forces the
+    compiled path; ``auto`` measures what a default user gets.
+    """
+    value = config.get("flashspec_compile", True)
+    if value is True or value == "auto":
+        return "auto" if value == "auto" else True
+    raise ValueError(f"flashspec_compile must be true or 'auto'; got {value!r}.")
 
 
 def _uses_hf_generate(model: nn.Module) -> bool:
@@ -1362,6 +1374,7 @@ def _run_loaded_pair(
         dtype=str(weight_dtype).removeprefix("torch."),
         max_new_tokens=max_new_tokens,
         eos_token_ids=tuple(eos_ids) if stop_at_eos else (),
+        compile=False,  # flashspec_ucb is the eager engine; flashspec_compiled sets it below
         bandit=BanditConfig(n_arms=1, strategy="ucb1", window_size=0),
         sampling=SamplingConfig(gamma=gamma, temperature=temperature, seed=seed),
         metrics=MetricsConfig(profile_steps=True),
@@ -1461,7 +1474,7 @@ def _run_loaded_pair(
         engines["flashspec_compiled"] = SpeculativeEngine(
             engine_config.model_copy(
                 update={
-                    "compile": True,
+                    "compile": _compile_request(config),
                     "compile_max_cache_len": int(config.get("compile_max_cache_len", 1024)),
                 }
             ),
@@ -1805,8 +1818,9 @@ def _run_loaded_pair(
         if spec_name == "flashspec_compiled":
             target_session = getattr(engine_for._target, "_inc", None)
             spec_extra["compile"] = {
-                "requested": True,
+                "requested": engine_for.compile_decision.requested,
                 "effective": engine_for.compiled,
+                "decision": engine_for.compile_decision.reason,
                 "fallback_reason": getattr(target_session, "compile_fallback_reason", None),
             }
         if greedy and reference_name is not None:

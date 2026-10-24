@@ -85,7 +85,13 @@ clock read right after that `tolist()`, so no `torch.cuda.synchronize()`
 runs inside the loop. `config.sampling.seed` seeds a per-call
 `torch.Generator`; `seed=None` keeps the global RNG.
 
-With `FlashSpecConfig.compile` on a CUDA device, the same incremental
+`FlashSpecConfig.compile` defaults to `"auto"`: the engine turns the
+compiled path on when its device is CUDA and Triton is installed, and
+leaves it off otherwise. It logs one line at construction with the
+decision and why (`flashspec.utils.device.resolve_compile`). `True`
+forces it on any CUDA device; `False` keeps the eager path.
+
+With the compiled path on, the same incremental
 path runs on `StaticKvSession` (`flashspec/engine/static_cache.py`): a
 HuggingFace `StaticCache` allocated once per model at
 `compile_max_cache_len` tokens and reused across calls, so its tensors

@@ -144,6 +144,19 @@ The v0.2.0 H100 run is skipped unless a specific reason comes up. Do not
 tag 0.2.0.
 
 ### Changed
+- `FlashSpecConfig.compile` now defaults to `"auto"`: the static KV cache
+  and CUDA-graph path turns on when the engine device is CUDA and Triton
+  is installed, and stays off otherwise (CPU, or CUDA without Triton).
+  The engine logs one line saying which and why
+  (`flashspec.utils.device.resolve_compile`; `engine.compile_decision`
+  holds it). `True` and `False` still force it on or off. The serve CLI
+  takes `--compile {auto,on,off}` (default `auto`). The benchmark
+  harness keeps `flashspec_ucb` eager explicitly; `flashspec_compiled`
+  takes `flashspec_compile: true | auto` from the config (default
+  `true`, as in the Phase 5 bundles) and records the requested value
+  and the decision. The greedy gold test and the greedy-mismatch
+  diagnostic pin `compile=False`, since their reference is eager
+  `generate()`.
 - Batch-1 fast path (`variant` `"rejection"` or `"greedy"`): one
   device-to-host read per step instead of several, no
   `torch.cuda.synchronize()` per step, `exp()` only on the one vocab row

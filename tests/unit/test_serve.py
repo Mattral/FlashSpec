@@ -275,6 +275,7 @@ def test_resolve_device_and_parser(monkeypatch: pytest.MonkeyPatch) -> None:
     args = build_parser().parse_args(["--target", "toy", "--drafter", "a", "--drafter", "b"])
     assert args.drafter == ["a", "b"]
     assert args.strategy == "ucb1"
+    assert args.compile == "auto"
     with pytest.raises(RuntimeError, match="Refusing to start"):
         main(["--target", "toy", "--drafter", "a", "--device", "cuda"])
 
@@ -348,6 +349,8 @@ def test_main_wires_thompson_without_loading_weights(
     # Completions stop at the tokenizer's EOS.
     (config,) = cli._seen_configs  # type: ignore[attr-defined]
     assert config.eos_token_ids == (2,)
+    # The default --compile auto reaches the engine config unchanged.
+    assert config.compile == "auto"
 
 
 def test_main_one_drafter_warns_and_missing_uvicorn_raises(
