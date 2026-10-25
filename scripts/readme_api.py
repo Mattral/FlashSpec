@@ -189,11 +189,13 @@ def render() -> str:
         f"`variant = {_value(sampling.variant)}`: the default samples (Algorithm 1). "
         '`temperature=0.0` selects `variant="greedy"`.',
         f"- `SamplingConfig.gamma = {_value(sampling.gamma)}`: draft tokens per step.",
-        "- Drafter strategy: `SpeculativeEngine(..., arms=None)` makes one arm per drafter at "
-        "`sampling.gamma`, and the selector you pass chooses between them. With one drafter "
-        "that is a fixed drafter.",
-        f"- `BanditConfig.n_arms = {_value(bandit.n_arms)}`: it must equal the number of arms, "
-        "so pass `BanditConfig(n_arms=1)` for one drafter.",
+        f"- `FlashSpecConfig.drafter_strategy = {_value(config.drafter_strategy)}`: the arms "
+        '`SpeculativeEngine(..., arms=None)` builds. `"bandit"` is one arm per drafter at '
+        "`sampling.gamma`, chosen by the selector you pass; a composite strategy is one arm "
+        "(prompt lookup when the context has a match, else the model drafter) and needs batch 1.",
+        f"- `BanditConfig.n_arms = {_value(bandit.n_arms)}` when you pass a `BanditConfig` "
+        "yourself: it must equal the number of arms, so pass `BanditConfig(n_arms=1)` for one "
+        "arm. A composite strategy with no `bandit=` given gets `n_arms=1`.",
         f"- `FlashSpecConfig.device = {_value(config.device)}`, "
         f"`max_new_tokens = {_value(config.max_new_tokens)}`.",
         "",

@@ -138,7 +138,9 @@ def test_readme_python_blocks_run_on_cpu(tiny_hub: list[str]) -> None:
     assert "tok/s, acceptance" in printed
     # The last recipe's engine ran and produced every token.
     assert namespace["result"].n_tokens_generated == 32
-    assert namespace["composite"].arms[0].fallback == 0
+    # The drafter recipe built the composite strategy's arm and a lookup-only engine.
+    assert "label='composite-g6-f2', fallback=0, fallback_gamma=2" in printed
+    assert namespace["lookup"].arms[0].fallback is None
     assert "False |" in printed  # the compile-off recipe printed its decision
 
 

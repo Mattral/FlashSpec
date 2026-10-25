@@ -94,15 +94,17 @@ There are three kinds, and all are lossless:
 A composite strategy is one fixed arm (`bandit.n_arms` defaults to 1), runs at batch 1 with `variant` `"rejection"` or `"greedy"`, and verifies at width `max gamma + 1`. Lookup steps use Algorithm 1 with a one-hot draft distribution, so it is lossless; the chi-squared tests cover separate lookup and fallback gammas. Which composite becomes the default is decided by the pre-registered comparison in `benchmarks/configs/qwen_t4_composite.yaml` (applied by `scripts/composite_report.py`).
 
 ```python
-from flashspec.engine import ArmSpec, NgramDrafter
+from flashspec.engine import NgramDrafter
 
-lookup = SpeculativeEngine(config, [NgramDrafter()], target, UCB1Selector(n_arms=1))
-composite = SpeculativeEngine(
-    config, [drafter, NgramDrafter()], target, UCB1Selector(n_arms=1),
-    arms=[ArmSpec(drafter=1, gamma=4, fallback=0)],  # drafter 1 = lookup, fallback 0 = model
-)
-result = composite.generate(prompt, max_new_tokens=64)
-print([step.drafter for step in result.arm_steps])  # which drafter proposed each step
+greedy = SamplingConfig(temperature=0.0)
+composite = FlashSpecConfig(device=str(device), drafter_strategy="composite-g6-f2", sampling=greedy)
+engine = SpeculativeEngine(composite, [drafter, NgramDrafter()], target, UCB1Selector(n_arms=1))
+result = engine.generate(prompt, max_new_tokens=64)
+print(engine.arms, [step.drafter for step in result.arm_steps])  # drafter used at each step
+
+lookup_only = FlashSpecConfig(device=str(device), drafter_strategy="bandit",  # one arm per drafter
+                              bandit=BanditConfig(n_arms=1), sampling=greedy)
+lookup = SpeculativeEngine(lookup_only, [NgramDrafter()], target, UCB1Selector(n_arms=1))
 ```
 
 Which is fastest depends on the prompts. In the Phase 6 T4 run (greedy, bundle `3e38251`), the fastest fixed choice was the composite at gamma 4 on HumanEval and on the mixed workload, the model drafter at gamma 2 on MT-Bench, and prompt lookup at gamma 6 on code edits ([values](https://github.com/Mattral/FlashSpec/tree/main/benchmarks/results/gpu/3e38251)). Several arms plus a UCB1 or Thompson selector let a bandit choose online; that is experimental, and in the same run it did not beat the best fixed arm ([bandit](https://github.com/Mattral/FlashSpec/blob/main/docs/bandit.md)).
@@ -201,8 +203,8 @@ Defaults that change behaviour:
 - `FlashSpecConfig.compile = "auto"`: the compiled path (static KV cache, CUDA graphs) turns on when the device is CUDA and Triton is installed, and stays off otherwise.
 - `SamplingConfig.temperature = 1.0` with `variant = "rejection"`: the default samples (Algorithm 1). `temperature=0.0` selects `variant="greedy"`.
 - `SamplingConfig.gamma = 4`: draft tokens per step.
-- Drafter strategy: `SpeculativeEngine(..., arms=None)` makes one arm per drafter at `sampling.gamma`, and the selector you pass chooses between them. With one drafter that is a fixed drafter.
-- `BanditConfig.n_arms = 2`: it must equal the number of arms, so pass `BanditConfig(n_arms=1)` for one drafter.
+- `FlashSpecConfig.drafter_strategy = "bandit"`: the arms `SpeculativeEngine(..., arms=None)` builds. `"bandit"` is one arm per drafter at `sampling.gamma`, chosen by the selector you pass; a composite strategy is one arm (prompt lookup when the context has a match, else the model drafter) and needs batch 1.
+- `BanditConfig.n_arms = 2` when you pass a `BanditConfig` yourself: it must equal the number of arms, so pass `BanditConfig(n_arms=1)` for one arm. A composite strategy with no `bandit=` given gets `n_arms=1`.
 - `FlashSpecConfig.device = "cuda:0"`, `max_new_tokens = 512`.
 
 Server flags (`python -m flashspec.serve`):
