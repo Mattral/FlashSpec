@@ -9,43 +9,79 @@ code-generation task may favour a 1B-parameter LLM drafter.
 FlashSpec treats draft-model selection as a K-armed bandit problem and can
 adapt the choice online.
 
-> **Experimental, single-arm measured only.** Every measured language-model
-> run used one drafter, so the selector has not been measured choosing
-> between drafters. The regret results below are synthetic simulations.
+> **Experimental.** Every measured language-model run so far used one
+> drafter, so the selector has not been measured choosing between
+> drafters. Phase 6 adds a prompt-lookup drafter, per-arm gamma and a
+> mixed-workload benchmark for that; until its GPU bundle is ingested there
+> is no measured number. The regret results below are synthetic simulations.
 
 ---
 
 ## Selectors
+
+### Arms
+
+An arm is a drafter and a gamma (`flashspec.engine.ArmSpec`). Arms may
+share a drafter: Qwen2.5-0.5B at gamma 2, 4 and 6 is one model with one KV
+cache and three arms. A *composite* arm (`ArmSpec(lookup, gamma,
+fallback=model)`) uses the prompt-lookup proposal on a step where one
+exists and the model drafter otherwise. The choice needs no extra device
+read: the next step's lookup is computed on the device before the step's
+one read, which then carries its length.
+
+The reward of a step is its emitted tokens (accepted drafts plus the
+residual or bonus) divided by its wall time, including any catch-up
+forward an idle model drafter makes on that step.
+`GenerationResult.arm_steps` records every step (arm, drafter used,
+proposed, accepted, emitted, seconds, reward, catch-up tokens), and
+`benchmarks/arm_report.py` turns those records into a per-run report.
+
+The bandit's value for an arm is the mean of its per-step rewards. That
+is not the same as the arm's throughput (total tokens / total time) when
+step times vary within an arm, as they do for a composite arm (cheap
+lookup steps, dearer model steps); the report prints both.
 
 ### UCB1 (`bandit/ucb.py`)
 
 Score for arm k at round t:
 
 ```
-score_k = μ̂_k + c · √(2 log t / n_k)
+score_k = μ̂_k / s + c · √(2 log t / n_k)
 ```
 
-- `μ̂_k`: empirical mean reward (optionally windowed). The engine passes
-  accepted draft tokens divided by that step's wall time. A call that
-  omits `reward` uses the accept count, which is what the regret tests
-  record. The raw accept count stays on the arm either way. The bonus
-  token is not part of the count.
+- `μ̂_k`: empirical mean reward (optionally windowed). A call that omits
+  `reward` uses the accept count, which is what the regret tests record.
+  The raw accept count stays on the arm either way.
+- `s`: the largest reward seen so far (`normalise_rewards=True`, the
+  default). UCB1's bonus is sized for rewards in `[0, 1]`. Next to a reward
+  in tokens per second (tens to hundreds) an unscaled bonus is negligible,
+  and the selector stops exploring after one pull per arm. Dividing by the
+  running maximum makes the choice independent of the unit; for rewards in
+  `[0, 1]` that reach 1 it changes nothing.
 - `c`: exploration constant (default 1.0).
 - `n_k`: number of times arm k has been pulled.
 - `t`: total rounds elapsed.
 
 ### Thompson Sampling (`bandit/thompson.py`)
 
-Maintains Beta(α_k, β_k) posterior for each arm.  At each round draws one
-sample per arm and selects the argmax.  Posterior update:
+With a reward (what the engine passes), each round draws one sample per arm
+from a Gaussian posterior on its mean reward and selects the argmax:
 
 ```
-α_k += accepted      β_k += (1 - accepted)
+sample_k ~ Normal(μ̂_k, σ̂_k² / n_k)
 ```
 
-`reward`, when passed, is stored on the arm and is not added to α or β.
-Tokens per second are not a Bernoulli trial, so Thompson's posterior
-stays on the accept count.
+`σ̂_k²` is the arm's sample variance, or the variance pooled over arms while
+the arm has fewer than two observations. Unpulled arms are tried first.
+The draw does not depend on the reward's unit. `seed=` gives the selector
+its own generator.
+
+Without a reward (`update(arm, accepted)` only), it keeps the Beta(α_k, β_k)
+posterior on the acceptance rate:
+
+```
+α_k += accepted      β_k += max(0, 1 - accepted)
+```
 
 ### Oracle (`bandit/oracle.py`)
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -356,3 +357,42 @@ def test_dataset_list_names_files_per_dataset(
     assert any(name.startswith("listed_mt_bench_flashspec_ucb_") for name in names)
     assert all("alpaca" not in name for name in names)
     assert "CC BY-NC 4.0" in capsys.readouterr().out
+
+
+def test_humaneval_edit_set_is_recorded_and_disjoint() -> None:
+    """Ten edit prompts, MIT, each a fenced function plus one of three instructions."""
+    payload = json.loads(
+        (
+            Path(__file__).resolve().parents[2] / "benchmarks/prompt_sets/humaneval_edit.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert payload["license"] == "MIT"
+    assert payload["source_sha256"] == (
+        "b796127e635a67f93fb35c04f4cb03cf06f38c8072ee7cee8833d7bee06979ef"
+    )
+    records = load_prompt_set("humaneval_edit")
+    assert len(records) == 10
+    tasks = {item["task_id"] for item in payload["prompts"]}
+    assert tasks.isdisjoint({item["id"] for item in load_prompt_set("humaneval")})
+    kinds = [item["edit"] for item in payload["prompts"]]
+    assert kinds[:3] == ["docstring", "rename", "type_hints"]
+    for record in records:
+        assert "```python\n" in record["text"] and record["text"].endswith("```")
+        assert "return the complete function" in record["text"]
+
+
+def test_mixed_is_a_fixed_permutation_of_the_three_sets() -> None:
+    """Every prompt of the three sets exactly once, in the stored order."""
+    mixed = load_prompt_set("mixed")
+    expected = {
+        f"{name}/{record['id']}"
+        for name in ("mt_bench", "humaneval", "humaneval_edit")
+        for record in load_prompt_set(name)
+    }
+    ids = [record["id"] for record in mixed]
+    assert len(ids) == len(set(ids)) == 30
+    assert set(ids) == expected
+    assert {record["dataset"] for record in mixed} == {"mt_bench", "humaneval", "humaneval_edit"}
+    # Interleaved, not grouped: the first ten are not all one set.
+    assert len({record["dataset"] for record in mixed[:10]}) > 1
+    assert load_prompt_set("mixed") == mixed

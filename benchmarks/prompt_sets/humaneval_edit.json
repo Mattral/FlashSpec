@@ -1,0 +1,71 @@
+{
+  "dataset": "humaneval_edit",
+  "license": "MIT",
+  "copyright": "Copyright (c) OpenAI",
+  "source": "https://github.com/openai/human-eval/blob/b9453e8f1865df0a0057a1383767caa400acfbcf/data/HumanEval.jsonl.gz",
+  "source_sha256": "b796127e635a67f93fb35c04f4cb03cf06f38c8072ee7cee8833d7bee06979ef",
+  "selection": "tasks in file order whose canonical_solution has at least 5 non-empty lines, excluding the tasks in humaneval.json; the first 10. Edits rotate docstring, rename, type_hints.",
+  "built_by": "scripts/build_humaneval_edit.py",
+  "prompts": [
+    {
+      "id": "HumanEval/0:docstring",
+      "task_id": "HumanEval/0",
+      "edit": "docstring",
+      "text": "Rewrite the docstring of this Python function in Google style, with Args and Returns sections. Keep the code itself unchanged and return the complete function.\n\n```python\nfrom typing import List\n\n\ndef has_close_elements(numbers: List[float], threshold: float) -> bool:\n    \"\"\" Check if in given list of numbers, are any two numbers closer to each other than\n    given threshold.\n    >>> has_close_elements([1.0, 2.0, 3.0], 0.5)\n    False\n    >>> has_close_elements([1.0, 2.8, 3.0, 4.0, 5.0, 2.0], 0.3)\n    True\n    \"\"\"\n    for idx, elem in enumerate(numbers):\n        for idx2, elem2 in enumerate(numbers):\n            if idx != idx2:\n                distance = abs(elem - elem2)\n                if distance < threshold:\n                    return True\n\n    return False\n```"
+    },
+    {
+      "id": "HumanEval/1:rename",
+      "task_id": "HumanEval/1",
+      "edit": "rename",
+      "text": "Rename the variables in this Python function to longer, more descriptive names. Keep the behaviour unchanged and return the complete function.\n\n```python\nfrom typing import List\n\n\ndef separate_paren_groups(paren_string: str) -> List[str]:\n    \"\"\" Input to this function is a string containing multiple groups of nested parentheses. Your goal is to\n    separate those group into separate strings and return the list of those.\n    Separate groups are balanced (each open brace is properly closed) and not nested within each other\n    Ignore any spaces in the input string.\n    >>> separate_paren_groups('( ) (( )) (( )( ))')\n    ['()', '(())', '(()())']\n    \"\"\"\n    result = []\n    current_string = []\n    current_depth = 0\n\n    for c in paren_string:\n        if c == '(':\n            current_depth += 1\n            current_string.append(c)\n        elif c == ')':\n            current_depth -= 1\n            current_string.append(c)\n\n            if current_depth == 0:\n                result.append(''.join(current_string))\n                current_string.clear()\n\n    return result\n```"
+    },
+    {
+      "id": "HumanEval/3:type_hints",
+      "task_id": "HumanEval/3",
+      "edit": "type_hints",
+      "text": "Add type hints to every local variable in this Python function. Keep the behaviour unchanged and return the complete function.\n\n```python\nfrom typing import List\n\n\ndef below_zero(operations: List[int]) -> bool:\n    \"\"\" You're given a list of deposit and withdrawal operations on a bank account that starts with\n    zero balance. Your task is to detect if at any point the balance of account fallls below zero, and\n    at that point function should return True. Otherwise it should return False.\n    >>> below_zero([1, 2, 3])\n    False\n    >>> below_zero([1, 2, -4, 5])\n    True\n    \"\"\"\n    balance = 0\n\n    for op in operations:\n        balance += op\n        if balance < 0:\n            return True\n\n    return False\n```"
+    },
+    {
+      "id": "HumanEval/5:docstring",
+      "task_id": "HumanEval/5",
+      "edit": "docstring",
+      "text": "Rewrite the docstring of this Python function in Google style, with Args and Returns sections. Keep the code itself unchanged and return the complete function.\n\n```python\nfrom typing import List\n\n\ndef intersperse(numbers: List[int], delimeter: int) -> List[int]:\n    \"\"\" Insert a number 'delimeter' between every two consecutive elements of input list `numbers'\n    >>> intersperse([], 4)\n    []\n    >>> intersperse([1, 2, 3], 4)\n    [1, 4, 2, 4, 3]\n    \"\"\"\n    if not numbers:\n        return []\n\n    result = []\n\n    for n in numbers[:-1]:\n        result.append(n)\n        result.append(delimeter)\n\n    result.append(numbers[-1])\n\n    return result\n```"
+    },
+    {
+      "id": "HumanEval/6:rename",
+      "task_id": "HumanEval/6",
+      "edit": "rename",
+      "text": "Rename the variables in this Python function to longer, more descriptive names. Keep the behaviour unchanged and return the complete function.\n\n```python\nfrom typing import List\n\n\ndef parse_nested_parens(paren_string: str) -> List[int]:\n    \"\"\" Input to this function is a string represented multiple groups for nested parentheses separated by spaces.\n    For each of the group, output the deepest level of nesting of parentheses.\n    E.g. (()()) has maximum two levels of nesting while ((())) has three.\n\n    >>> parse_nested_parens('(()()) ((())) () ((())()())')\n    [2, 3, 1, 3]\n    \"\"\"\n    def parse_paren_group(s):\n        depth = 0\n        max_depth = 0\n        for c in s:\n            if c == '(':\n                depth += 1\n                max_depth = max(depth, max_depth)\n            else:\n                depth -= 1\n\n        return max_depth\n\n    return [parse_paren_group(x) for x in paren_string.split(' ') if x]\n```"
+    },
+    {
+      "id": "HumanEval/8:type_hints",
+      "task_id": "HumanEval/8",
+      "edit": "type_hints",
+      "text": "Add type hints to every local variable in this Python function. Keep the behaviour unchanged and return the complete function.\n\n```python\nfrom typing import List, Tuple\n\n\ndef sum_product(numbers: List[int]) -> Tuple[int, int]:\n    \"\"\" For a given list of integers, return a tuple consisting of a sum and a product of all the integers in a list.\n    Empty sum should be equal to 0 and empty product should be equal to 1.\n    >>> sum_product([])\n    (0, 1)\n    >>> sum_product([1, 2, 3, 4])\n    (10, 24)\n    \"\"\"\n    sum_value = 0\n    prod_value = 1\n\n    for n in numbers:\n        sum_value += n\n        prod_value *= n\n    return sum_value, prod_value\n```"
+    },
+    {
+      "id": "HumanEval/9:docstring",
+      "task_id": "HumanEval/9",
+      "edit": "docstring",
+      "text": "Rewrite the docstring of this Python function in Google style, with Args and Returns sections. Keep the code itself unchanged and return the complete function.\n\n```python\nfrom typing import List, Tuple\n\n\ndef rolling_max(numbers: List[int]) -> List[int]:\n    \"\"\" From a given list of integers, generate a list of rolling maximum element found until given moment\n    in the sequence.\n    >>> rolling_max([1, 2, 3, 2, 3, 4, 2])\n    [1, 2, 3, 3, 3, 4, 4]\n    \"\"\"\n    running_max = None\n    result = []\n\n    for n in numbers:\n        if running_max is None:\n            running_max = n\n        else:\n            running_max = max(running_max, n)\n\n        result.append(running_max)\n\n    return result\n```"
+    },
+    {
+      "id": "HumanEval/10:rename",
+      "task_id": "HumanEval/10",
+      "edit": "rename",
+      "text": "Rename the variables in this Python function to longer, more descriptive names. Keep the behaviour unchanged and return the complete function.\n\n```python\ndef is_palindrome(string: str) -> bool:\n    \"\"\" Test if given string is a palindrome \"\"\"\n    return string == string[::-1]\n\n\ndef make_palindrome(string: str) -> str:\n    \"\"\" Find the shortest palindrome that begins with a supplied string.\n    Algorithm idea is simple:\n    - Find the longest postfix of supplied string that is a palindrome.\n    - Append to the end of the string reverse of a string prefix that comes before the palindromic suffix.\n    >>> make_palindrome('')\n    ''\n    >>> make_palindrome('cat')\n    'catac'\n    >>> make_palindrome('cata')\n    'catac'\n    \"\"\"\n    if not string:\n        return ''\n\n    beginning_of_suffix = 0\n\n    while not is_palindrome(string[beginning_of_suffix:]):\n        beginning_of_suffix += 1\n\n    return string + string[:beginning_of_suffix][::-1]\n```"
+    },
+    {
+      "id": "HumanEval/11:type_hints",
+      "task_id": "HumanEval/11",
+      "edit": "type_hints",
+      "text": "Add type hints to every local variable in this Python function. Keep the behaviour unchanged and return the complete function.\n\n```python\nfrom typing import List\n\n\ndef string_xor(a: str, b: str) -> str:\n    \"\"\" Input are two strings a and b consisting only of 1s and 0s.\n    Perform binary XOR on these inputs and return result also as a string.\n    >>> string_xor('010', '110')\n    '100'\n    \"\"\"\n    def xor(i, j):\n        if i == j:\n            return '0'\n        else:\n            return '1'\n\n    return ''.join(xor(x, y) for x, y in zip(a, b))\n```"
+    },
+    {
+      "id": "HumanEval/12:docstring",
+      "task_id": "HumanEval/12",
+      "edit": "docstring",
+      "text": "Rewrite the docstring of this Python function in Google style, with Args and Returns sections. Keep the code itself unchanged and return the complete function.\n\n```python\nfrom typing import List, Optional\n\n\ndef longest(strings: List[str]) -> Optional[str]:\n    \"\"\" Out of list of strings, return the longest one. Return the first one in case of multiple\n    strings of the same length. Return None in case the input list is empty.\n    >>> longest([])\n\n    >>> longest(['a', 'b', 'c'])\n    'a'\n    >>> longest(['a', 'bb', 'ccc'])\n    'ccc'\n    \"\"\"\n    if not strings:\n        return None\n\n    maxlen = max(len(x) for x in strings)\n    for s in strings:\n        if len(s) == maxlen:\n            return s\n```"
+    }
+  ]
+}
