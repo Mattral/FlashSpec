@@ -16,6 +16,7 @@ from typing import Any
 import torch
 
 from flashspec.bandit.base import DraftSelector
+from flashspec.engine.arms import ArmSpec, default_arms, validate_arms
 from flashspec.engine.drafter import DraftModel
 from flashspec.engine.kv_cache import CacheUnavailableError, debug_cache_enabled
 from flashspec.engine.ngram import is_lookup_drafter
@@ -31,9 +32,15 @@ from flashspec.utils.config import FlashSpecConfig
 from flashspec.utils.device import CompileDecision, get_device, resolve_compile
 from flashspec.utils.logging import get_logger
 
-__all__ = ["SpeculativeEngine", "GenerationResult"]
+__all__ = ["DRAFTER_PAD_WIDTHS", "SpeculativeEngine", "GenerationResult"]
 
 logger = get_logger(__name__)
+
+# Fixed input widths for a model drafter's compiled calls: 1 (a draft
+# step), 2 (pending residual + bonus) and buckets for an idle drafter's
+# catch-up. A call is padded at the end to the next width, so these are the
+# only shapes captured. Longer catch-ups run eagerly in one call.
+DRAFTER_PAD_WIDTHS: tuple[int, ...] = (1, 2, 4, 8, 16, 32)
 
 
 @dataclass(slots=True, frozen=True)
@@ -75,11 +82,16 @@ def _offers(owner: object, names: tuple[str, ...]) -> bool:
 @functools.lru_cache(maxsize=128)
 def _takes_generator(method: Any) -> bool:  # noqa: ANN401
     """Whether ``method`` accepts a ``generator`` keyword."""
+    return _takes_keyword(method, "generator")
+
+
+def _takes_keyword(method: Any, name: str) -> bool:  # noqa: ANN401
+    """Whether ``method`` names the keyword ``name``."""
     try:
         parameters = inspect.signature(method).parameters
     except (TypeError, ValueError):
         return False
-    return "generator" in parameters
+    return name in parameters
 
 
 def _draft_with_context(
@@ -100,6 +112,9 @@ def _draft_with_context(
 @dataclass(slots=True)
 class _Incremental:
     """Which batch-1 components run on the incremental cache this call.
+
+    State is per drafter (``slot`` is a drafter index, not an arm index):
+    arms that share a drafter share its cache.
 
     A component is *capable* when its wrapper offers the incremental API
     and *live* once :meth:`begin` has succeeded on the current sequence.
@@ -127,25 +142,25 @@ class _Incremental:
 
     def draft(
         self,
-        arm: int,
+        slot: int,
         drafter: Any,  # noqa: ANN401
         context: torch.Tensor,
         gamma: int,
         greedy: bool = False,
         generator: torch.Generator | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor | None]:
-        if self.drafter_capable[arm] and not self.drafter_live[arm]:
-            self.drafter_live[arm] = bool(drafter.begin(context))
-            self.drafter_capable[arm] = self.drafter_live[arm]
-        if self.drafter_live[arm]:
+        if self.drafter_capable[slot] and not self.drafter_live[slot]:
+            self.drafter_live[slot] = bool(drafter.begin(context))
+            self.drafter_capable[slot] = self.drafter_live[slot]
+        if self.drafter_live[slot]:
             try:
                 if generator is not None and _takes_generator(drafter.draft):
                     ids, logprobs = drafter.draft(gamma, greedy=greedy, generator=generator)
                 else:
                     ids, logprobs = drafter.draft(gamma, greedy=greedy)
             except CacheUnavailableError:
-                self.drafter_live[arm] = False
-                self.drafter_capable[arm] = False
+                self.drafter_live[slot] = False
+                self.drafter_capable[slot] = False
             else:
                 return ids, logprobs
         return _draft_with_context(drafter, context, gamma, generator)
@@ -180,7 +195,7 @@ class _Incremental:
 
     def commit(
         self,
-        arm: int,
+        slot: int,
         drafters: list[Any],
         target: Any,  # noqa: ANN401
         n_accepted: int,
@@ -205,7 +220,7 @@ class _Incremental:
         for index, drafter in enumerate(drafters):
             if not self.drafter_live[index]:
                 continue
-            if index != arm:
+            if index != slot:
                 drafter.push_pending(piece)
             elif complete:
                 drafter.commit(n_accepted, next_token)
@@ -218,10 +233,10 @@ class _Incremental:
                 if self.drafter_live[index]:
                     drafter.check_cache(context)
 
-    def uses_cache(self, owner: object, arm: int, drafter: object) -> bool:
+    def uses_cache(self, owner: object, slot: int, drafter: object) -> bool:
         """Whether ``owner`` is kept in step by :meth:`commit` instead of ``roll_cache_to``."""
         if owner is drafter:
-            return self.drafter_capable[arm]
+            return self.drafter_capable[slot]
         return self.target_capable
 
 
@@ -282,16 +297,23 @@ class SpeculativeEngine:
     config : FlashSpecConfig
         Full engine configuration.
     drafters : list[DraftModel]
-        List of draft model instances, one per bandit arm.
+        Draft model instances. Without ``arms``, one per bandit arm. Lookup
+        drafters (:class:`flashspec.engine.ngram.NgramDrafter`) may be mixed
+        with model drafters.
     target : TargetModel
         The target (verifier) model instance.
     bandit : DraftSelector
         Online bandit selector for adaptive arm selection.
+    arms : sequence of ArmSpec or None
+        The bandit's arms: a drafter index and a gamma each, so arms can
+        share a drafter (one model, one cache) at different gammas.
+        ``None`` makes one arm per drafter at ``config.sampling.gamma``.
 
     Raises
     ------
     ValueError
-        If ``len(drafters)`` does not match ``config.bandit.n_arms``.
+        If the number of arms (``len(drafters)`` when ``arms`` is ``None``)
+        does not match ``config.bandit.n_arms``, or an arm is invalid.
 
     Notes
     -----
@@ -316,11 +338,19 @@ class SpeculativeEngine:
         drafters: list[DraftModel],
         target: TargetModel,
         bandit: DraftSelector,
+        arms: Sequence[ArmSpec] | None = None,
     ) -> None:
-        if len(drafters) != config.bandit.n_arms:
+        if arms is None:
+            if len(drafters) != config.bandit.n_arms:
+                raise ValueError(
+                    f"len(drafters)={len(drafters)} must match "
+                    f"config.bandit.n_arms={config.bandit.n_arms}."
+                )
+            arms = default_arms(len(drafters), config.sampling.gamma)
+        validate_arms(arms, len(drafters))
+        if len(arms) != config.bandit.n_arms:
             raise ValueError(
-                f"len(drafters)={len(drafters)} must match "
-                f"config.bandit.n_arms={config.bandit.n_arms}."
+                f"len(arms)={len(arms)} must match config.bandit.n_arms={config.bandit.n_arms}."
             )
         if config.bandit.n_arms < 2:
             logger.warning(
@@ -340,11 +370,13 @@ class SpeculativeEngine:
         # Lookup drafters (prompt lookup) run no model and propose a
         # variable number of tokens; they need the batch-1 fast path.
         self._lookup = [is_lookup_drafter(drafter) for drafter in drafters]
+        self._arms: list[ArmSpec] = list(arms)
+        self._gamma_max = max(arm.gamma for arm in self._arms)
         self._target = target
         self._bandit = bandit
         self._device = get_device(config.device)
 
-        self._acceptance_tracker = AcceptanceTracker(gamma=config.sampling.gamma)
+        self._acceptance_tracker = AcceptanceTracker(gamma=self._gamma_max)
         self._throughput_tracker = ThroughputTracker()
         self._latency_tracker = LatencyTracker(
             window=config.metrics.latency_window,
@@ -374,14 +406,32 @@ class SpeculativeEngine:
         )
 
     def _enable_compile(self) -> bool:
-        """Move capable wrappers onto a static cache with CUDA-graph capture."""
+        """Move capable wrappers onto a static cache with CUDA-graph capture.
+
+        With ``config.compile_fixed_shapes`` the target's verify calls are
+        padded to one width, ``gamma_max + 1`` (pending token plus the
+        longest draft), and a drafter's calls to :data:`DRAFTER_PAD_WIDTHS`,
+        so per-arm gammas, short lookup proposals and catch-ups replay a few
+        captured graphs instead of recording one per length.
+        """
+        fixed = self._config.compile_fixed_shapes
         switched = False
         for owner in (self._target, *self._drafters):
             use_static = getattr(owner, "use_static_cache", None)
-            if callable(use_static):
-                use_static(self._config.compile_max_cache_len, compile_forward=True)
-                switched = True
+            if not callable(use_static):
+                continue
+            kwargs: dict[str, Any] = {"compile_forward": True}
+            if fixed and _takes_keyword(use_static, "pad_widths"):
+                widths = (self._gamma_max + 1,) if owner is self._target else DRAFTER_PAD_WIDTHS
+                kwargs["pad_widths"] = widths
+            use_static(self._config.compile_max_cache_len, **kwargs)
+            switched = True
         return switched
+
+    @property
+    def arms(self) -> tuple[ArmSpec, ...]:
+        """The bandit's arms, in bandit index order."""
+        return tuple(self._arms)
 
     @property
     def compiled(self) -> bool:
@@ -493,7 +543,6 @@ class SpeculativeEngine:
         reads the device several times per step; the batch-1 fast path is
         :meth:`_generate_single`.
         """
-        gamma = self._config.sampling.gamma
         config_sampling = self._config.sampling
         batch_size = int(input_ids.shape[0])
 
@@ -534,9 +583,12 @@ class SpeculativeEngine:
             idxs = max(groups.values(), key=len)
             context = torch.cat([contexts[i] for i in idxs], dim=0)
 
-            # 1. Bandit selects a draft arm.
+            # 1. Bandit selects a draft arm: a drafter and its gamma.
             arm = self._bandit.select()
-            drafter = self._drafters[arm]
+            spec = self._arms[arm]
+            gamma = spec.gamma
+            slot = spec.drafter
+            drafter = self._drafters[slot]
 
             greedy_bonus: torch.Tensor | None = None
             if config_sampling.greedy:
@@ -544,7 +596,7 @@ class SpeculativeEngine:
                 # first mismatch. No softmax and no random draws.
                 if incremental is not None:
                     draft_token_ids, _ = incremental.draft(
-                        arm, drafter, context, gamma, greedy=True, generator=generator
+                        slot, drafter, context, gamma, greedy=True, generator=generator
                     )
                 else:
                     draft_token_ids, _ = _draft_with_context(drafter, context, gamma, generator)
@@ -568,7 +620,7 @@ class SpeculativeEngine:
                 # 2. Draft model proposes gamma tokens.
                 if incremental is not None:
                     draft_token_ids, maybe_logprobs = incremental.draft(
-                        arm, drafter, context, gamma, generator=generator
+                        slot, drafter, context, gamma, generator=generator
                     )
                     if maybe_logprobs is None:
                         raise RuntimeError("Drafter returned no log-probs for a sampling step.")
@@ -686,7 +738,7 @@ class SpeculativeEngine:
                 accepted_prefix = contexts[idxs[0]]
                 if incremental is not None and last_piece is not None:
                     incremental.commit(
-                        arm,
+                        slot,
                         self._drafters,
                         self._target,
                         int(first_rejection[0]),
@@ -694,7 +746,7 @@ class SpeculativeEngine:
                         accepted_prefix,
                     )
                 for owner in (drafter, self._target):
-                    if incremental is not None and incremental.uses_cache(owner, arm, drafter):
+                    if incremental is not None and incremental.uses_cache(owner, slot, drafter):
                         continue
                     roll = getattr(owner, "roll_cache_to", None)
                     if callable(roll):
@@ -704,7 +756,7 @@ class SpeculativeEngine:
             # Emitted tokens: accepted drafts plus the residual or bonus.
             reward = (emitted / elapsed) if elapsed > 0.0 else 0.0
             self._bandit.update(arm, accepted=n_accepted, reward=reward)
-            self._acceptance_tracker.record(n_accepted)
+            self._acceptance_tracker.record(n_accepted, gamma)
             self._latency_tracker.stop()
             if profiler is not None:
                 profiler.mark("bookkeeping")
@@ -767,13 +819,12 @@ class SpeculativeEngine:
         only read. The accepted tokens are written into a preallocated
         sequence buffer by index, and the caches commit by count.
         """
-        gamma = self._config.sampling.gamma
         sampling = self._config.sampling
         greedy = sampling.greedy
         device = self._device
         prompt = input_ids.to(device=device, dtype=torch.long)
         prompt_len = int(prompt.shape[1])
-        capacity = prompt_len + max_tokens + gamma + 1
+        capacity = prompt_len + max_tokens + self._gamma_max + 1
         # Zeros, not empty: a lookup drafter reads the buffer with fixed
         # shapes, so stale positions must hold valid token ids.
         buffer = torch.zeros((1, capacity), dtype=torch.long, device=device)
@@ -799,10 +850,13 @@ class SpeculativeEngine:
                 profiler.start_step()
             context = buffer[:, :length]
             arm = self._bandit.select()
-            drafter = self._drafters[arm]
+            spec = self._arms[arm]
+            gamma = spec.gamma
+            slot = spec.drafter
+            drafter = self._drafters[slot]
             n_valid: torch.Tensor | None = None
 
-            if self._lookup[arm]:
+            if self._lookup[slot]:
                 # Prompt lookup: gamma proposals of which n_valid (a device
                 # tensor) are real. No model forward and no device read.
                 draft_ids, n_valid = drafter.propose(buffer, length, gamma)  # type: ignore[attr-defined]
@@ -828,7 +882,7 @@ class SpeculativeEngine:
                     )
             elif greedy:
                 draft_ids, _ = incremental.draft(
-                    arm, drafter, context, gamma, greedy=True, generator=generator
+                    slot, drafter, context, gamma, greedy=True, generator=generator
                 )
                 if profiler is not None:
                     profiler.mark("draft")
@@ -840,7 +894,7 @@ class SpeculativeEngine:
                 step = greedy_step(draft_ids, target_argmax)
             else:
                 draft_ids, draft_logprobs = incremental.draft(
-                    arm, drafter, context, gamma, generator=generator
+                    slot, drafter, context, gamma, generator=generator
                 )
                 if draft_logprobs is None:
                     raise RuntimeError("Drafter returned no log-probs for a sampling step.")
@@ -855,10 +909,20 @@ class SpeculativeEngine:
                     draft_ids, draft_logprobs, target_logprobs, generator=generator
                 )
 
-            # The one device-to-host read of the step.
-            host = torch.cat([step.view(-1), draft_ids.view(-1).to(step.device)]).tolist()
+            # The one device-to-host read of the step: [n_accepted,
+            # next_token, (n_valid for a lookup arm), *draft_ids].
+            pieces = [step.view(-1)]
+            if n_valid is not None:
+                pieces.append(n_valid.view(-1).to(step.device))
+            pieces.append(draft_ids.view(-1).to(step.device))
+            host = torch.cat(pieces).tolist()
             n_accepted, next_token = int(host[0]), int(host[1])
-            new_tokens = host[2 : 2 + n_accepted]
+            head = 2
+            n_proposed = gamma
+            if n_valid is not None:
+                n_proposed = int(host[2])
+                head = 3
+            new_tokens = host[head : head + n_accepted]
             if next_token >= 0:
                 new_tokens.append(next_token)
             take = new_tokens[: max_tokens - len(produced)]
@@ -883,10 +947,10 @@ class SpeculativeEngine:
             accepted_prefix = buffer[:, :length]
             if emitted:
                 incremental.commit(
-                    arm, self._drafters, self._target, n_accepted, piece, accepted_prefix
+                    slot, self._drafters, self._target, n_accepted, piece, accepted_prefix
                 )
             for owner in (drafter, self._target):
-                if incremental.uses_cache(owner, arm, drafter):
+                if incremental.uses_cache(owner, slot, drafter):
                     continue
                 roll = getattr(owner, "roll_cache_to", None)
                 if callable(roll):
@@ -898,7 +962,7 @@ class SpeculativeEngine:
             # Emitted tokens: accepted drafts plus the residual or bonus.
             reward = (emitted / elapsed) if elapsed > 0.0 else 0.0
             self._bandit.update(arm, accepted=n_accepted, reward=reward)
-            self._acceptance_tracker.record(n_accepted)
+            self._acceptance_tracker.record(n_accepted, n_proposed)
             self._latency_tracker.record(elapsed * 1000.0)
             if profiler is not None:
                 profiler.mark("bookkeeping")

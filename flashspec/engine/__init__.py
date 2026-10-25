@@ -1,5 +1,6 @@
 """Engine sub-package: drafter registry, verifier wrapper, and orchestrator."""
 
+from flashspec.engine.arms import ArmSpec
 from flashspec.engine.drafter import (
     DraftModel,
     get_drafter,
@@ -15,6 +16,7 @@ from flashspec.engine.speculative import GenerationResult, SpeculativeEngine
 from flashspec.engine.verifier import TargetModel
 
 __all__ = [
+    "ArmSpec",
     "DraftModel",
     "GenerationResult",
     "HuggingFaceDrafter",

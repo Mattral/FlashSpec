@@ -39,14 +39,18 @@ class AcceptanceTracker:
     _total_possible: int = field(default=0, init=False)
     _step_count: int = field(default=0, init=False)
 
-    def record(self, n_accepted: int) -> None:
+    def record(self, n_accepted: int, n_proposed: int | None = None) -> None:
         """Record the outcome of one speculative decoding step.
 
         Parameters
         ----------
         n_accepted : int
             Number of draft tokens accepted in this step.
-            Must be in ``[0, gamma]``.
+            Must be in ``[0, n_proposed]``.
+        n_proposed : int or None
+            Draft tokens proposed this step, in ``[0, gamma]``: the arm's
+            gamma, or a lookup drafter's real proposal length. ``None``
+            means ``gamma``.
 
         Returns
         -------
@@ -59,8 +63,8 @@ class AcceptanceTracker:
 
         Notes
         -----
-        Updates ``_total_accepted``, ``_total_possible`` (always incremented
-        by ``gamma``), and ``_step_count`` atomically.  Thread safety is the
+        Updates ``_total_accepted``, ``_total_possible`` (incremented by
+        ``n_proposed``, default ``gamma``), and ``_step_count``.  Thread safety is the
         caller's responsibility; the tracker itself does not lock.
 
         Examples
@@ -70,10 +74,13 @@ class AcceptanceTracker:
         >>> tracker.total_accepted
         2
         """
-        if not (0 <= n_accepted <= self.gamma):
-            raise ValueError(f"n_accepted must be in [0, {self.gamma}]; got {n_accepted}.")
+        proposed = self.gamma if n_proposed is None else int(n_proposed)
+        if not 0 <= proposed <= self.gamma:
+            raise ValueError(f"n_proposed must be in [0, {self.gamma}]; got {proposed}.")
+        if not (0 <= n_accepted <= proposed):
+            raise ValueError(f"n_accepted must be in [0, {proposed}]; got {n_accepted}.")
         self._total_accepted += n_accepted
-        self._total_possible += self.gamma
+        self._total_possible += proposed
         self._step_count += 1
 
     @property
@@ -88,7 +95,8 @@ class AcceptanceTracker:
         Notes
         -----
         Computed as ``total_accepted / total_possible`` where
-        ``total_possible == step_count * gamma``.  This is the α used in
+        ``total_possible`` sums the proposed counts (``step_count * gamma``
+        when every step proposes ``gamma``).  This is the α used in
         the expected tokens-per-step formula: ``E[tokens/step] = γ·α + 1``.
 
         Examples

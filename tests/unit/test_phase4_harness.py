@@ -366,6 +366,7 @@ class TestPhase5Methods:
         methods = [
             "flashspec_ucb",
             "flashspec_compiled",
+            "flashspec_compiled_legacy",
             "hf_greedy",
             "hf_greedy_compiled",
             "hf_assisted",
@@ -389,8 +390,20 @@ class TestPhase5Methods:
             "effective": False,
             "decision": "compile=True needs a CUDA device for CUDA graphs; the device is cpu",
             "fallback_reason": None,
+            "fixed_shapes": True,
         }
         assert compiled["compile"] == expected
+        legacy = paired["flashspec_compiled_legacy"]
+        assert legacy["compile"] == {**expected, "fixed_shapes": False}
+        assert "0.2.0" in str(legacy["notes"])
+        graphs = compiled["cuda_graphs"]
+        assert isinstance(graphs, dict)
+        # CPU: nothing is captured and the sessions stay dynamic.
+        assert graphs["available"] is False and graphs["captures"] == 0
+        assert graphs["call_shapes"] == {
+            "target": None,
+            "drafters": {"bench-drafter-flashspec_compiled": None},
+        }
         assert "speedup_vs_flashspec_ucb_median" in compiled["metrics"]  # type: ignore[operator]
         hf_compiled = paired["hf_greedy_compiled"]
         assert hf_compiled["compile"] == {"requested": True, "effective": False}
