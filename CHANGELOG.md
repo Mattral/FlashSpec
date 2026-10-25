@@ -10,6 +10,22 @@ Versioning follows [Semantic Versioning 2.0.0](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- Prompt-lookup (n-gram) drafter, `flashspec.engine.NgramDrafter` (PLAN
+  Phase 6a). It proposes the continuation of the most recent earlier
+  occurrence of the last 3, 2 or 1 context tokens, searched on the device
+  with fixed shapes (`unfold` + compare, no loop over the context, no
+  device read). It may propose 0 to gamma tokens; the real length stays a
+  device tensor, and positions past it are never accepted. A step with no
+  proposal emits one target token from its single target forward.
+- Sampling with a lookup drafter uses Algorithm 1 with a one-hot `q`
+  (`flashspec.sampling.rejection_step_onehot`): accept with probability
+  `min(1, p(x))`; on a rejection, sample `max(0, p - onehot(x))`
+  renormalised, through the same residual code as the model drafter. No
+  smoothed `q`, and no `log(0)`.
+- Lookup drafters run on the batch-1 fast path only; the batch > 1 loop
+  raises a `ValueError` naming that.
+
 ## [0.2.0] — 2026-10-25 — Compiled fast path, lossless checks, release hygiene
 
 Development status stays Alpha. The measured scope is one model pair on

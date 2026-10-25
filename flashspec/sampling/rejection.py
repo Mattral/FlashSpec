@@ -27,6 +27,7 @@ __all__ = [
     "active_residual_backend",
     "rejection_sample",
     "rejection_step",
+    "rejection_step_onehot",
     "residual_backend_status",
     "residual_distribution",
 ]
@@ -622,6 +623,121 @@ def rejection_step(
         bonus = target_logprobs[:, gamma].float().exp()
         bonus = bonus / bonus.sum(dim=-1, keepdim=True).clamp(min=_MIN_PROB)
         probs = torch.where((first < gamma).unsqueeze(-1), probs, bonus)
+    next_token = torch.multinomial(probs, num_samples=1, generator=generator).squeeze(-1)
+    if rows == gamma:
+        next_token = torch.where(first < gamma, next_token, torch.full_like(next_token, -1))
+    return torch.stack([first, next_token], dim=-1)
+
+
+def rejection_step_onehot(
+    draft_token_ids: torch.Tensor,
+    target_logprobs: torch.Tensor,
+    draft_len: torch.Tensor | None = None,
+    *,
+    generator: torch.Generator | None = None,
+) -> torch.Tensor:
+    """Algorithm 1 for a deterministic drafter (``q`` one-hot), with no host sync.
+
+    A lookup drafter proposes each token with probability one, so ``q`` is
+    one-hot on the proposed token ``x``. Algorithm 1 is used unchanged with
+    that ``q``, worked in probability space so no ``log(0)`` appears:
+
+    - acceptance: ``u < min(1, p(x) / q(x))`` with ``q(x) = 1``, so
+      ``u < p(x)``;
+    - residual after a rejection: ``max(0, p - q) / sum(max(0, p - q))``
+      through the same :func:`_residual_probs` as :func:`rejection_step`,
+      with ``q = onehot(x)``. That is ``p`` with ``x`` zeroed and
+      renormalised.
+
+    No smoothing is applied to ``q``.
+
+    ``draft_len`` makes the proposal shorter than ``gamma``: positions at
+    and after it are never accepted. If all ``draft_len`` real tokens are
+    accepted, the next token is drawn from the target row right after them
+    (the bonus row when ``draft_len == gamma``). ``draft_len == 0`` is a
+    plain decode step: one token from the first target row.
+
+    The randomness is the same as :func:`rejection_step`: ``gamma``
+    uniforms, then exactly one ``multinomial`` draw.
+
+    Parameters
+    ----------
+    draft_token_ids : torch.Tensor
+        Proposed tokens. Shape ``(B, gamma)``, int64.
+    target_logprobs : torch.Tensor
+        Temperature-scaled target log-probs for the draft positions and the
+        bonus position. Shape ``(B, gamma + 1, V)``, or ``(B, gamma, V)``
+        with no bonus row (a full accept then returns ``-1``).
+    draft_len : torch.Tensor or None
+        Real proposal length per row, shape ``(B,)``, in ``[0, gamma]``.
+        ``None`` means ``gamma``.
+    generator : torch.Generator or None
+        Source of all randomness. ``None`` uses the global RNG.
+
+    Returns
+    -------
+    torch.Tensor
+        Shape ``(B, 2)``, int64: accepted draft count in ``[0, draft_len]``,
+        then the residual token (after a rejection) or the token drawn from
+        the target row after the accepted ones.
+
+    Raises
+    ------
+    ValueError
+        If the shapes do not line up.
+    """
+    if draft_token_ids.ndim != 2:
+        raise ValueError(f"draft_token_ids must be (B, gamma); got {tuple(draft_token_ids.shape)}.")
+    batch, gamma = draft_token_ids.shape
+    rows = int(target_logprobs.shape[1])
+    if (
+        target_logprobs.ndim != 3
+        or target_logprobs.shape[0] != batch
+        or rows
+        not in (
+            gamma,
+            gamma + 1,
+        )
+    ):
+        raise ValueError(
+            f"target_logprobs must be ({batch}, {gamma} or {gamma + 1}, V); "
+            f"got {tuple(target_logprobs.shape)}."
+        )
+    if gamma < 1:
+        raise ValueError("gamma must be >= 1; pass a one-column proposal with draft_len 0.")
+    vocab = int(target_logprobs.shape[-1])
+    device = target_logprobs.device
+    ids = draft_token_ids.to(device=device, dtype=torch.long)
+    if draft_len is None:
+        length = torch.full((batch,), gamma, dtype=torch.long, device=device)
+    else:
+        length = draft_len.to(device=device, dtype=torch.long).view(batch).clamp(min=0, max=gamma)
+    # p(x) at each proposed token, in probability space.
+    p_x = target_logprobs[:, :gamma].gather(-1, ids.unsqueeze(-1)).squeeze(-1).float().exp()
+    if generator is None:
+        u = torch.rand_like(p_x)
+    else:
+        u = torch.rand(p_x.shape, generator=generator, dtype=p_x.dtype, device=device)
+    # Acceptance test of Algorithm 1 with q(x) = 1: min(1, p(x) / 1).
+    accept_prob = p_x.clamp(max=1.0)
+    positions = torch.arange(gamma, device=device).unsqueeze(0)
+    stop = ~(u < accept_prob) | (positions >= length.unsqueeze(1))
+    first = torch.where(
+        stop.any(dim=-1),
+        stop.int().argmax(dim=-1),
+        torch.full((batch,), gamma, dtype=torch.long, device=device),
+    )
+    # A real rejection is a stop before the end of the proposal; reaching
+    # the end means every real token was accepted.
+    rejected = first < length
+    row = first.clamp(max=rows - 1)[:, None, None].expand(batch, 1, vocab)
+    p_row = target_logprobs.gather(1, row).squeeze(1).float().exp()
+    x_row = ids.gather(1, first.clamp(max=gamma - 1).unsqueeze(1))
+    q_row = torch.zeros_like(p_row).scatter_(1, x_row, 1.0)
+    residual = _residual_probs(p_row, q_row)
+    after = p_row.clamp(min=0)
+    after = after / after.sum(dim=-1, keepdim=True).clamp(min=_MIN_PROB)
+    probs = torch.where(rejected.unsqueeze(-1), residual, after)
     next_token = torch.multinomial(probs, num_samples=1, generator=generator).squeeze(-1)
     if rows == gamma:
         next_token = torch.where(first < gamma, next_token, torch.full_like(next_token, -1))

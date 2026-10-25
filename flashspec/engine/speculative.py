@@ -18,13 +18,14 @@ import torch
 from flashspec.bandit.base import DraftSelector
 from flashspec.engine.drafter import DraftModel
 from flashspec.engine.kv_cache import CacheUnavailableError, debug_cache_enabled
+from flashspec.engine.ngram import is_lookup_drafter
 from flashspec.engine.verifier import TargetModel
 from flashspec.metrics.acceptance import AcceptanceTracker
 from flashspec.metrics.latency import LatencyTracker
 from flashspec.metrics.step_profile import StepProfiler, StepRecord
 from flashspec.metrics.throughput import ThroughputTracker
 from flashspec.sampling.greedy import greedy_step, greedy_verify
-from flashspec.sampling.rejection import rejection_sample, rejection_step
+from flashspec.sampling.rejection import rejection_sample, rejection_step, rejection_step_onehot
 from flashspec.sampling.typical import typical_sample
 from flashspec.utils.config import FlashSpecConfig
 from flashspec.utils.device import CompileDecision, get_device, resolve_compile
@@ -336,6 +337,9 @@ class SpeculativeEngine:
             )
         self._config = config
         self._drafters = drafters
+        # Lookup drafters (prompt lookup) run no model and propose a
+        # variable number of tokens; they need the batch-1 fast path.
+        self._lookup = [is_lookup_drafter(drafter) for drafter in drafters]
         self._target = target
         self._bandit = bandit
         self._device = get_device(config.device)
@@ -462,6 +466,11 @@ class SpeculativeEngine:
         fast = self._config.sampling.variant in ("rejection", "greedy")
         if int(input_ids.shape[0]) == 1 and fast:
             return self._generate_single(input_ids, max_tokens, eos, generator)
+        if any(self._lookup):
+            raise ValueError(
+                "A lookup (n-gram) drafter runs only on the batch-1 fast path: batch size 1 "
+                "and sampling.variant 'rejection' or 'greedy'."
+            )
         return self._generate_generic(input_ids, max_tokens, eos, generator)
 
     def _make_generator(self) -> torch.Generator | None:
@@ -765,7 +774,9 @@ class SpeculativeEngine:
         prompt = input_ids.to(device=device, dtype=torch.long)
         prompt_len = int(prompt.shape[1])
         capacity = prompt_len + max_tokens + gamma + 1
-        buffer = torch.empty((1, capacity), dtype=torch.long, device=device)
+        # Zeros, not empty: a lookup drafter reads the buffer with fixed
+        # shapes, so stale positions must hold valid token ids.
+        buffer = torch.zeros((1, capacity), dtype=torch.long, device=device)
         buffer[:, :prompt_len] = prompt
         length = prompt_len
         produced: list[int] = []
@@ -789,8 +800,33 @@ class SpeculativeEngine:
             context = buffer[:, :length]
             arm = self._bandit.select()
             drafter = self._drafters[arm]
+            n_valid: torch.Tensor | None = None
 
-            if greedy:
+            if self._lookup[arm]:
+                # Prompt lookup: gamma proposals of which n_valid (a device
+                # tensor) are real. No model forward and no device read.
+                draft_ids, n_valid = drafter.propose(buffer, length, gamma)  # type: ignore[attr-defined]
+                if profiler is not None:
+                    profiler.mark("draft")
+                if greedy:
+                    target_argmax = incremental.verify(
+                        self._target, context, draft_ids, gamma, 1.0, greedy=True
+                    )
+                    if profiler is not None:
+                        profiler.mark("verify")
+                    step = greedy_step(draft_ids, target_argmax, n_valid)
+                else:
+                    target_logprobs = incremental.verify(
+                        self._target, context, draft_ids, gamma, sampling.temperature
+                    )
+                    if profiler is not None:
+                        profiler.mark("verify")
+                    # q is one-hot on each proposal: exact Algorithm 1 in
+                    # probability space.
+                    step = rejection_step_onehot(
+                        draft_ids, target_logprobs, n_valid, generator=generator
+                    )
+            elif greedy:
                 draft_ids, _ = incremental.draft(
                     arm, drafter, context, gamma, greedy=True, generator=generator
                 )

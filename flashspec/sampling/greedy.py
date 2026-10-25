@@ -75,7 +75,11 @@ def greedy_verify(
     return accepted, first.to(torch.int32), bonus
 
 
-def greedy_step(draft_token_ids: torch.Tensor, target_argmax: torch.Tensor) -> torch.Tensor:
+def greedy_step(
+    draft_token_ids: torch.Tensor,
+    target_argmax: torch.Tensor,
+    draft_len: torch.Tensor | None = None,
+) -> torch.Tensor:
     """Greedy verification as ``[n_accepted, next_token]``, with no host sync.
 
     Parameters
@@ -85,6 +89,10 @@ def greedy_step(draft_token_ids: torch.Tensor, target_argmax: torch.Tensor) -> t
     target_argmax : torch.Tensor
         Shape ``(batch, gamma + 1)``, or ``(batch, gamma)`` when there is no
         bonus row; a full accept then returns ``-1`` as the next token.
+    draft_len : torch.Tensor or None
+        Real proposal length per row, shape ``(batch,)``, in ``[0, gamma]``
+        (a lookup drafter's ``n_valid``). Positions at and after it are
+        never accepted. ``None`` means ``gamma``.
 
     Returns
     -------
@@ -94,6 +102,10 @@ def greedy_step(draft_token_ids: torch.Tensor, target_argmax: torch.Tensor) -> t
     """
     _, first, _ = greedy_verify(draft_token_ids, target_argmax)
     first = first.long()
+    if draft_len is not None:
+        gamma = int(draft_token_ids.shape[1])
+        limit = draft_len.to(device=first.device, dtype=torch.long).view(-1).clamp(0, gamma)
+        first = torch.minimum(first, limit)
     target_argmax = target_argmax.to(device=draft_token_ids.device, dtype=torch.long)
     if target_argmax.shape[1] == draft_token_ids.shape[1]:
         padded = torch.full_like(target_argmax[:, :1], -1)
