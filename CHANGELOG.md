@@ -10,6 +10,93 @@ Versioning follows [Semantic Versioning 2.0.0](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-10-25 — Compiled fast path, lossless checks, release hygiene
+
+Development status stays Alpha. The measured scope is one model pair on
+one GPU; read the README tables, which are generated from the result
+JSONs, for the numbers.
+
+### Highlights
+- One target forward and one host read per speculative step (batch 1),
+  greedy decoding (temperature 0), EOS handling, seeded generation, and a
+  bandit reward of emitted tokens per step second.
+- `FlashSpecConfig.compile="auto"` (the default): on CUDA with Triton the
+  batch-1 path runs on static KV caches and replays the fixed-shape
+  drafter decode and target verify calls as CUDA graphs; elsewhere it
+  stays eager. One log line says which and why.
+- Every benchmark result stores per-prompt output token ids and sha256
+  hashes; greedy compiled FlashSpec is checked token for token against
+  compiled HuggingFace `generate`.
+
+### Measured (bundle `8d036d7`, run from `main`)
+- `Qwen/Qwen2.5-1.5B-Instruct` verified by `Qwen/Qwen2.5-0.5B-Instruct`,
+  one Tesla T4, fp16, batch 1, gamma 4, 10 MT-Bench and 10 HumanEval
+  prompts through the chat template, greedy and T = 0.7, 128 new tokens,
+  `compile="auto"` (resolved on, no eager fallback).
+- FlashSpec with the compiled path was faster than HuggingFace `generate`
+  compiled the same way in all four dataset and mode cells: by at least
+  1.3x on both HumanEval cells and by less on MT-Bench. It was also faster
+  than eager `generate` and HuggingFace assisted generation in all four.
+- Greedy compiled FlashSpec produced the same tokens as
+  `hf_greedy_compiled` on 10/10 HumanEval and 10/10 MT-Bench prompts.
+- The eager path (`compile=False`) was slower than plain `generate` in 3
+  of the 4 cells.
+- The README GPU tables are generated from this bundle only
+  (`scripts/ingest_gpu_bundle.py --readme-commit 8d036d7`); the earlier
+  feature-branch bundles `36134c0` and `52993e4` stay under
+  `benchmarks/results/gpu/` as history.
+
+### Upgrade notes
+- **The first call compiles.** With `compile="auto"` on CUDA + Triton,
+  the first `generate` compiles the drafter and target forwards and
+  captures CUDA graphs, which can take minutes; later calls in the
+  process reuse them. Pass `FlashSpecConfig(compile=False)` (or
+  `--compile off` to the server) to stay eager. The first-call time was
+  not recorded in bundle `8d036d7`; the harness records it from the next
+  run on (`cold_start`).
+- `sampling.variant="typical"` is lossy and now says so (docs and a
+  warning at engine construction).
+- `publish.yml` must be run on a `v<version>` tag (see `PUBLISHING.md`).
+
+### Known issues
+- Eager fp16 greedy FlashSpec diverged from eager `hf_greedy` on MT-Bench
+  prompt index 1 at token 44 (`flashspec_ucb`, bundle `8d036d7`). Likely
+  an fp16 near-tie between the batched verify and a one-token decode;
+  not confirmed. Compiled FlashSpec and compiled HuggingFace both differ
+  from eager `hf_greedy` on HumanEval prompt index 2 at token 94, and
+  match each other there.
+- The bandit has only been measured with one drafter (single arm), so it
+  has not been shown to choose between drafters.
+- Batch sizes above 1 use the generic loop: the largest equal-length
+  group runs per loop and the KV cache is used only at group size 1.
+- One model pair and one GPU (Tesla T4) were measured; no other GPU,
+  pair or batch size.
+- PyTorch may warn "CUDAGraph supports dynamic shapes by recording a new
+  graph for each distinct input size ... observed 9 distinct sizes"
+  during a compiled run. FlashSpec's static-cache sessions are the only
+  compiled callers whose input shapes vary (drafter decode of 1 or 2
+  tokens, target verify of gamma or gamma + 1 tokens, and the
+  `logits_to_keep` int), while HuggingFace's compiled decode has fixed
+  shapes. A CPU stand-in did not reproduce more than two shapes per
+  graph, so the count is not explained yet; bundle runs now copy the
+  warning into `run.log`. Follow-up: pad the drafter and verify calls to
+  one fixed shape each.
+
+### Added (harness, for the next run)
+- `cold_start` in every result: the wall time of each method's first
+  `generate` in a block (compile and CUDA-graph capture included for
+  compiled methods in the first block of a process), whether it was a
+  warmup, and whether it was the first block in the process. The README
+  status block prints it when present.
+- `run.log` in a bundle now also carries PyTorch warnings (CUDA-graph and
+  recompile messages), FlashSpec log lines (including the compile
+  decision) and Python warnings, timestamped.
+- `scripts/ingest_gpu_bundle.py --readme-commit <commit>` builds the
+  README GPU blocks from one bundle only. The status block adds generated
+  sentences for the compiled greedy match and the cold start.
+
+### Detailed changes since 0.1.5
+
 ### Changed (release hygiene)
 - `publish.yml` must run on a `v<version>` tag: a `verify` job checks
   that the ref is a tag, that it equals `"v"` + the `pyproject.toml`
@@ -200,8 +287,7 @@ Versioning follows [Semantic Versioning 2.0.0](https://semver.org/).
   in at least 45 of the last 50 rounds) and is no longer marked xfail.
 
 Postponed work is listed in [`docs/postponed.md`](docs/postponed.md).
-The v0.2.0 H100 run is skipped unless a specific reason comes up. Do not
-tag 0.2.0.
+No H100 run was made for 0.2.0.
 
 ### Changed
 - `FlashSpecConfig.compile` now defaults to `"auto"`: the static KV cache

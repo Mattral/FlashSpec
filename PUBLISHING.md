@@ -20,7 +20,7 @@ wheel named by the `asm` extra.
 ## Drafts that are not deposits
 
 - `paper/flashspec.tex` is the draft for a later Zenodo version. It is
-  dated October 2026, describes software 0.1.5, and names no affiliation.
+  dated October 2026, describes software 0.2.0, and names no affiliation.
   It has not been deposited. It is not an arXiv submission.
 - `paper/joss/paper.md` is a JOSS-format draft. It is not under review.
 - Social posts under `social/` are drafts. Do not treat them as published
@@ -50,10 +50,18 @@ environment `pypi`, which requires a reviewer. Every action is pinned to
 a commit SHA. There is no API token and no repository secret in that
 workflow. Do not upload with a token or a `.pypirc` file.
 
+The PyPI side has to name the same workflow and environment. On
+pypi.org → `flashspec` → Manage → Publishing, the trusted publisher must
+read: owner `Mattral`, repository `FlashSpec`, workflow `publish.yml`,
+environment `pypi`. PyPI does not check the job name, so the
+`verify`/`publish` split needs no change there. As of 2026-10-25
+`publish.yml` has never run, and the 0.1.5 files on PyPI carry no
+provenance attestation, so that entry has not been exercised yet.
+
 ## Not this release
 
-- The v0.2.0 H100 run is skipped unless a specific reason comes up.
-  Do not tag 0.2.0.
+- No H100 run is scheduled. 0.2.0 was measured on one Tesla T4, one
+  model pair, batch 1.
 - No H100 generation result is committed. Medusa and EAGLE are not
   implemented.
 - `mypy --strict flashspec` passes and runs in the CI lint job.

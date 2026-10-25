@@ -17,7 +17,8 @@ holds:
 - ``profile.txt``: a plain-text view of the step profiles, forward counts,
   host reads and tok/s, printed from the JSONs. The JSONs win if the two
   ever disagree.
-- ``run.log``: everything the run printed.
+- ``run.log``: everything the run printed, plus PyTorch warnings (CUDA-graph and
+  recompile messages), FlashSpec log lines and Python warnings, timestamped.
 - ``diagnostics/*.json``: optional attachments (``--attach``), such as
   the ``benchmarks/greedy_mismatch.py`` report. Hashed, not results.
 
@@ -34,6 +35,7 @@ import hashlib
 import importlib.metadata
 import io
 import json
+import logging
 import platform
 import subprocess
 import sys
@@ -65,6 +67,59 @@ class _Tee(io.TextIOBase):
     def flush(self) -> None:
         for stream in self._streams:
             stream.flush()
+
+
+class _Once(logging.Filter):
+    """Pass each record once, however many loggers in its chain carry the handler."""
+
+    def filter(self, record: logging.LogRecord) -> bool:  # noqa: A003 - logging API name
+        if getattr(record, "_flashspec_bundle_logged", False):
+            return False
+        record._flashspec_bundle_logged = True
+        return True
+
+
+@contextlib.contextmanager
+def _capture_logs(stream: TextIO) -> Any:  # noqa: ANN401
+    """Copy PyTorch warnings, FlashSpec log lines and Python warnings into ``stream``.
+
+    PyTorch and FlashSpec loggers do not propagate to the root logger (each
+    has its own stderr handler), so a handler is attached to each one.
+    FlashSpec loggers are raised to INFO for the run (the compile decision
+    is an INFO line) and restored afterwards.
+    """
+    formatter = logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+    once = _Once()
+    info = logging.StreamHandler(stream)
+    info.setLevel(logging.INFO)
+    warning = logging.StreamHandler(stream)
+    warning.setLevel(logging.WARNING)
+    for handler in (info, warning):
+        handler.setFormatter(formatter)
+        handler.addFilter(once)
+    attached: list[tuple[logging.Logger, logging.Handler]] = []
+    levels: list[tuple[logging.Logger, int]] = []
+    for name in list(logging.root.manager.loggerDict):
+        if name == "torch" or name.startswith("torch."):
+            attached.append((logging.getLogger(name), warning))
+        elif name == "flashspec" or name.startswith("flashspec."):
+            logger = logging.getLogger(name)
+            levels.append((logger, logger.level))
+            if logger.level == logging.NOTSET or logger.level > logging.INFO:
+                logger.setLevel(logging.INFO)
+            attached.append((logger, info))
+    attached.append((logging.getLogger("py.warnings"), warning))
+    for logger, handler in attached:
+        logger.addHandler(handler)
+    logging.captureWarnings(True)
+    try:
+        yield
+    finally:
+        logging.captureWarnings(False)
+        for logger, handler in attached:
+            logger.removeHandler(handler)
+        for logger, level in levels:
+            logger.setLevel(level)
 
 
 def _sha256(path: Path) -> str:
@@ -199,9 +254,15 @@ def build_bundle(
     started = time.perf_counter()
     started_utc = datetime.now(UTC).isoformat()
     config_rows: list[dict[str, object]] = []
+    # Import first so the engine and torch loggers exist before _capture_logs attaches.
+    import torch._inductor.cudagraph_utils  # noqa: F401
+
+    import flashspec.engine.speculative  # noqa: F401
+
     with (
         log_path.open("w", encoding="utf-8") as log,
         contextlib.redirect_stdout(_Tee(sys.__stdout__ or sys.stdout, log)),  # type: ignore[type-var]
+        _capture_logs(log),
     ):
         print(f"FlashSpec GPU bundle: commit {commit}, {len(configs)} config(s)")
         for config in configs:

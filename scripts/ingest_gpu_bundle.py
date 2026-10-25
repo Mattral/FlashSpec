@@ -6,6 +6,7 @@ Usage::
     python scripts/ingest_gpu_bundle.py path/to/bundle.zip
     python scripts/ingest_gpu_bundle.py --dry-run       # validate and print, write nothing
     python scripts/ingest_gpu_bundle.py --sig 3         # README cells at 3 significant figures
+    python scripts/ingest_gpu_bundle.py --readme-commit 8d036d7   # README from one bundle only
 
 A bundle is the zip ``benchmarks/gpu_bundle.py`` writes. It is accepted
 only when:
@@ -27,7 +28,9 @@ only when:
 
 Accepted bundles are unpacked to ``benchmarks/results/gpu/<commit>/``.
 The README block between the ``gpu-results`` markers is then regenerated
-from every JSON under ``benchmarks/results/gpu/``. Cells are the stored
+from every JSON under ``benchmarks/results/gpu/``, or, with
+``--readme-commit``, from that one bundle's JSONs only (the release
+tables); the other bundles stay on disk as history. Cells are the stored
 values; ``--sig N`` formats them to N significant figures for display,
 and the JSON keeps full precision either way.
 """
@@ -430,7 +433,46 @@ def render_status(documents: list[dict[str, Any]], *, sig: int | None = None) ->
             )
             + " |"
         )
+    lines.extend(_status_notes(docs))
     return "\n".join(lines) + "\n"
+
+
+def _status_notes(docs: list[dict[str, Any]]) -> list[str]:
+    """Sentences under the status table, built from the documents only."""
+    notes: list[str] = []
+    greedy = sorted(
+        (doc for doc in docs if isinstance(doc.get("greedy_token_match_compiled"), dict)),
+        key=lambda doc: str(doc.get("dataset")),
+    )
+    if greedy:
+        parts = [
+            f"{doc['greedy_token_match_compiled']['prompts_matched']}/"
+            f"{doc['greedy_token_match_compiled']['n_prompts']} {doc.get('dataset')} prompts"
+            for doc in greedy
+        ]
+        notes.append(
+            "Greedy: compiled FlashSpec produced the same tokens as `hf_greedy_compiled`, "
+            "token for token (per-prompt output hashes are in the JSON), on "
+            + " and ".join(parts)
+            + "."
+        )
+    cold = [doc for doc in docs if isinstance(doc.get("cold_start"), dict)]
+    if cold:
+        fresh = [doc for doc in cold if doc["cold_start"].get("first_in_process")]
+        first = min(fresh or cold, key=lambda doc: str(doc.get("timestamp")))
+        record = first["cold_start"]
+        notes.append(
+            "Cold start: the first compiled FlashSpec call in this run "
+            f"({first.get('dataset')}, {(first.get('decoding') or {}).get('mode')}) took "
+            f"{record.get('first_call_ms')} ms including compilation and CUDA-graph capture."
+        )
+    else:
+        notes.append(
+            "Cold start: not recorded in this bundle. The first compiled call compiles the "
+            "model and captures CUDA graphs, which can take minutes; the timed numbers above "
+            "exclude it (warmup prompts absorb it)."
+        )
+    return [""] + notes if notes else []
 
 
 def _fraction(match: object) -> str:
@@ -448,6 +490,16 @@ def _replace_block(readme: str, body: str, begin: str = BEGIN, end: str = END) -
     return f"{head}{begin}\n{body}{end}{tail}"
 
 
+def _readme_documents(documents: list[dict[str, Any]], commit: str | None) -> list[dict[str, Any]]:
+    """All documents, or only ``commit``'s; refuse a commit with none."""
+    if commit is None:
+        return documents
+    chosen = [doc for doc in documents if str(doc.get("git_commit")) == commit]
+    if not chosen:
+        raise BundleError(f"no ingested result has git_commit {commit!r}")
+    return chosen
+
+
 def _all_documents(root: Path) -> list[dict[str, Any]]:
     return [
         json.loads(path.read_text(encoding="utf-8"))
@@ -463,8 +515,11 @@ def ingest(
     dry_run: bool = False,
     allow_partial: bool = False,
     sig: int | None = None,
+    readme_commit: str | None = None,
 ) -> str:
     """Validate ``zips``, unpack the accepted ones, and regenerate the README block.
+
+    ``readme_commit`` limits the README blocks to that bundle's documents.
 
     Returns
     -------
@@ -483,7 +538,7 @@ def ingest(
         documents = [
             doc for doc in _all_documents(destination) if str(doc.get("git_commit")) not in incoming
         ] + [doc for _path, _manifest, docs in accepted for doc in docs.values()]
-        return render_tables(documents, sig=sig)
+        return render_tables(_readme_documents(documents, readme_commit), sig=sig)
     for path, manifest, _docs in accepted:
         target = destination / str(manifest["git_commit"])
         target.mkdir(parents=True, exist_ok=True)
@@ -493,7 +548,7 @@ def ingest(
                 out.parent.mkdir(parents=True, exist_ok=True)
                 out.write_bytes(archive.read(name))
         print(f"Accepted {path.name} -> {target}")
-    documents = _all_documents(destination)
+    documents = _readme_documents(_all_documents(destination), readme_commit)
     body = render_tables(documents, sig=sig)
     text = _replace_block(readme.read_text(encoding="utf-8"), body)
     status = render_status(documents, sig=sig)
@@ -511,13 +566,24 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--allow-partial", action="store_true")
     parser.add_argument("--sig", type=int, default=None)
+    parser.add_argument(
+        "--readme-commit",
+        default=None,
+        help="build the README blocks from this bundle commit only",
+    )
     args = parser.parse_args(argv)
     zips = list(args.bundles) or sorted(INCOMING.glob("*.zip"))
     if not zips:
         print(f"No bundle given and none in {INCOMING}/.")
         return 1
     try:
-        body = ingest(zips, dry_run=args.dry_run, allow_partial=args.allow_partial, sig=args.sig)
+        body = ingest(
+            zips,
+            dry_run=args.dry_run,
+            allow_partial=args.allow_partial,
+            sig=args.sig,
+            readme_commit=args.readme_commit,
+        )
     except BundleError as exc:
         print(exc)
         return 2
