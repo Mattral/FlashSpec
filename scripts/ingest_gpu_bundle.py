@@ -323,6 +323,29 @@ def _cell(value: object, sig: int | None) -> str:
     return str(value)
 
 
+def _drafting(doc: dict[str, Any]) -> str:
+    """How the FlashSpec rows drafted: ``gamma N``, or the composite strategy.
+
+    Documents from before 0.3.0 have no ``drafter_strategy`` section and keep
+    the old ``gamma N`` text, so their tables regenerate unchanged.
+    """
+    strategy = doc.get("drafter_strategy")
+    if not isinstance(strategy, dict) or strategy.get("resolved") in (None, "bandit"):
+        return f"gamma {doc.get('gamma')}"
+    arms = strategy.get("arms") or [{}]
+    arm = arms[0]
+    return (
+        f"drafter strategy `{strategy.get('resolved')}` (prompt lookup up to {arm.get('gamma')} "
+        f"tokens when the context has a match, else the model drafter drafts "
+        f"{arm.get('fallback_gamma')}; requested `{strategy.get('requested')}`)"
+    )
+
+
+def _first_spec(docs: list[dict[str, Any]]) -> dict[str, Any]:
+    """Return the first FlashSpec document (it carries the drafting details), else the first."""
+    return next((doc for doc in docs if "drafter_strategy" in doc), docs[0])
+
+
 def render_tables(documents: list[dict[str, Any]], *, sig: int | None = None) -> str:
     """Markdown for the README block, built only from result documents.
 
@@ -351,7 +374,7 @@ def render_tables(documents: list[dict[str, Any]], *, sig: int | None = None) ->
         lines.append("")
         lines.append(
             f"GPU {hardware.get('gpu')} · torch {hardware.get('torch')} · "
-            f"gamma {first.get('gamma')} · {len(docs)} result files · git "
+            f"{_drafting(_first_spec(docs))} · {len(docs)} result files · git "
             + ", ".join(f"`{commit}`" for commit in commits)
             + f". Prompts: {first.get('prompt_format')}; n per row: {first.get('n_samples')}. "
             + precision
@@ -453,8 +476,8 @@ def render_status(documents: list[dict[str, Any]], *, sig: int | None = None) ->
     hardware = first.get("hardware") or {}
     lines = [
         f"Measured at git `{commit}`: `{first.get('model')}` verified by "
-        f"`{first.get('drafter')}`, {hardware.get('gpu')}, fp16, batch 1, gamma "
-        f"{first.get('gamma')}, {first.get('n_samples')} prompts per set (chat template), "
+        f"`{first.get('drafter')}`, {hardware.get('gpu')}, fp16, batch 1, {_drafting(first)}, "
+        f"{first.get('n_samples')} prompts per set (chat template), "
         f"{(first.get('decoding') or {}).get('max_new_tokens')} new tokens. One model pair, "
         "one GPU. Speedups are medians of per-prompt ratios within the same run. The "
         "headline baseline is HuggingFace `generate` with a static cache compiled the same "

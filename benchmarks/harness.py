@@ -38,6 +38,7 @@ import platform
 import statistics
 import subprocess
 import time
+import typing
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -47,6 +48,7 @@ from typing import Any, Literal
 import torch
 import torch.nn as nn
 
+from benchmarks.arm_report import arm_report
 from benchmarks.cuda_graphs import CaptureCounter
 from benchmarks.prompt_sets import (
     ALPACA_REASON,
@@ -56,17 +58,25 @@ from benchmarks.prompt_sets import (
     tokenize_prompts,
 )
 from flashspec.bandit.ucb import UCB1Selector
+from flashspec.engine.arms import ArmStep
 from flashspec.engine.drafter import load_drafters, unregister
 from flashspec.engine.kv_cache import (
     CacheUnavailableError,
     KvSession,
     model_accepts_past_key_values,
 )
+from flashspec.engine.ngram import is_lookup_drafter
 from flashspec.engine.speculative import SpeculativeEngine
 from flashspec.engine.verifier import TargetModel
 from flashspec.metrics.instrument import ForwardRecorder, NonFiniteLogits, count_host_syncs
 from flashspec.metrics.step_profile import StepRecord, summarise_steps
-from flashspec.utils.config import BanditConfig, FlashSpecConfig, MetricsConfig, SamplingConfig
+from flashspec.utils.config import (
+    BanditConfig,
+    DrafterStrategy,
+    FlashSpecConfig,
+    MetricsConfig,
+    SamplingConfig,
+)
 from flashspec.utils.cpu import cpu_has_avx2
 from flashspec.utils.device import set_seed
 
@@ -590,6 +600,19 @@ def _compile_request(config: dict[str, object]) -> bool | Literal["auto"]:
     if value is True or value == "auto":
         return "auto" if value == "auto" else True
     raise ValueError(f"flashspec_compile must be true or 'auto'; got {value!r}.")
+
+
+def _drafter_strategy(config: dict[str, object]) -> DrafterStrategy:
+    """``FlashSpecConfig.drafter_strategy`` for the FlashSpec methods (config ``drafter_strategy``).
+
+    ``bandit`` (the default) is the one-drafter model path every config before
+    0.3.0 measured; ``auto`` measures what a default 0.3.0 user gets.
+    """
+    value = str(config.get("drafter_strategy", "bandit"))
+    allowed = typing.get_args(DrafterStrategy)
+    if value not in allowed:
+        raise ValueError(f"drafter_strategy must be one of {allowed}; got {value!r}.")
+    return value  # type: ignore[return-value]
 
 
 def _uses_hf_generate(model: nn.Module) -> bool:
@@ -1390,6 +1413,7 @@ class _MethodRuns:
     drafter_forwards: int = 0
     peak_memory_bytes: int = 0
     steps: list[StepRecord] = field(default_factory=list)
+    arm_steps: list[list[ArmStep]] = field(default_factory=list)
 
 
 def _run_loaded_pair(
@@ -1425,7 +1449,9 @@ def _run_loaded_pair(
     if stop_at_eos and not eos_ids:
         raise RuntimeError("stop_at_eos is set but the target has no eos_token_id.")
     engine_config = FlashSpecConfig(
-        drafter_strategy="bandit",  # the model-drafter path measured before 0.3.0
+        # Config key drafter_strategy; "bandit" (the default) is the model-drafter
+        # path every config before 0.3.0 measured.
+        drafter_strategy=_drafter_strategy(config),
         drafter_name=drafter_name,
         target_name=model_name,
         device=str(device),
@@ -1598,10 +1624,13 @@ def _run_loaded_pair(
     first_lengths: dict[str, list[int]] = {}
     cold_start: dict[str, dict[str, object]] = {}
 
+    last_arm_steps: dict[str, list[ArmStep]] = {}
+
     def _generate(name: str, prompt: torch.Tensor) -> tuple[torch.Tensor, float | None, Any]:
         if name in engines:
             result = engines[name].generate(prompt, max_new_tokens=max_new_tokens)
             produced = result.output_ids[result.output_ids >= 0].view(1, -1)
+            last_arm_steps[name] = list(result.arm_steps)
             return produced, result.acceptance_rate, result.step_profile
         if name == "vanilla_ar":
             tokens = autoregressive_generate(
@@ -1664,6 +1693,8 @@ def _run_loaded_pair(
             stats.alpha.append(alpha)
         if steps is not None:
             stats.steps.extend(steps)
+        if name in engines:
+            stats.arm_steps.append(last_arm_steps.pop(name, []))
         stats.target_forwards += target_forwards.calls
         stats.drafter_forwards += drafter_forwards.calls
         if device.type == "cuda":
@@ -1794,7 +1825,16 @@ def _run_loaded_pair(
             per_run = len(stats.steps) if name in SPEC_METHODS else emitted - n_runs
             stats.target_forwards = n_runs + per_run
             if name in SPEC_METHODS:
-                stats.drafter_forwards = n_runs + gamma * len(stats.steps)
+                # Per run: the model drafter's prefill when it drafted at all,
+                # then its proposed tokens on each model step (lookup steps run
+                # no drafter). For one model arm this is n_runs + gamma * steps.
+                is_lookup = [is_lookup_drafter(d) for d in engines[name]._drafters]
+                stats.drafter_forwards = sum(
+                    int(any(not is_lookup[s.drafter] for s in run))
+                    + sum(s.proposed for s in run if not is_lookup[s.drafter])
+                    for run in stats.arm_steps
+                )
+                source += "; drafter forwards from the per-step arm records"
         after_prefill = stats.target_forwards - n_runs
         counts: dict[str, object] = {
             "n_generations": n_runs,
@@ -1898,6 +1938,28 @@ def _run_loaded_pair(
             **probes[spec_name],
         }
         engine_for = engines[spec_name]
+        spec_extra["drafter_strategy"] = {
+            "requested": engine_for._config.drafter_strategy,
+            "resolved": engine_for.drafter_strategy,
+            "reason": engine_for.drafter_strategy_reason,
+            "arms": [
+                {
+                    "label": arm.label,
+                    "gamma": arm.gamma,
+                    "fallback_gamma": arm.step_gamma(fallback=True)
+                    if arm.fallback is not None
+                    else None,
+                    "lookup": is_lookup_drafter(engine_for._drafters[arm.drafter]),
+                }
+                for arm in engine_for.arms
+            ],
+        }
+        spec_extra["arm_report"] = arm_report(
+            spec.arm_steps,
+            engine_for.arms,
+            [is_lookup_drafter(d) for d in engine_for._drafters],
+            window=50,
+        )
         if spec_name in COMPILED_METHODS:
             target_session = getattr(engine_for._target, "_inc", None)
             spec_extra["compile"] = {

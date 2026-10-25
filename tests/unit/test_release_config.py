@@ -29,3 +29,29 @@ def test_package_version_matches_pyproject() -> None:
     with open("pyproject.toml", "rb") as handle:
         version = tomllib.load(handle)["project"]["version"]
     assert flashspec.__version__ == version
+
+
+def test_030_config_differs_from_020_only_in_drafter_strategy() -> None:
+    """The 0.3.0 release run is the 0.2.0 one with drafter_strategy: auto, nothing else."""
+    previous = load_benchmark_config(_CONFIGS / "qwen_t4_compile_auto.yaml")
+    release = load_benchmark_config(_CONFIGS / "qwen_t4_release_030.yaml")
+    assert release.pop("drafter_strategy") == "auto"
+    assert "drafter_strategy" not in previous
+    assert release == previous
+    assert {"flashspec_compiled", "hf_greedy_compiled", "hf_sample_compiled"} <= set(
+        release["methods"]
+    )
+    assert release["datasets"] == ["mt_bench", "humaneval"]
+    assert release["temperatures"] == [0.0, 0.7]
+
+
+def test_harness_drafter_strategy_key() -> None:
+    """Absent means the pre-0.3.0 model-drafter path; unknown values are refused."""
+    import pytest
+
+    from benchmarks.harness import _drafter_strategy
+
+    assert _drafter_strategy({}) == "bandit"
+    assert _drafter_strategy({"drafter_strategy": "auto"}) == "auto"
+    with pytest.raises(ValueError, match="drafter_strategy"):
+        _drafter_strategy({"drafter_strategy": "composite-g5"})

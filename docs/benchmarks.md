@@ -146,6 +146,18 @@ Result (bundle `fdd3be9`, Tesla T4, one session; JSONs in
 `composite-g6-f2` is therefore what `drafter_strategy="auto"`, the default,
 runs with one model drafter at batch 1.
 
+### 0.3.0 release measurement
+
+`benchmarks/configs/qwen_t4_release_030.yaml` (notebook cell 3g, run from a
+commit on `main`) is the 0.2.0 release config with one added key,
+`drafter_strategy: auto`, so both FlashSpec methods run the way a default
+0.3.0 user gets them. The harness key `drafter_strategy` defaults to
+`bandit`, the model-drafter path every earlier config measured. Each
+FlashSpec document then records the requested and resolved strategy and a
+per-arm report. The compiled method's drafter forwards are derived from the
+per-step arm records, because lookup steps run no drafter. The README
+tables for 0.3.0 are generated from that bundle only.
+
 ---
 
 ## Baselines
