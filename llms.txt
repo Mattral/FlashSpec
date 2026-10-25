@@ -1,0 +1,44 @@
+# FlashSpec
+
+> FlashSpec is a Python library (`pip install flashspec`, Python 3.11+, PyTorch, transformers) for lossless speculative decoding of HuggingFace causal language models at batch 1. A drafter proposes tokens and the target model verifies them in one forward pass. Sampling follows Algorithm 1 of Leviathan et al. (2023), so the output keeps the target's distribution, and greedy mode (`SamplingConfig(temperature=0.0)`) returns the same tokens as `model.generate(do_sample=False)`, up to fp16 ties. On CUDA the default `compile="auto"` runs static KV caches with CUDA graphs. It was measured on one Tesla T4 with one model pair (Qwen2.5-1.5B-Instruct verified by Qwen2.5-0.5B-Instruct), where it was faster than compiled HuggingFace `generate`; CPU and batch > 1 are not its use case yet.
+
+Key facts for calling it correctly:
+
+- Build `TargetModel(model_id, device, dtype, model=module)` and `HuggingFaceDrafter(model_id, device, dtype, model=module)` from modules you load with `AutoModelForCausalLM.from_pretrained`; without `model=`, `TargetModel` needs `accelerate`.
+- `SpeculativeEngine(config, drafters, target, bandit, arms=None)`; with one drafter pass `FlashSpecConfig(bandit=BanditConfig(n_arms=1), ...)` and `UCB1Selector(n_arms=1)`, because `BanditConfig.n_arms` defaults to 2 and must equal the number of arms.
+- `SamplingConfig.temperature` defaults to 1.0 (sampling); `gamma` defaults to 4.
+- `engine.generate(input_ids, max_new_tokens=...)` returns `GenerationResult` with `output_ids` of shape `(batch, max_new_tokens)`, padded with -1 after `n_tokens_generated`, plus `tokens_per_second` and `acceptance_rate`.
+- The drafter must share the target's tokenizer; the engine does not check it.
+- The first `generate` on CUDA compiles and captures CUDA graphs (minutes). `FlashSpecConfig(compile=False)` skips that.
+- The UCB1/Thompson bandit and the Triton/assembly kernels are experimental.
+
+## Docs
+
+- [README: what it is](https://github.com/Mattral/FlashSpec#what-it-is): one paragraph on purpose, measured speed and scope
+- [README: when to use it](https://github.com/Mattral/FlashSpec#when-to-use-it): GPU and batch 1 yes; CPU, batch > 1 and first-call latency not yet
+- [README: install](https://github.com/Mattral/FlashSpec#install): the package and its `gpu`, `serve` and `asm` extras
+- [README: API at a glance](https://github.com/Mattral/FlashSpec#api-at-a-glance): every public class and function with its arguments and defaults, generated from the code
+- [README: results](https://github.com/Mattral/FlashSpec#results): the measured T4 tables
+- [README: correctness](https://github.com/Mattral/FlashSpec#correctness): lossless sampling, greedy equality, the fp16 tie caveat, and the tests
+- [README: status and limitations](https://github.com/Mattral/FlashSpec#status-and-limitations): measured scope and experimental parts
+- [Installation details](https://github.com/Mattral/FlashSpec/blob/main/docs/install.md): source, Docker, platforms, requirements
+- [Architecture](https://github.com/Mattral/FlashSpec/blob/main/docs/architecture.md): the step, caches, compiled path, batching, proof sketch
+- [Benchmarks](https://github.com/Mattral/FlashSpec/blob/main/docs/benchmarks.md): provenance, methodology, historical and microbenchmark results
+- [Bandit](https://github.com/Mattral/FlashSpec/blob/main/docs/bandit.md): arms, selectors, regret, the Phase 6 result
+- [Kernels](https://github.com/Mattral/FlashSpec/blob/main/docs/kernels.md): the experimental Triton and assembly kernels and their measurements
+- [API reference](https://flashspec.readthedocs.io/en/latest/api/): generated from the docstrings
+- [Changelog](https://github.com/Mattral/FlashSpec/blob/main/CHANGELOG.md)
+
+## Examples
+
+- [README: quickstart](https://github.com/Mattral/FlashSpec#quickstart): load a target and a drafter, generate greedily, print the text and tok/s
+- [README: recipes](https://github.com/Mattral/FlashSpec#recipes): choose a drafter (model, prompt lookup, composite), greedy or sampling, compile off, the OpenAI-compatible server, your own drafter
+- [Examples page](https://github.com/Mattral/FlashSpec/blob/main/docs/examples.md): a CPU example with `load_drafters`
+- [Notebooks](https://github.com/Mattral/FlashSpec/tree/main/notebooks): quickstart, bandit regret analysis, kernel profiling, GPU measurement
+
+## Optional
+
+- [Development](https://github.com/Mattral/FlashSpec/blob/main/docs/development.md): tests, repository layout, links
+- [Postponed work](https://github.com/Mattral/FlashSpec/blob/main/docs/postponed.md)
+- [Contributing](https://github.com/Mattral/FlashSpec/blob/main/CONTRIBUTING.md)
+- [Citation metadata](https://github.com/Mattral/FlashSpec/blob/main/CITATION.cff)
