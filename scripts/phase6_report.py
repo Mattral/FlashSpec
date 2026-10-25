@@ -172,7 +172,12 @@ def _fraction(match: object) -> str:
 
 
 def _graphs(documents: list[dict[str, Any]]) -> dict[str, Any]:
-    """Collect captures per wrapper group (the largest in-process total any document saw)."""
+    """Collect CUDA-graph captures per wrapper group, summed over sessions.
+
+    ``group_captures_in_process`` counts one process. A bundle assembled
+    across sessions has one process per session, so each session's largest
+    count is taken and the sessions are added.
+    """
     groups: dict[str, dict[str, Any]] = {}
     for doc in documents:
         graphs = doc.get("cuda_graphs")
@@ -185,13 +190,17 @@ def _graphs(documents: list[dict[str, Any]]) -> dict[str, Any]:
                 "fixed_shapes": (doc.get("compile") or {}).get("fixed_shapes"),
                 "available": graphs.get("available"),
                 "captures": 0,
+                "by_session": {},
                 "call_shapes": None,
             },
         )
+        session = str((doc.get("phase6") or {}).get("session"))
         total = graphs.get("group_captures_in_process")
-        if isinstance(total, int) and total >= entry["captures"]:
-            entry["captures"] = total
+        if isinstance(total, int) and total >= entry["by_session"].get(session, -1):
+            entry["by_session"][session] = total
             entry["call_shapes"] = graphs.get("call_shapes")
+    for entry in groups.values():
+        entry["captures"] = sum(entry["by_session"].values())
     return groups
 
 

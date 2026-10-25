@@ -36,9 +36,11 @@ itself, so list the per-set blocks first.
 
 from __future__ import annotations
 
+import json
 import statistics
 import time
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -46,6 +48,7 @@ import torch
 import torch.nn as nn
 
 from benchmarks.arm_report import arm_report
+from benchmarks.checkpoint import SESSION_ID, BlockCheckpoint
 from benchmarks.harness import (
     _CAPTURES,
     _COLD_STARTED,
@@ -201,8 +204,14 @@ def run_phase6_config(
     *,
     config: dict[str, Any] | None = None,
     modules: tuple[nn.Module, nn.Module] | None = None,
+    checkpoint: BlockCheckpoint | None = None,
 ) -> list[Path]:
     """Run a ``runner: phase6`` config and write one JSON per block, mode and method.
+
+    With ``checkpoint``, each finished (prompt set, mode) block is saved as
+    soon as it finishes, and a block already saved for this commit and config
+    is restored instead of run again. Its HuggingFace greedy outputs are
+    reloaded as references for the mixed block.
 
     Parameters
     ----------
@@ -214,6 +223,8 @@ def run_phase6_config(
         Already-loaded config (tests); default loads ``path``.
     modules : tuple or None
         ``(drafter, target)`` modules to use instead of loading (tests).
+    checkpoint : BlockCheckpoint or None
+        Where finished blocks are saved and restored from.
 
     Returns
     -------
@@ -320,47 +331,173 @@ def run_phase6_config(
     written: list[Path] = []
     # Greedy references by (temperature, dataset, prompt id), for the mixed block.
     references: dict[tuple[float, str, str], dict[str, list[int]]] = {}
-    for (dataset, ids, prompts, note), names in zip(block_prompts, all_names, strict=True):
-        for temperature in temperatures:
-            print(f"phase6: dataset={dataset} mode={_mode_slug(temperature)}")
-            documents = _run_block(
-                config=config,
-                dataset=dataset,
-                prompt_ids=ids,
-                prompts=prompts,
-                prompt_note=note,
-                names=names,
-                spec_methods=spec_methods,
-                groups=groups,
-                temperature=temperature,
-                device=device,
-                model_name=model_name,
-                drafter_module=drafter_module,
-                target_module=target_module,
-                hf_cache=hf_cache,
-                cache_len=cache_len,
-                compile_request=compile_request,
-                max_new_tokens=max_new_tokens,
-                n_warmup=n_warmup,
-                window=window,
-                seed=seed,
-                toy=toy,
-                hardware=hardware,
-                references=references,
+    units = [
+        (dataset, ids, prompts, note, names, temperature)
+        for (dataset, ids, prompts, note), names in zip(block_prompts, all_names, strict=True)
+        for temperature in temperatures
+    ]
+    planned = [
+        _planned_generations(
+            _runnable(names, spec_methods, temperature == 0.0, target_module, quiet=True),
+            spec_methods,
+            len(prompts),
+            n_warmup,
+        )
+        for _dataset, _ids, prompts, _note, names, temperature in units
+    ]
+    keys = [f"{unit[0]}_{_mode_slug(unit[5])}" for unit in units]
+    # Verified once: which blocks a previous session already finished.
+    saved = {key: checkpoint.load(key) for key in keys} if checkpoint is not None else {}
+    to_run = [index for index, key in enumerate(keys) if saved.get(key) is None]
+    print(
+        f"[phase6] {len(units)} blocks: {len(units) - len(to_run)} restored from the checkpoint, "
+        f"{len(to_run)} to run ({sum(planned[index] for index in to_run)} generations)"
+    )
+    session_started = time.perf_counter()
+    done_generations = 0
+    for index, (dataset, ids, prompts, note, names, temperature) in enumerate(units):
+        key = keys[index]
+        label = f"[phase6] block {index + 1}/{len(units)} {key}"
+        meta = saved.get(key)
+        if checkpoint is not None and meta is not None:
+            restored = checkpoint.restore(key, meta, output_dir)
+            written += restored
+            if temperature == 0.0:
+                for restored_path in restored:
+                    _reference_from_document(
+                        references, json.loads(restored_path.read_text(encoding="utf-8"))
+                    )
+            print(f"{label}: restored from the checkpoint (session {meta.get('session')})")
+            continue
+        remaining = sum(planned[later] for later in to_run if later >= index)
+        print(f"{label}: starting, {planned[index]} generations ({remaining} left to run)")
+        block_started = time.perf_counter()
+        block_started_utc = datetime.now(UTC).isoformat()
+        documents = _run_block(
+            config=config,
+            dataset=dataset,
+            prompt_ids=ids,
+            prompts=prompts,
+            prompt_note=note,
+            names=names,
+            spec_methods=spec_methods,
+            groups=groups,
+            temperature=temperature,
+            device=device,
+            model_name=model_name,
+            drafter_module=drafter_module,
+            target_module=target_module,
+            hf_cache=hf_cache,
+            cache_len=cache_len,
+            compile_request=compile_request,
+            max_new_tokens=max_new_tokens,
+            n_warmup=n_warmup,
+            window=window,
+            seed=seed,
+            toy=toy,
+            hardware=hardware,
+            references=references,
+            session=checkpoint.session if checkpoint is not None else SESSION_ID,
+        )
+        block_files: list[Path] = []
+        for method, document in documents.items():
+            destination = output_dir / f"{path.stem}_{key}_{method}_{commit}.json"
+            write_result(destination, document)
+            block_files.append(destination)
+            metrics = document["metrics"]
+            assert isinstance(metrics, dict)
+            print(
+                f"{method}: {metrics.get('workload_tokens_per_second')} tok/s "
+                "(block total tokens / total seconds)"
             )
-            for method, document in documents.items():
-                destination = output_dir / (
-                    f"{path.stem}_{dataset}_{_mode_slug(temperature)}_{method}_{commit}.json"
-                )
-                write_result(destination, document)
-                written.append(destination)
-                metrics = document["metrics"]
-                assert isinstance(metrics, dict)
-                print(
-                    f"{method}: {metrics.get('workload_tokens_per_second')} tok/s "
-                    "(block total tokens / total seconds)"
-                )
+        written += block_files
+        block_seconds = time.perf_counter() - block_started
+        if checkpoint is not None:
+            checkpoint.save(
+                key,
+                block_files,
+                started_utc=block_started_utc,
+                duration_s=block_seconds,
+                extra={
+                    "dataset": dataset,
+                    "mode": _mode_slug(temperature),
+                    "n_prompts": len(prompts),
+                    "planned_generations": planned[index],
+                },
+            )
+        done_generations += planned[index]
+        left = remaining - planned[index]
+        elapsed = time.perf_counter() - session_started
+        rate = elapsed / done_generations if done_generations else 0.0
+        print(
+            f"{label}: done in {block_seconds:.0f} s"
+            f"{' and saved to the checkpoint' if checkpoint is not None else ''}. "
+            f"Session elapsed {elapsed / 60:.1f} min; {left} generations left, ETA about "
+            f"{left * rate / 60:.1f} min (estimate from this session's rate, "
+            f"{rate:.2f} s per generation including compile)"
+        )
     return written
+
+
+def _runnable(
+    names: list[str],
+    spec_methods: dict[str, _Method],
+    greedy: bool,
+    target_module: nn.Module,
+    *,
+    quiet: bool = False,
+) -> list[str]:
+    """Return the block's methods that run in this mode, in config order."""
+    runnable: list[str] = []
+    for name in names:
+        if name in spec_methods:
+            runnable.append(name)
+            continue
+        if not _uses_hf_generate(target_module):
+            if not quiet:
+                print(f"Skipping {name}: needs HuggingFace modules with generate().")
+            continue
+        if name in ("hf_greedy", "hf_greedy_compiled") and not greedy:
+            continue
+        if name == "hf_sample_compiled" and greedy:
+            continue
+        runnable.append(name)
+    return runnable
+
+
+def _planned_generations(
+    runnable: list[str], spec_methods: dict[str, _Method], n_prompts: int, n_warmup: int
+) -> int:
+    """Count a block's generations: warmups and timed runs per method, one probe per engine."""
+    warm = min(max(n_warmup, 0), n_prompts)
+    return (warm + n_prompts) * len(runnable) + sum(name in spec_methods for name in runnable)
+
+
+def _add_reference(
+    references: dict[tuple[float, str, str], dict[str, list[int]]],
+    dataset: str,
+    pid: str,
+    ref: str,
+    tokens: list[int],
+) -> None:
+    """Store a greedy reference for its block and, for a single set, its mixed-block id."""
+    references.setdefault((0.0, dataset, pid), {})[ref] = tokens
+    if dataset != "mixed":
+        references.setdefault((0.0, "mixed", f"{dataset}/{pid}"), {})[ref] = tokens
+
+
+def _reference_from_document(
+    references: dict[tuple[float, str, str], dict[str, list[int]]], doc: dict[str, Any]
+) -> None:
+    """Reload a restored HuggingFace greedy document's outputs as references."""
+    method = str(doc.get("method"))
+    if method not in ("hf_greedy", "hf_greedy_compiled"):
+        return
+    if (doc.get("decoding") or {}).get("mode") != "greedy":
+        return
+    for entry in (doc.get("outputs") or {}).get("prompts", []):
+        tokens = [int(token) for token in entry["token_ids"]]
+        _add_reference(references, str(doc.get("dataset")), str(entry["prompt_id"]), method, tokens)
 
 
 def _engine(
@@ -426,25 +563,14 @@ def _run_block(
     toy: bool,
     hardware: dict[str, object],
     references: dict[tuple[float, str, str], dict[str, list[int]]],
+    session: str,
 ) -> dict[str, dict[str, object]]:
     greedy = temperature == 0.0
     weight_dtype = next(target_module.parameters()).dtype
     for group in groups.values():
         group.drafter.set_temperature(temperature)
 
-    runnable: list[str] = []
-    for name in names:
-        if name in spec_methods:
-            runnable.append(name)
-            continue
-        if not _uses_hf_generate(target_module):
-            print(f"Skipping {name}: needs HuggingFace modules with generate().")
-            continue
-        if name in ("hf_greedy", "hf_greedy_compiled") and not greedy:
-            continue
-        if name == "hf_sample_compiled" and greedy:
-            continue
-        runnable.append(name)
+    runnable = _runnable(names, spec_methods, greedy, target_module)
 
     def make(name: str) -> SpeculativeEngine:
         return _engine(
@@ -536,12 +662,7 @@ def _run_block(
         for ref in ("hf_greedy", "hf_greedy_compiled"):
             if ref in runs:
                 for pid, tokens in zip(prompt_ids, runs[ref].outputs, strict=True):
-                    key = (temperature, dataset, pid)
-                    references.setdefault(key, {})[ref] = tokens
-                    if dataset != "mixed":
-                        references.setdefault((temperature, "mixed", f"{dataset}/{pid}"), {})[
-                            ref
-                        ] = tokens
+                    _add_reference(references, dataset, pid, ref, tokens)
 
     def match(stats: _Runs, ref: str) -> dict[str, object] | None:
         wanted = [references.get((temperature, dataset, pid), {}).get(ref) for pid in prompt_ids]
@@ -598,7 +719,12 @@ def _run_block(
                     workload(stats) / workload(runs[other]) if workload(runs[other]) else 0.0
                 )
         extra: dict[str, object] = {
-            "phase6": {"block": dataset, "temperature": temperature, "methods": runnable},
+            "phase6": {
+                "block": dataset,
+                "temperature": temperature,
+                "methods": runnable,
+                "session": session,
+            },
             "cold_start": cold_start.get(name),
             "decoding": {
                 "mode": "greedy" if greedy else "sample",

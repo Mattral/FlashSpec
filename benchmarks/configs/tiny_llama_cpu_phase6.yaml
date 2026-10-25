@@ -1,14 +1,17 @@
-# CPU correctness run of the Phase 6 runner (qwen_t4_phase6.yaml's shape)
-# on a random tiny Llama pair with a character tokenizer. Not a speed
+# CPU correctness run of the Phase 6 runner, same shape as qwen_t4_phase6.yaml
+# (three single-set blocks, then mixed; greedy and T = 0.7: 8 blocks), on a
+# random tiny Llama pair with a character tokenizer. Not a speed
 # measurement and not a checkpoint: acceptance on random weights means
-# nothing. Prompts are capped per block to keep it short.
+# nothing. HumanEval and MT-Bench run every prompt (few methods) so the
+# mixed block's greedy references are complete; HumanEval-edit and mixed
+# are capped. tests/unit/test_phase6_resume.py kills and resumes this run.
 
 runner: phase6
 model: toy_llama
 drafter: toy_llama
 device: cpu
 dtype: float32
-max_new_tokens: 24
+max_new_tokens: 16
 n_warmup: 1
 seed: 0
 chat_template: false
@@ -35,6 +38,10 @@ bandits:
   - thompson
 
 blocks:
+  - dataset: humaneval
+    methods: [arm_composite-g4, hf_greedy, hf_greedy_compiled, hf_sample_compiled]
+  - dataset: mt_bench
+    methods: [arm_composite-g4, hf_greedy, hf_greedy_compiled, hf_sample_compiled]
   - dataset: humaneval_edit
     n_prompts: 3
     methods: [fixed_arms, bandits, hf_greedy, hf_greedy_compiled, hf_sample_compiled]

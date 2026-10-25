@@ -64,6 +64,14 @@ Versioning follows [Semantic Versioning 2.0.0](https://semver.org/).
   `benchmarks/configs/qwen_t4_phase6.yaml` is the T4 config (notebook cell
   3d); `scripts/phase6_report.py` evaluates the exit criteria from the JSONs.
   No GPU number from it is in this changelog: none has been measured yet.
+- Resumable Phase 6 bundles: `gpu_bundle.py --checkpoint-dir` (notebook cell
+  3d uses a Google Drive folder per commit) saves each finished block (one
+  prompt set and mode) with a marker naming the commit, the config's sha256
+  and the session, plus that session's log so far. A rerun restores intact
+  blocks, runs only the missing ones, and assembles one zip whose manifest
+  lists the blocks and the session that produced each, with every session's
+  log under `logs/`. Ingest checks that every block and document traces to
+  one listed session. The runner prints progress per block with an ETA.
 - `HuggingFaceDrafter.set_temperature()` and `pending_length`.
 - `scripts/ingest_gpu_bundle.py` checks Phase 6 documents and keeps them
   out of the existing README tables.
