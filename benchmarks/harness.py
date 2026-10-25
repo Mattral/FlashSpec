@@ -2201,7 +2201,7 @@ def _result_filename(
     return f"{stem}_{method}_{commit}.json"
 
 
-def run_config_file(path: Path, output_dir: Path) -> list[Path]:
+def run_config_file(path: Path, output_dir: Path, *, checkpoint: Any = None) -> list[Path]:  # noqa: ANN401
     """Run one YAML config and write measured JSON files.
 
     Medusa and EAGLE entries in ``methods`` are skipped with no output
@@ -2217,11 +2217,14 @@ def run_config_file(path: Path, output_dir: Path) -> list[Path]:
         Config YAML.
     output_dir : Path
         Directory for JSON results.
+    checkpoint : benchmarks.checkpoint.BlockCheckpoint or None
+        Block checkpoint for ``runner: phase6`` configs; other configs run
+        without one.
 
     Returns
     -------
     list[Path]
-        Files written.
+        Files written (or restored from the checkpoint).
 
     Raises
     ------
@@ -2230,6 +2233,12 @@ def run_config_file(path: Path, output_dir: Path) -> list[Path]:
         Nothing is written for the dataset that failed.
     """
     config = load_benchmark_config(path)
+    if config.get("runner") == "phase6":
+        from benchmarks.phase6 import run_phase6_config
+
+        return run_phase6_config(path, output_dir, config=config, checkpoint=checkpoint)
+    if checkpoint is not None:
+        print(f"{path.name} is not a phase6 config; it runs without a block checkpoint.")
     methods = config.get("methods") or ["flashspec_ucb", "vanilla_ar"]
     skipped = [name for name in methods if name in {"medusa", "eagle", "flashspec_thompson"}]
     if skipped:

@@ -146,6 +146,24 @@ class HuggingFaceDrafter:
         module.eval()
         return module
 
+    def set_temperature(self, temperature: float) -> None:
+        """Change the drafting temperature. The caches and compiled graphs are kept.
+
+        Parameters
+        ----------
+        temperature : float
+            New temperature, ``>= 0``. ``0`` proposes the argmax.
+
+        Raises
+        ------
+        ValueError
+            If ``temperature`` is negative.
+        """
+        if temperature < 0.0:
+            raise ValueError(f"temperature must be >= 0; got {temperature}.")
+        self._temperature = temperature
+        self._score_temperature = temperature if temperature > 0.0 else 1.0
+
     @property
     def model_name(self) -> str:
         """Hub id or path this drafter was constructed with.

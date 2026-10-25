@@ -54,6 +54,27 @@ Versioning follows [Semantic Versioning 2.0.0](https://semver.org/).
   prompts built from HumanEval (MIT) by `scripts/build_humaneval_edit.py`,
   and `mixed`, the 30 MT-Bench, HumanEval and HumanEval-edit prompts in one
   stored shuffled order.
+- Phase 6 measurement (PLAN Phase 6f): `benchmarks/phase6.py` (configs with
+  `runner: phase6`) runs every fixed arm alone, the UCB1 and Thompson
+  bandits over all arms, compiled and eager HuggingFace and HF assisted, on
+  each prompt set and on the mixed workload (one engine per bandit for the
+  whole block). Every FlashSpec document carries the arm report, CUDA-graph
+  captures per wrapper group, per-prompt token ids with sha256, and greedy
+  matches against eager and compiled HuggingFace.
+  `benchmarks/configs/qwen_t4_phase6.yaml` is the T4 config (notebook cell
+  3d); `scripts/phase6_report.py` evaluates the exit criteria from the JSONs.
+  No GPU number from it is in this changelog: none has been measured yet.
+- Resumable Phase 6 bundles: `gpu_bundle.py --checkpoint-dir` (notebook cell
+  3d uses a Google Drive folder per commit) saves each finished block (one
+  prompt set and mode) with a marker naming the commit, the config's sha256
+  and the session, plus that session's log so far. A rerun restores intact
+  blocks, runs only the missing ones, and assembles one zip whose manifest
+  lists the blocks and the session that produced each, with every session's
+  log under `logs/`. Ingest checks that every block and document traces to
+  one listed session. The runner prints progress per block with an ETA.
+- `HuggingFaceDrafter.set_temperature()` and `pending_length`.
+- `scripts/ingest_gpu_bundle.py` checks Phase 6 documents and keeps them
+  out of the existing README tables.
 - Benchmarks: `flashspec_compiled_legacy` (compiled, `compile_fixed_shapes=False`)
   and a `cuda_graphs` section on compiled methods: CUDA-graph captures
   counted at `torch.cuda.CUDAGraph.capture_begin`, plus the call shapes

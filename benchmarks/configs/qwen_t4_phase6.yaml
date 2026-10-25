@@ -1,0 +1,67 @@
+# Phase 6 measurement on a Colab Tesla T4: does the bandit beat the best
+# fixed arm? Run through notebooks/04_gpu_measurement.ipynb, cell 3d.
+#
+# Qwen2.5-1.5B-Instruct verified by Qwen2.5-0.5B-Instruct, fp16, batch 1,
+# compile="auto", prompts through the chat template, 128 new tokens, no EOS
+# stop, greedy and T = 0.7.
+#
+# Arms: {Qwen2.5-0.5B, n-gram} x gamma {2, 4, 6}, plus the composite
+# "n-gram if a match exists, else the model drafter" at gamma 4. Every arm
+# also runs alone as a fixed-arm method. Bandits: UCB1 (the engine's
+# default selector; the primary bandit for the exit criteria) and Thompson,
+# both over all seven arms, window 500 (BanditConfig default), state
+# carried across a block's prompts on one engine.
+#
+# Blocks: the three sets alone, then the mixed workload (the 30 prompts in
+# the stored shuffled order of benchmarks/prompt_sets/mixed.json). The
+# mixed block skips HuggingFace (its greedy references come from the
+# per-set blocks by prompt id) and adds the CUDA-graph before/after pair:
+# the gamma-4 model arm and the UCB1 bandit with compile_fixed_shapes=False.
+#
+# Exit criteria (PLAN Phase 6, as the user stated them; workload throughput
+# = total tokens / total seconds over a block):
+#   1. mixed: bandit_ucb1 > best fixed arm
+#   2. each set: bandit_ucb1 >= 0.95 x that set's best fixed arm
+#   3. each set: bandit_ucb1 > hf_greedy_compiled (greedy) / hf_sample_compiled (T = 0.7)
+#   4. all correctness tests green
+# scripts/phase6_report.py evaluates 1-3 from the result JSONs.
+
+runner: phase6
+model: Qwen/Qwen2.5-1.5B-Instruct
+drafter: Qwen/Qwen2.5-0.5B-Instruct
+device: cuda:0
+dtype: float16
+max_new_tokens: 128
+n_warmup: 2
+seed: 0
+chat_template: true
+compile: auto
+compile_max_cache_len: 1024
+bandit_window: 500
+
+temperatures:
+  - 0.0
+  - 0.7
+
+arms:
+  - {label: qwen-g2, drafter: model, gamma: 2}
+  - {label: qwen-g4, drafter: model, gamma: 4}
+  - {label: qwen-g6, drafter: model, gamma: 6}
+  - {label: ngram-g2, drafter: ngram, gamma: 2}
+  - {label: ngram-g4, drafter: ngram, gamma: 4}
+  - {label: ngram-g6, drafter: ngram, gamma: 6}
+  - {label: composite-g4, drafter: ngram, gamma: 4, fallback: model}
+
+bandits:
+  - ucb1
+  - thompson
+
+blocks:
+  - dataset: humaneval
+    methods: [fixed_arms, bandits, hf_greedy, hf_greedy_compiled, hf_sample_compiled, hf_assisted]
+  - dataset: mt_bench
+    methods: [fixed_arms, bandits, hf_greedy, hf_greedy_compiled, hf_sample_compiled, hf_assisted]
+  - dataset: humaneval_edit
+    methods: [fixed_arms, bandits, hf_greedy, hf_greedy_compiled, hf_sample_compiled, hf_assisted]
+  - dataset: mixed
+    methods: [fixed_arms, bandits, flashspec_compiled_legacy, bandit_ucb1_legacy]

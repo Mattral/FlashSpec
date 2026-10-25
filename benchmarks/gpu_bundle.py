@@ -21,6 +21,13 @@ holds:
   recompile messages), FlashSpec log lines and Python warnings, timestamped.
 - ``diagnostics/*.json``: optional attachments (``--attach``), such as
   the ``benchmarks/greedy_mismatch.py`` report. Hashed, not results.
+- With ``--checkpoint-dir`` (``runner: phase6`` configs): ``logs/<session>.log``
+  for every session that produced a block, and in ``manifest.json`` a
+  ``blocks`` list (which session ran each block, when, the config sha256,
+  the files) and a ``sessions`` list. Finished blocks are saved to the
+  checkpoint folder as they finish; a rerun with the same commit and config
+  restores them and runs only the rest, so a bundle can be assembled
+  across sessions.
 
 ``scripts/ingest_gpu_bundle.py`` validates the zip and builds the README
 tables from the JSONs. Nothing in this script writes or edits a number.
@@ -37,6 +44,7 @@ import io
 import json
 import logging
 import platform
+import shutil
 import subprocess
 import sys
 import time
@@ -188,6 +196,7 @@ def render_profile(documents: list[dict[str, Any]]) -> str:
             metrics = doc.get("metrics") or {}
             lines.append(f"[{doc.get('method')}]")
             for key in (
+                "workload_tokens_per_second",
                 "tokens_per_second_median",
                 "tokens_per_second_p25",
                 "tokens_per_second_p75",
@@ -224,6 +233,7 @@ def build_bundle(
     output_dir: Path,
     zip_path: Path | None = None,
     attachments: list[Path] | None = None,
+    checkpoint_dir: Path | None = None,
 ) -> tuple[Path, bool]:
     """Run ``configs`` and write the bundle zip.
 
@@ -238,22 +248,31 @@ def build_bundle(
         flashspec_gpu_bundle_<commit>.zip``.
     attachments : list of Path or None
         JSON files stored as ``diagnostics/<name>``.
+    checkpoint_dir : Path or None
+        Per-commit checkpoint folder (for example on Google Drive). Blocks
+        of ``runner: phase6`` configs are saved there as they finish and
+        restored on a rerun; the zip is copied there too.
 
     Returns
     -------
     tuple[Path, bool]
         The zip path, and whether every config finished.
     """
+    from benchmarks.checkpoint import SESSION_ID, BlockCheckpoint
     from benchmarks.harness import detect_hardware, git_commit, run_config_file
 
     output_dir.mkdir(parents=True, exist_ok=True)
     results_dir = output_dir / "results"
+    if checkpoint_dir is not None and results_dir.exists():
+        # Only this run's and the checkpoint's files go into the bundle.
+        shutil.rmtree(results_dir)
     results_dir.mkdir(parents=True, exist_ok=True)
     log_path = output_dir / "run.log"
     commit = git_commit()
     started = time.perf_counter()
     started_utc = datetime.now(UTC).isoformat()
     config_rows: list[dict[str, object]] = []
+    checkpoints: list[Any] = []
     # Import first so the engine and torch loggers exist before _capture_logs attaches.
     import torch._inductor.cudagraph_utils  # noqa: F401
 
@@ -269,8 +288,19 @@ def build_bundle(
             config_started = time.perf_counter()
             row: dict[str, object] = {"path": str(config), "sha256": _sha256(config)}
             print(f"\n=== {config} ===")
+            checkpoint = None
+            if checkpoint_dir is not None:
+                checkpoint = BlockCheckpoint(
+                    root=checkpoint_dir,
+                    commit=commit,
+                    config_sha256=str(row["sha256"]),
+                    log_path=log_path,
+                    session=SESSION_ID,
+                    tracked_files_modified=_tracked_files_modified,
+                )
+                checkpoints.append(checkpoint)
             try:
-                written = run_config_file(config, results_dir)
+                written = run_config_file(config, results_dir, checkpoint=checkpoint)
             except Exception as exc:  # noqa: BLE001 - recorded, and the bundle still ships
                 message = f"{type(exc).__name__}: {exc}"
                 row.update({"status": "error", "error": message, "files": []})
@@ -289,6 +319,8 @@ def build_bundle(
             except ImportError:
                 pass
         print(f"\nTotal: {time.perf_counter() - started} s")
+    for checkpoint in checkpoints:
+        checkpoint.save_log()
 
     documents = [
         json.loads(path.read_text(encoding="utf-8")) for path in sorted(results_dir.glob("*.json"))
@@ -297,6 +329,18 @@ def build_bundle(
     profile_path.write_text(render_profile(documents), encoding="utf-8")
     files = sorted(results_dir.glob("*.json"))
     attached = {f"diagnostics/{path.name}": path for path in attachments or []}
+    blocks = [block for checkpoint in checkpoints for block in checkpoint.blocks]
+    sessions: dict[str, list[str]] = {}
+    for block in blocks:
+        sessions.setdefault(str(block["session"]), []).append(str(block["block"]))
+    if checkpoints:
+        sessions.setdefault(SESSION_ID, [])
+        logs = {}
+        for checkpoint in checkpoints:
+            logs.update(checkpoint.session_logs())
+        for session_id in sessions:
+            if session_id in logs:
+                attached[f"logs/{session_id}.log"] = logs[session_id]
     manifest: dict[str, object] = {
         "bundle_format": BUNDLE_FORMAT,
         "git_commit": commit,
@@ -305,6 +349,18 @@ def build_bundle(
         "finished_utc": datetime.now(UTC).isoformat(),
         "duration_s": time.perf_counter() - started,
         "configs": config_rows,
+        **(
+            {
+                "session": SESSION_ID,
+                "blocks": blocks,
+                "sessions": [
+                    {"id": session_id, "blocks": names, "log": f"logs/{session_id}.log"}
+                    for session_id, names in sorted(sessions.items())
+                ],
+            }
+            if checkpoints
+            else {}
+        ),
         "hardware": detect_hardware(),
         "versions": {
             "python": platform.python_version(),
@@ -331,6 +387,9 @@ def build_bundle(
         for name, path in attached.items():
             archive.write(path, name)
     complete = all(row["status"] == "ok" for row in config_rows)
+    if checkpoint_dir is not None:
+        shutil.copyfile(destination, checkpoint_dir / destination.name)
+        print(f"Copied the bundle to {checkpoint_dir / destination.name}")
     return destination, complete
 
 
@@ -341,8 +400,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output-dir", required=True, type=Path)
     parser.add_argument("--zip", type=Path, default=None)
     parser.add_argument("--attach", action="append", type=Path, default=[])
+    parser.add_argument("--checkpoint-dir", type=Path, default=None)
     args = parser.parse_args(argv)
-    destination, complete = build_bundle(args.config, args.output_dir, args.zip, args.attach)
+    destination, complete = build_bundle(
+        args.config, args.output_dir, args.zip, args.attach, args.checkpoint_dir
+    )
     print(f"Bundle written to {destination}")
     if not complete:
         print("At least one config failed; see manifest.json and run.log in the bundle.")

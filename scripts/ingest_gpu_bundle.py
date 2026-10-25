@@ -99,6 +99,8 @@ def _member_ok(name: str) -> bool:
         return False
     if name in {"manifest.json", "profile.txt", "run.log"}:
         return True
+    if len(path.parts) == 2 and path.parts[0] == "logs":
+        return path.suffix == ".log"
     return (
         len(path.parts) == 2
         and path.parts[0] in {"results", "diagnostics"}
@@ -144,6 +146,8 @@ def _check_document(name: str, doc: dict[str, Any], commit: str) -> list[str]:
     if decoding.get("mode") == "greedy" and method in (*SPECS, "hf_assisted"):
         if "greedy_token_match" not in doc:
             errors.append(f"{name}: greedy {method} result without greedy_token_match")
+    if "phase6" in doc:
+        errors.extend(_check_phase6(name, doc))
     metrics = doc.get("metrics") or {}
     if (
         decoding.get("mode") == "greedy"
@@ -152,6 +156,73 @@ def _check_document(name: str, doc: dict[str, Any], commit: str) -> list[str]:
         and "greedy_token_match_compiled" not in doc
     ):
         errors.append(f"{name}: greedy flashspec_compiled without greedy_token_match_compiled")
+    return errors
+
+
+def _check_phase6(name: str, doc: dict[str, Any]) -> list[str]:
+    """Extra sections a Phase 6 (``benchmarks/phase6.py``) document must carry."""
+    errors: list[str] = []
+    metrics = doc.get("metrics") or {}
+    if "workload_tokens_per_second" not in metrics:
+        errors.append(f"{name}: phase6 result without metrics.workload_tokens_per_second")
+    if "arms" not in doc:
+        return errors  # a HuggingFace baseline
+    for section in ("arm_report", "step_profile", "compile", "cuda_graphs", "bandit"):
+        if section not in doc:
+            errors.append(f"{name}: phase6 FlashSpec result without {section!r}")
+    if (doc.get("decoding") or {}).get("mode") == "greedy":
+        for section in ("greedy_token_match", "greedy_token_match_compiled"):
+            if section not in doc:
+                errors.append(f"{name}: greedy phase6 FlashSpec result without {section!r}")
+    return errors
+
+
+def _check_blocks(
+    manifest: dict[str, Any], documents: dict[str, dict[str, Any]], members: set[str]
+) -> list[str]:
+    """Check a bundle assembled across sessions: each block and document traces to one session.
+
+    Checked when the manifest has ``blocks`` (``gpu_bundle.py --checkpoint-dir``):
+    each block names the bundle's commit, a config sha256 the manifest lists,
+    a clean tree, a listed session with its log in the zip, and files whose
+    sha256 match the manifest; every phase6 document is in exactly one
+    block and names that block's session.
+    """
+    errors: list[str] = []
+    commit = manifest.get("git_commit")
+    config_hashes = {row.get("sha256") for row in manifest.get("configs", [])}
+    sessions = {str(item.get("id")): item for item in manifest.get("sessions") or []}
+    listed = manifest.get("files") or {}
+    owner: dict[str, dict[str, Any]] = {}
+    for block in manifest.get("blocks") or []:
+        label = f"block {block.get('block')} (session {block.get('session')})"
+        if block.get("git_commit") != commit:
+            errors.append(f"{label}: commit {block.get('git_commit')!r} != {commit!r}")
+        if block.get("config_sha256") not in config_hashes:
+            errors.append(f"{label}: config sha256 is not the config in this manifest")
+        if block.get("tracked_files_modified") is not False:
+            modified = block.get("tracked_files_modified")
+            errors.append(f"{label}: tracked files modified: {modified!r}")
+        session = str(block.get("session"))
+        if session not in sessions:
+            errors.append(f"{label}: session is not in manifest.sessions")
+        elif f"logs/{session}.log" not in members:
+            errors.append(f"{label}: logs/{session}.log is not in the zip")
+        for file_name, digest in (block.get("files") or {}).items():
+            member = f"results/{file_name}"
+            if listed.get(member) != digest:
+                errors.append(f"{label}: {member} sha256 differs from the block record")
+            if member in owner:
+                errors.append(f"{member} is in two blocks")
+            owner[member] = block
+    for member, doc in documents.items():
+        if "phase6" not in doc:
+            continue
+        block = owner.get(member)
+        if block is None:
+            errors.append(f"{member}: phase6 result is in no block of manifest.blocks")
+        elif (doc.get("phase6") or {}).get("session") != block.get("session"):
+            errors.append(f"{member}: session differs from its block's session")
     return errors
 
 
@@ -235,6 +306,8 @@ def validate_bundle(
             errors.extend(_check_document(name, doc, commit))
     if not documents:
         errors.append("the bundle has no result JSON")
+    if manifest.get("blocks") is not None:
+        errors.extend(_check_blocks(manifest, documents, set(payloads)))
     if errors:
         raise BundleError(f"{zip_path.name} rejected:\n  - " + "\n  - ".join(errors))
     return manifest, documents
@@ -491,7 +564,13 @@ def _replace_block(readme: str, body: str, begin: str = BEGIN, end: str = END) -
 
 
 def _readme_documents(documents: list[dict[str, Any]], commit: str | None) -> list[dict[str, Any]]:
-    """All documents, or only ``commit``'s; refuse a commit with none."""
+    """All documents, or only ``commit``'s; refuse a commit with none.
+
+    Phase 6 documents (``"phase6"`` key) never enter these tables: their
+    methods and blocks do not fit the columns. ``scripts/phase6_report.py``
+    reports them.
+    """
+    documents = [doc for doc in documents if "phase6" not in doc]
     if commit is None:
         return documents
     chosen = [doc for doc in documents if str(doc.get("git_commit")) == commit]

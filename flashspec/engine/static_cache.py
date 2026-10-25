@@ -134,11 +134,12 @@ class StaticKvSession:
 
             # The drafter and target usually share one forward code object
             # (same model class), so their shapes share dynamo's per-code
-            # recompile budget; the default of 8 is too small for both.
+            # recompile budget; the default of 8 is too small for both, and
+            # several engines (each with its own static cache) add entries.
             dynamo_config: Any = torch._dynamo.config
             for knob in ("recompile_limit", "cache_size_limit"):
                 if hasattr(dynamo_config, knob):
-                    setattr(dynamo_config, knob, max(int(getattr(dynamo_config, knob)), 64))
+                    setattr(dynamo_config, knob, max(int(getattr(dynamo_config, knob)), 128))
 
             # The settings HuggingFace generate uses for a static cache.
             self._compiled = torch.compile(self._model.__call__, **CompileConfig().to_dict())
