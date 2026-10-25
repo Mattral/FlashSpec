@@ -10,6 +10,7 @@ from flashspec.engine.drafter import (
     unregister,
 )
 from flashspec.engine.hf_drafter import HuggingFaceDrafter
+from flashspec.engine.ngram import NgramDrafter
 from flashspec.engine.speculative import GenerationResult, SpeculativeEngine
 from flashspec.engine.verifier import TargetModel
 
@@ -17,6 +18,7 @@ __all__ = [
     "DraftModel",
     "GenerationResult",
     "HuggingFaceDrafter",
+    "NgramDrafter",
     "SpeculativeEngine",
     "TargetModel",
     "get_drafter",

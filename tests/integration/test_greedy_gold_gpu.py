@@ -3,7 +3,9 @@
 Same check as ``tests/unit/test_greedy_gold.py``: greedy FlashSpec must
 emit exactly the tokens of ``model.generate(do_sample=False)``, here on
 real checkpoints and real prompts (the first 5 vendored HumanEval
-prompts, 64 new tokens each, gamma in {1, 2, 4, 6}).
+prompts, 64 new tokens each, gamma in {1, 2, 4, 6}), for three arm sets:
+the model drafter, the prompt-lookup (n-gram) drafter alone, and both
+under the bandit.
 
 Run it on a GPU (Colab T4 is enough; weights are downloaded):
 
@@ -29,6 +31,7 @@ import torch
 from benchmarks.prompt_sets import load_prompt_set, tokenize_prompts
 from flashspec.bandit.ucb import UCB1Selector
 from flashspec.engine.hf_drafter import HuggingFaceDrafter
+from flashspec.engine.ngram import NgramDrafter
 from flashspec.engine.speculative import SpeculativeEngine
 from flashspec.engine.verifier import TargetModel
 from flashspec.utils.config import BanditConfig, FlashSpecConfig, SamplingConfig
@@ -89,8 +92,13 @@ def _check(dtype: torch.dtype) -> None:
     target_module, drafter_module, prompts = _load(dtype)
     expected = [_hf_greedy(target_module, prompt) for prompt in prompts]
     failures: list[str] = []
-    for gamma in _GAMMAS:
+    for gamma, arm_set in [(g, a) for g in _GAMMAS for a in ("model", "ngram", "both")]:
         drafter = HuggingFaceDrafter(_DRAFTER, device=_DEVICE, model=drafter_module)
+        drafters: list[Any] = {
+            "model": [drafter],
+            "ngram": [NgramDrafter()],
+            "both": [NgramDrafter(), drafter],
+        }[arm_set]
         target = TargetModel(_TARGET, torch.device(_DEVICE), dtype, model=target_module)
         config = FlashSpecConfig(
             device=_DEVICE,
@@ -98,14 +106,14 @@ def _check(dtype: torch.dtype) -> None:
             compile=False,
             dtype=str(dtype).removeprefix("torch."),  # type: ignore[arg-type]
             max_new_tokens=_NEW_TOKENS,
-            bandit=BanditConfig(n_arms=1, strategy="ucb1", window_size=0),
+            bandit=BanditConfig(n_arms=len(drafters), strategy="ucb1", window_size=0),
             sampling=SamplingConfig(gamma=gamma, temperature=0.0),
         )
         engine = SpeculativeEngine(
             config,
-            [drafter],  # type: ignore[list-item]
+            drafters,
             target,
-            UCB1Selector(n_arms=1, window_size=0),
+            UCB1Selector(n_arms=len(drafters), window_size=0),
         )
         for index, (prompt, reference) in enumerate(zip(prompts, expected, strict=True)):
             output = engine.generate(prompt).output_ids
@@ -113,7 +121,8 @@ def _check(dtype: torch.dtype) -> None:
             if diverged.numel():
                 position = int(diverged[0, 1])
                 failures.append(
-                    f"gamma={gamma} prompt={index}: first divergence at token {position} "
+                    f"arms={arm_set} gamma={gamma} prompt={index}: "
+                    f"first divergence at token {position} "
                     f"(flashspec {int(output[0, position])}, "
                     f"generate {int(reference[0, position])})"
                 )

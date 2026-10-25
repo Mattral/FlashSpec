@@ -163,7 +163,8 @@ flashspec/
 ├── bandit/         base.py (ABC), ucb.py, thompson.py, oracle.py
 ├── metrics/        acceptance.py, throughput.py, latency.py
 ├── export/         onnx.py
-└── engine/         drafter.py (protocol + registry), verifier.py, speculative.py
+└── engine/         drafter.py (protocol + registry), verifier.py, speculative.py,
+                    ngram.py (prompt-lookup drafter)
 ```
 
 ---
@@ -188,8 +189,10 @@ The resulting marginal distribution over accepted tokens is exactly `p`.
 - The residual distribution is computed as
   `torch.clamp(p - q, min=0.0) / denom.clamp(min=1e-9)` — no temperature,
   no softmax applied to the residual (verified by `test_sampling.py`).
-- All acceptance-probability comparisons operate in log-space:
+- Model-drafter acceptance probabilities are computed in log-space:
   `accept_prob = exp(log_p - log_q).clamp(max=1.0)` — never `p / q` directly.
+  The one-hot (prompt-lookup) case uses `p(x)` directly, since `q(x) = 1`
+  (see below).
 - The Triton kernel and pure-PyTorch reference produce identical boolean masks
   to within `atol=1e-5` (float32) / `atol=1e-3` (bfloat16), verified by
   `tests/unit/test_verify_kernel.py`.
@@ -199,6 +202,19 @@ The resulting marginal distribution over accepted tokens is exactly `p`.
   whose next token depends on the previous token.
   `tests/integration/test_e2e_sampling.py` only covers draft equal to
   target, where every gamma-1 draft token is accepted.
+
+**Prompt lookup (deterministic drafter).** `NgramDrafter` proposes each
+token with probability one, so its `q` is one-hot on the proposal `x`.
+The same two rules then read: accept with probability `min(1, p(x))`, and
+on a rejection sample `max(0, p - onehot(x))` normalised, which is `p` with
+`x` removed. `rejection_step_onehot` evaluates this in probability space
+(no `log 0`) through the same residual code, with no smoothing of `q`.
+A proposal may be shorter than gamma (the length is a device tensor):
+positions past it are forwarded through the target for a fixed shape,
+cropped from the cache, and never accepted. A step with no proposal is a
+plain decode step. `tests/integration/test_output_distribution_ngram.py`
+runs the chi-squared checks for it and also swaps in two wrong residuals
+to show that the checks fail on them.
 
 ---
 
