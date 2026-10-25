@@ -59,12 +59,19 @@ plugins:
             show_root_heading: true
             heading_level: 3
 
+hooks:
+  - scripts/mkdocs_hooks.py   # publishes the root llms.txt in the built site
+
 nav:
   - Home: index.md
+  - Install: install.md
+  - Examples: examples.md
   - Architecture: architecture.md
   - Kernels: kernels.md
   - Bandit: bandit.md
   - Benchmarks: benchmarks.md
+  - Development: development.md
+  - Postponed: postponed.md
   - API Reference:
       - flashspec: api/index.md
 

@@ -1,73 +1,223 @@
-<h1 align="center">⚡ FlashSpec</h1>
+# FlashSpec
 
-<p align="center">
-  <strong>Lossless speculative decoding for HuggingFace causal language models</strong><br>
-  Algorithm 1 rejection sampling and exact greedy · static KV cache + CUDA graphs on CUDA · experimental bandit and kernels
-</p>
+Lossless speculative decoding for HuggingFace causal language models, with a static-cache CUDA-graph fast path.
 
-<p align="center">
-  
-  <a href="https://pypi.org/project/flashspec/">
-    <img alt="PyPI" src="https://img.shields.io/pypi/v/flashspec?style=for-the-badge&logo=pypi&logoColor=white&color=7C3AED"></a>
-  <a href="https://pypi.org/project/flashspec/">
-    <img alt="Python" src="https://img.shields.io/pypi/pyversions/flashspec?style=for-the-badge&logo=python&logoColor=white"></a>
-  <a href="https://pypi.org/project/flashspec/">
-    <img alt="Downloads" src="https://img.shields.io/pypi/dm/flashspec?style=for-the-badge&color=A78BFA"></a>
-  <a href="https://flashspec.readthedocs.io">
-    <img alt="Docs" src="https://img.shields.io/badge/docs-readthedocs-22C55E?style=for-the-badge&logo=readthedocs&logoColor=white"></a>
-  <a href="https://doi.org/10.5281/zenodo.20766119">
-    <img alt="DOI" src="https://img.shields.io/badge/DOI-10.5281%2Fzenodo.20766119-7C3AED?style=for-the-badge"></a>
-  <a href="./CITATION.cff">
-    <img alt="Cite" src="https://img.shields.io/badge/cite-CITATION.cff-brightgreen?style=for-the-badge"></a>
-  <a href="./LICENSE">
-    <img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-A78BFA?style=for-the-badge"></a>
-  <a href="https://github.com/Mattral/FlashSpec/tree/main/notebooks">
-    <img alt="Open Notebooks in Colab" src="https://colab.research.google.com/assets/colab-badge.svg" style="height:28px;">
-  </a>
+[![PyPI](https://img.shields.io/pypi/v/flashspec)](https://pypi.org/project/flashspec/)
+[![Python](https://img.shields.io/pypi/pyversions/flashspec)](https://pypi.org/project/flashspec/)
+[![CI](https://github.com/Mattral/FlashSpec/actions/workflows/ci.yml/badge.svg)](https://github.com/Mattral/FlashSpec/actions/workflows/ci.yml)
+[![Docs](https://img.shields.io/badge/docs-readthedocs-blue)](https://flashspec.readthedocs.io)
+[![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.20766119-blue)](https://doi.org/10.5281/zenodo.20766119)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue)](https://github.com/Mattral/FlashSpec/blob/main/LICENSE)
 
-</p>
+## What it is
 
----
+FlashSpec wraps an existing HuggingFace causal LM and a smaller drafter that shares its tokenizer: the drafter proposes tokens, your model checks them in one forward pass, and the output is your model's own: the same distribution when sampling, and the same tokens in greedy mode up to fp16 ties ([correctness](https://github.com/Mattral/FlashSpec#correctness)). On one Tesla T4, with `Qwen/Qwen2.5-1.5B-Instruct` verified by `Qwen/Qwen2.5-0.5B-Instruct` at batch 1, it was faster than HuggingFace `generate` compiled the same way in every measured cell, by at least 1.3x on HumanEval and by less on MT-Bench ([results](https://github.com/Mattral/FlashSpec#results)). That is the whole measured scope (one model pair, one GPU, batch 1), and FlashSpec is a single-device library with a small HTTP server, not a serving stack.
 
-**Project status: alpha, version 0.2.0.**
+## When to use it
 
-**What was measured, and only this:** one model pair
-(`Qwen/Qwen2.5-1.5B-Instruct` verified by `Qwen/Qwen2.5-0.5B-Instruct`),
-one Tesla T4, fp16, batch 1, 10 MT-Bench and 10 HumanEval prompts, run
-from `main` at git `8d036d7` with the default `FlashSpecConfig(compile="auto")`,
-which turned the compiled path (static KV cache and CUDA graphs) on. On
-that setup FlashSpec was faster than HuggingFace `generate` compiled the
-same way in every cell of the table below: by at least 1.3x on both
-HumanEval cells, and by less on MT-Bench. With the eager path
-(`compile=False`) it was slower than plain HuggingFace `generate` in 3 of
-the 4 cells of the same run (generated table further down). No other GPU,
-model pair or batch size has been measured. Every H100 number in the docs
-is a design target.
+Use it when:
 
-- **The first call compiles.** On CUDA with Triton, the default
-  `compile="auto"` compiles the drafter and target forwards and captures
-  CUDA graphs on the first `generate`, which can take minutes. Later calls
-  reuse them. The tables above and below exclude that first call (warmup
-  prompts absorb it). To skip compilation, pass
-  `FlashSpecConfig(compile=False)` (the eager path, slower here) or
-  `--compile off` to the server. The engine logs one line saying whether
-  the compiled path is on and why.
+- you run a HuggingFace causal LM on a CUDA GPU, one request at a time (batch 1);
+- you have a smaller drafter with the same tokenizer, or your outputs copy from the prompt (code edits, quoting), where the built-in prompt-lookup drafter needs no second model;
+- you need your model's exact output, not an approximation of it.
 
-- **Correctness** is checked in CI on CPU: a chi-squared test that emitted
-  tokens follow the target when draft and target differ, and a
-  token-for-token comparison of greedy output with
-  `generate(do_sample=False)`. On the GPU in fp16, kernels for different
-  shapes can round differently, so each greedy GPU run reports how many
-  prompts matched (last columns of the table).
-- **The bandit is experimental.** Every measured run used one drafter, so
-  the selector has never been measured choosing between drafters.
-- **The Triton and assembly kernels are experimental** and not on the
-  generation critical path; see [Experimental kernels](#experimental-kernels-not-on-the-critical-path).
-- `sampling.variant="typical"` is **lossy**; `"rejection"` and `"greedy"`
-  are the lossless variants.
+Not yet:
 
-This is a single-device library plus a small HTTP server, not a
-production serving stack.
+- **CPU.** Both recorded CPU end-to-end runs were slower than plain decoding ([history](https://github.com/Mattral/FlashSpec/blob/main/docs/benchmarks.md#historical-and-microbenchmark-results)).
+- **Batch > 1.** Larger batches use a generic loop that reads the device several times per step and has not been measured.
+- **First-call latency.** On CUDA the first `generate` compiles and captures CUDA graphs, which can take minutes. `compile=False` skips that, but the eager path was slower than plain HuggingFace `generate` in 3 of the 4 measured cells.
+- **Other GPUs and model pairs.** They have not been measured.
+
+## Install
+
+```bash
+pip install flashspec
+```
+
+| extra | adds | when you want it |
+|---|---|---|
+| `flashspec[gpu]` | Triton (Linux only) | The compiled path needs Triton; Linux CUDA builds of PyTorch already ship it. Also enables the experimental Triton kernels. |
+| `flashspec[serve]` | FastAPI, uvicorn, httpx | The OpenAI-compatible server. Also `pip install accelerate`: the server loads checkpoints with `device_map`. |
+| `flashspec[asm]` | `flashspec-asm-kernel` (Linux x86-64) | An experimental CPU residual kernel. It does not change end-to-end speed. |
+
+You need Python 3.11 or later, PyTorch 2.2 or later and transformers 4.40 or later. Installing from source, Docker, Windows and macOS notes, and the full requirements table are in [docs/install.md](https://github.com/Mattral/FlashSpec/blob/main/docs/install.md).
+
+## Quickstart
+
+This loads the measured model pair, decodes greedily, and prints the text and the speed. Without CUDA it falls back to CPU and float32, which is slow.
+
+```python
+import torch
+from transformers import AutoModelForCausalLM, AutoTokenizer
+from flashspec import BanditConfig, FlashSpecConfig, SamplingConfig, SpeculativeEngine
+from flashspec.bandit import UCB1Selector
+from flashspec.engine import HuggingFaceDrafter, TargetModel
+target_id, drafter_id = "Qwen/Qwen2.5-1.5B-Instruct", "Qwen/Qwen2.5-0.5B-Instruct"  # same tokenizer
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+dtype = torch.float16 if device.type == "cuda" else torch.float32
+load = lambda name: AutoModelForCausalLM.from_pretrained(name, torch_dtype=dtype).to(device)
+target = TargetModel(target_id, device, dtype, model=load(target_id))
+drafter = HuggingFaceDrafter(drafter_id, device, dtype, model=load(drafter_id))
+config = FlashSpecConfig(device=str(device), bandit=BanditConfig(n_arms=1),
+                         sampling=SamplingConfig(temperature=0.0))  # greedy
+engine = SpeculativeEngine(config, [drafter], target, UCB1Selector(n_arms=1))
+tokenizer = AutoTokenizer.from_pretrained(target_id)
+prompt = tokenizer("def fibonacci(n):", return_tensors="pt").input_ids.to(device)
+engine.generate(prompt, max_new_tokens=128)  # the first call on CUDA compiles (can take minutes)
+result = engine.generate(prompt, max_new_tokens=128)
+print(tokenizer.decode(result.output_ids[0, : result.n_tokens_generated], skip_special_tokens=True))
+print(f"{result.tokens_per_second:.1f} tok/s, acceptance {result.acceptance_rate:.2f}")
+```
+
+`output_ids` has shape `(batch, max_new_tokens)` and pads a row that stopped early with `-1`; `n_tokens_generated` counts the real tokens. `TargetModel` and `HuggingFaceDrafter` take the loaded modules through `model=`; without it, `TargetModel` loads with `device_map`, which needs `accelerate`.
+
+## Recipes
+
+The recipes reuse `target`, `drafter`, `device`, `prompt` and `tokenizer` from the quickstart.
+
+### Choose a drafter
+
+There are three kinds, and all are lossless:
+
+- a **model drafter** (`HuggingFaceDrafter`), as in the quickstart;
+- **prompt lookup** (`NgramDrafter`): proposes the continuation of the most recent earlier match of the last 1 to 3 tokens. No second model;
+- **composite**: prompt lookup when the context has a match, else the model drafter.
+
+```python
+from flashspec.engine import ArmSpec, NgramDrafter
+
+lookup = SpeculativeEngine(config, [NgramDrafter()], target, UCB1Selector(n_arms=1))
+composite = SpeculativeEngine(
+    config, [drafter, NgramDrafter()], target, UCB1Selector(n_arms=1),
+    arms=[ArmSpec(drafter=1, gamma=4, fallback=0)],  # drafter 1 = lookup, fallback 0 = model
+)
+result = composite.generate(prompt, max_new_tokens=64)
+print([step.drafter for step in result.arm_steps])  # which drafter proposed each step
+```
+
+Which is fastest depends on the prompts. In the Phase 6 T4 run (greedy, bundle `3e38251`), the fastest fixed choice was the composite at gamma 4 on HumanEval and on the mixed workload, the model drafter at gamma 2 on MT-Bench, and prompt lookup at gamma 6 on code edits ([values](https://github.com/Mattral/FlashSpec/tree/main/benchmarks/results/gpu/3e38251)). Several arms plus a UCB1 or Thompson selector let a bandit choose online; that is experimental, and in the same run it did not beat the best fixed arm ([bandit](https://github.com/Mattral/FlashSpec/blob/main/docs/bandit.md)).
+
+### Greedy or sampling
+
+```python
+greedy = SamplingConfig(temperature=0.0)            # same tokens as model.generate(do_sample=False)
+sampled = SamplingConfig(temperature=0.7, seed=0)   # Algorithm 1: same distribution as the target
+drafter.set_temperature(0.7)                        # draft at the target's temperature
+config = FlashSpecConfig(device=str(device), bandit=BanditConfig(n_arms=1), sampling=sampled)
+engine = SpeculativeEngine(config, [drafter], target, UCB1Selector(n_arms=1))
+result = engine.generate(prompt, max_new_tokens=64)
+```
+
+The default is `temperature=1.0`, which samples. `temperature=0.0` selects greedy. `seed` makes one call reproducible; `seed=None` uses the global RNG. `variant="typical"` is lossy and is not on the fast path.
+
+### Turn compile off
+
+```python
+config = FlashSpecConfig(device=str(device), compile=False, bandit=BanditConfig(n_arms=1),
+                         sampling=SamplingConfig(temperature=0.0))
+engine = SpeculativeEngine(config, [drafter], target, UCB1Selector(n_arms=1))
+print(engine.compiled, "|", engine.compile_decision.reason)
+```
+
+The default `compile="auto"` turns the compiled path on when the device is CUDA and Triton is installed. The engine logs one line saying which path runs and why. Set `compile=False` before a compiled engine has run on the same `TargetModel` and drafter: the compiled path moves those wrappers onto static caches, and they stay there. The server takes `--compile off`.
+
+### Run the OpenAI-compatible server
+
+```bash
+pip install "flashspec[serve]" accelerate
+python -m flashspec.serve --target Qwen/Qwen2.5-1.5B-Instruct --drafter Qwen/Qwen2.5-0.5B-Instruct \
+    --device cuda:0 --dtype float16 --temperature 0
+```
+
+```bash
+curl -s http://127.0.0.1:8000/v1/chat/completions -H "Content-Type: application/json" \
+  -d '{"messages": [{"role": "user", "content": "Name three primary colors."}], "max_tokens": 32}'
+```
+
+The server has `POST /v1/chat/completions`, `POST /v1/completions`, `GET /health` and `GET /metrics`. It runs one process on one device, with no streaming and no continuous batching. Temperature and gamma are fixed at start, and a request with another temperature is rejected. `GET /health` lists every limitation.
+
+### Use your own drafter
+
+Any HuggingFace causal LM with the target's tokenizer works as `HuggingFaceDrafter(model_id, device, dtype, model=...)`. Anything else implements the `DraftModel` protocol: `generate_draft` returns `gamma` proposed ids and the log-probability rows they were drawn from, shape `(batch, gamma, vocab)` over the target's vocabulary, float32.
+
+```python
+class RepeatLast:
+    """Proposes the last token gamma times; its q is one-hot, so Algorithm 1 stays exact."""
+
+    def __init__(self, vocab_size: int) -> None:
+        self.vocab_size = vocab_size
+
+    def generate_draft(self, input_ids: torch.Tensor, gamma: int) -> tuple[torch.Tensor, torch.Tensor]:
+        ids = input_ids[:, -1:].repeat(1, gamma)
+        return ids, self.compute_logprobs(input_ids, ids)
+
+    def compute_logprobs(self, input_ids: torch.Tensor, draft_token_ids: torch.Tensor) -> torch.Tensor:
+        return torch.nn.functional.one_hot(draft_token_ids, self.vocab_size).float().log()
+
+own = SpeculativeEngine(config, [RepeatLast(target.vocab_size)], target, UCB1Selector(n_arms=1))
+result = own.generate(prompt, max_new_tokens=32)
+```
+
+The proposals must be draws from the distribution you return. Algorithm 1 is then exact for any drafter, and a poor drafter only lowers the acceptance rate. To build a drafter by name with `load_drafters`, decorate its class with `@flashspec.register("name")`; the constructor then receives `device`, `dtype` and `temperature`.
+
+## API at a glance
+
+The compute dtype is the one the model wrappers load with or are given; `FlashSpecConfig.dtype` is recorded with the config and not applied.
+
+<!-- BEGIN GENERATED: api (scripts/readme_api.py) -->
+Generated from the code by `scripts/readme_api.py`; a test fails when it is stale.
+
+| API | What it does | Key arguments, with defaults |
+|---|---|---|
+| `flashspec.FlashSpecConfig` | Top-level FlashSpec runtime configuration. | fields: `drafter_name: str = "llama3-1b"`, `target_name: str = "meta-llama/Llama-3-8B-Instruct"`, `device: str = "cuda:0"`, `dtype: "float32" \| "bfloat16" \| "float16" = "bfloat16"`, `max_new_tokens: int = 512`, `eos_token_ids: tuple[int, ...] = ()`, `compile: bool \| "auto" = "auto"`, `compile_max_cache_len: int = 1024`, `compile_fixed_shapes: bool = True`, `bandit: BanditConfig = BanditConfig()`, `sampling: SamplingConfig = SamplingConfig()`, `metrics: MetricsConfig = MetricsConfig()` |
+| `flashspec.SamplingConfig` | Configuration for speculative sampling. | fields: `gamma: int = 4`, `temperature: float = 1.0`, `top_p: float = 1.0`, `seed: int \| None = None`, `variant: "rejection" \| "typical" \| "greedy" = "rejection"` |
+| `flashspec.BanditConfig` | Configuration for the online bandit draft selector. | fields: `strategy: "ucb1" \| "thompson" \| "oracle" = "ucb1"`, `window_size: int = 500`, `n_arms: int = 2`, `ucb_exploration_constant: float = 1.0`, `thompson_prior_alpha: float = 1.0`, `thompson_prior_beta: float = 1.0` |
+| `flashspec.SpeculativeEngine` | Adaptive speculative-decoding inference engine. | arguments: `config: FlashSpecConfig`, `drafters: list[DraftModel]`, `target: TargetModel`, `bandit: DraftSelector`, `arms: Sequence[ArmSpec] \| None = None` |
+| `flashspec.SpeculativeEngine.generate` | Run the speculative decoding generation loop. | arguments: `input_ids: torch.Tensor`, `max_new_tokens: int \| None = None`, `eos_token_ids: Sequence[int] \| None = None` |
+| `flashspec.GenerationResult` | Result of a single `SpeculativeEngine.generate` call. | fields: `output_ids: torch.Tensor`, `n_tokens_generated: int`, `acceptance_rate: float`, `tokens_per_second: float`, `step_profile: tuple[StepRecord, ...] \| None = None`, `arm_steps: tuple[ArmStep, ...] = ()` |
+| `flashspec.engine.TargetModel` | Wrapper around a HuggingFace CausalLM used as the speculative verifier. | arguments: `model_name_or_path: str`, `device: torch.device`, `dtype: torch.dtype = torch.bfloat16`, `model: Any \| None = None` |
+| `flashspec.engine.HuggingFaceDrafter` | Draft model backed by a HuggingFace causal LM. | arguments: `model_name_or_path: str`, `device: torch.device \| str`, `dtype: torch.dtype = torch.float32`, `temperature: float = 1.0`, `model: Any \| None = None` |
+| `flashspec.engine.load_drafters` | Instantiate drafters in arm order. | arguments: `names: list[str] \| tuple[str, ...]`, `device: torch.device \| str`, `dtype: torch.dtype = torch.float32`, `temperature: float = 1.0`, `models: dict[str, Any] \| None = None` |
+| `flashspec.engine.NgramDrafter` | Prompt-lookup drafter: continue the most recent earlier match of the last n tokens. | arguments: `max_ngram: int = 3`, `min_ngram: int = 1`, `name: str = "ngram"` |
+| `flashspec.engine.ArmSpec` | One bandit arm. | fields: `drafter: int`, `gamma: int`, `label: str = ""`, `fallback: int \| None = None` |
+| `flashspec.bandit.UCB1Selector` | UCB1 bandit selector for adaptive draft-model selection. | arguments: `n_arms: int`, `window_size: int = 500`, `exploration_constant: float = 1.0`, `normalise_rewards: bool = True` |
+| `flashspec.bandit.ThompsonSelector` | Thompson sampling bandit selector for draft-model selection. | arguments: `n_arms: int`, `window_size: int = 500`, `prior_alpha: float = 1.0`, `prior_beta: float = 1.0`, `seed: int \| None = None` |
+| `flashspec.engine.DraftModel` | Protocol that every draft model must satisfy. | methods: `generate_draft(input_ids: torch.Tensor, gamma: int)`, `compute_logprobs(input_ids: torch.Tensor, draft_token_ids: torch.Tensor)` |
+| `flashspec.register` | Class decorator that registers a draft model under `name`. | arguments: `name: str`, `replace: bool = False` |
+| `flashspec.TRITON_AVAILABLE` | `True` only on Linux with Triton installed | constant: `bool` |
+
+Defaults that change behaviour:
+
+- `FlashSpecConfig.compile = "auto"`: the compiled path (static KV cache, CUDA graphs) turns on when the device is CUDA and Triton is installed, and stays off otherwise.
+- `SamplingConfig.temperature = 1.0` with `variant = "rejection"`: the default samples (Algorithm 1). `temperature=0.0` selects `variant="greedy"`.
+- `SamplingConfig.gamma = 4`: draft tokens per step.
+- Drafter strategy: `SpeculativeEngine(..., arms=None)` makes one arm per drafter at `sampling.gamma`, and the selector you pass chooses between them. With one drafter that is a fixed drafter.
+- `BanditConfig.n_arms = 2`: it must equal the number of arms, so pass `BanditConfig(n_arms=1)` for one drafter.
+- `FlashSpecConfig.device = "cuda:0"`, `max_new_tokens = 512`.
+
+Server flags (`python -m flashspec.serve`):
+
+| flag | default | choices |
+|---|---|---|
+| `--target` | required |  |
+| `--drafter` (repeatable) | required |  |
+| `--device` | `"cpu"` |  |
+| `--host` | `"127.0.0.1"` |  |
+| `--port` | `8000` |  |
+| `--batch-size` | `1` |  |
+| `--max-wait-ms` | `2.0` |  |
+| `--max-queue` | `32` |  |
+| `--gamma` | `4` |  |
+| `--max-new-tokens` | `128` |  |
+| `--temperature` | `1.0` |  |
+| `--strategy` | `"ucb1"` | "ucb1", "thompson" |
+| `--dtype` | `"float32"` | "float32", "bfloat16", "float16" |
+| `--compile` | `"auto"` | "auto", "on", "off" |
+<!-- END GENERATED: api -->
+
+The full reference is generated from the docstrings: [API reference](https://flashspec.readthedocs.io/en/latest/api/).
+
+## Results
 
 <!-- BEGIN GENERATED: status (scripts/ingest_gpu_bundle.py) -->
 Measured at git `8d036d7`: `Qwen/Qwen2.5-1.5B-Instruct` verified by `Qwen/Qwen2.5-0.5B-Instruct`, Tesla T4, fp16, batch 1, gamma 4, 10 prompts per set (chat template), 128 new tokens. One model pair, one GPU. Speedups are medians of per-prompt ratios within the same run. The headline baseline is HuggingFace `generate` with a static cache compiled the same way (CUDA graphs); eager HuggingFace and assisted generation are context. Cells are the stored JSON values.
@@ -83,152 +233,9 @@ Greedy: compiled FlashSpec produced the same tokens as `hf_greedy_compiled`, tok
 Cold start: not recorded in this bundle. The first compiled call compiles the model and captures CUDA graphs, which can take minutes; the timed numbers above exclude it (warmup prompts absorb it).
 <!-- END GENERATED: status -->
 
----
+How to read it: each row is one prompt set and decoding mode; **vs compiled HF** is the median per-prompt speedup over HuggingFace `generate` compiled the same way (above 1 means FlashSpec was faster), and the last two columns count the prompts whose greedy tokens matched.
 
-## What is FlashSpec?
-
-Speculative decoding lets a small "draft" model propose γ tokens that a
-larger "target" model checks in one forward pass. FlashSpec's batch-1
-step is:
-
-1. the drafter proposes γ tokens (γ incremental forwards on its KV cache);
-2. the target runs **one** forward over the pending token(s) plus the γ
-   drafts;
-3. the accept/reject test runs on the device in PyTorch: Leviathan et al.
-   Algorithm 1 rejection sampling at temperature > 0, or the longest
-   prefix that matches the target's argmax at temperature 0 (greedy);
-4. one device-to-host read per step returns the accept count and the next
-   token, and both caches are cropped by integer bookkeeping.
-
-On CUDA with Triton available, `FlashSpecConfig.compile` runs that loop on
-static KV caches and replays the fixed-shape drafter decode and target
-verify calls as CUDA graphs (`torch.compile(mode="reduce-overhead")`).
-
-Two parts are experimental. The UCB1/Thompson selector can choose between
-registered drafters, but it has only been measured with one. The Triton
-verification kernels and the optional assembly residual are not called on
-the generation path (see
-[Experimental kernels](#experimental-kernels-not-on-the-critical-path)).
-
-On finite probabilities the output distribution follows Leviathan et al.,
-2023, Theorem 1. The CI check is a chi-squared test on discrete token ids.
-`tests/integration/test_output_distribution.py` uses fixed pairs with
-draft distribution `q` different from target distribution `p`, at gamma
-1 and gamma 4. It compares the first emitted token to `p`, and, when
-gamma is 4, the second emitted token as well. N is 30,000 and the
-vocabulary is 6, so each expected count stays above 5. The critical
-value is the chi-square 1% point for 5 degrees of freedom, 15.086. The
-same check runs on the PyTorch residual and on a kernel that implements
-the same formula. An engine test uses a toy target whose next token
-depends on the previous token and compares the first two generated
-tokens with sampling from that target. `tests/integration/test_e2e_sampling.py`
-is the gamma 1 case where the draft equals the target, so every draft
-token is accepted. It does not exercise the residual. A failing
-chi-squared test fails the suite.
-
----
-
-## Quickstart
-
-```bash
-git clone https://github.com/Mattral/FlashSpec && cd FlashSpec
-
-# Linux + CUDA (accelerated Triton kernels):
-pip install -e ".[dev,gpu]"
-
-# Windows / macOS (pure-PyTorch reference kernels, numerically identical):
-pip install -e ".[dev]"
-
-# Optional CPU residual kernel (Linux x86-64, flashspec-asm-kernel>=0.1.2;
-# other platforms install nothing):
-pip install -e ".[asm]"
-
-# Optional single-device HTTP server:
-pip install -e ".[serve]"
-```
-
-```python
-import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer
-from flashspec import FlashSpecConfig, BanditConfig, SamplingConfig, TRITON_AVAILABLE
-from flashspec.bandit import UCB1Selector
-from flashspec.engine import SpeculativeEngine, TargetModel, load_drafters
-
-print(f"Triton kernels available: {TRITON_AVAILABLE}")
-
-# Public checkpoints. Both report vocab_size 32000.
-# Llama-3 reports vocab_size 128256. Do not pair it with this drafter.
-drafter_id = "Felladrin/Llama-160M-Chat-v1"
-target_id = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
-
-config = FlashSpecConfig(
-    device="cpu",
-    dtype="float32",
-    drafter_name=drafter_id,
-    target_name=target_id,
-    bandit=BanditConfig(n_arms=1, strategy="ucb1"),
-    sampling=SamplingConfig(gamma=4, temperature=1.0),
-    max_new_tokens=16,
-)
-# TargetModel(hub_id, device) passes device_map and needs accelerate,
-# which this package does not depend on. Load the weights here and inject
-# them, which is what benchmarks/harness.py does.
-drafter_module = AutoModelForCausalLM.from_pretrained(
-    drafter_id, torch_dtype=torch.float32
-).to(config.device)
-target_module = AutoModelForCausalLM.from_pretrained(
-    target_id, torch_dtype=torch.float32
-).to(config.device)
-drafter_module.eval()
-target_module.eval()
-drafters = load_drafters(
-    [drafter_id],
-    device=config.device,
-    dtype=torch.float32,
-    temperature=config.sampling.temperature,
-    models={drafter_id: drafter_module},
-)
-target = TargetModel(
-    target_id,
-    torch.device(config.device),
-    torch.float32,
-    model=target_module,
-)
-engine = SpeculativeEngine(
-    config,
-    drafters,
-    target,
-    UCB1Selector(n_arms=1, window_size=config.bandit.window_size),
-)
-tokenizer = AutoTokenizer.from_pretrained(target_id)
-prompt = tokenizer("The capital of France is", return_tensors="pt").input_ids
-result = engine.generate(prompt, max_new_tokens=16)
-new_ids = result.output_ids[0]
-new_ids = new_ids[new_ids != -1]
-print(tokenizer.decode(new_ids, skip_special_tokens=True))
-```
-
-Both checkpoints are public. `benchmarks/harness.py` refuses a drafter and a target whose vocabulary sizes differ and writes no result file. `SpeculativeEngine` itself does not apply that check. `notebooks/01_quickstart.py` is a separate CPU toy: the names are `"toy"`, the log-probs are random, and it does not download these checkpoints. With one drafter the bandit cannot adapt, and the loader says so.
-
----
-
-## Results
-
-The generated GPU blocks show the stored JSON values. The hand-written
-tables below them use three significant figures; the JSON and CSV files
-keep full precision. Each figure is classified in
-[`benchmarks/results/PROVENANCE.md`](benchmarks/results/PROVENANCE.md).
-Commands and file names are in
-[`benchmarks/results/README.md`](benchmarks/results/README.md).
-
-### Measured — GPU, real prompts (MT-Bench and HumanEval, chat template)
-
-This block is generated by `scripts/ingest_gpu_bundle.py --readme-commit 8d036d7`
-from the result JSONs of the 0.2.0 bundle only (`benchmarks/results/gpu/8d036d7/`,
-run from `main`). Do not edit it by hand. The earlier feature-branch
-bundles (`36134c0`, the Phase 4 eager run that also covered TinyLlama, and
-`52993e4`, the first compiled run) stay under `benchmarks/results/gpu/` as
-history and are not shown here.
+The full per-method table for the same run (eager FlashSpec and every HuggingFace baseline):
 
 <!-- BEGIN GENERATED: gpu-results (scripts/ingest_gpu_bundle.py) -->
 #### `Qwen/Qwen2.5-1.5B-Instruct` verified, `Qwen/Qwen2.5-0.5B-Instruct` drafting
@@ -265,317 +272,40 @@ GPU Tesla T4 · torch 2.11.0+cu130 · gamma 4 · 20 result files · git `8d036d7
 Speedups are medians of per-prompt ratios against the method in the same run. NaN/inf counts come from one untimed probe generation per method on the first prompt.
 <!-- END GENERATED: gpu-results -->
 
-### Measured, 0.1.5 engine — TinyLlama-1.1B-Chat float32 · CPU · γ=4 · git `f59b5b4`
-
-One HumanEval prompt, 16 new tokens, one drafter. Speedup is below 1.
-
-| | FlashSpec UCB | Vanilla AR |
-|---|---:|---:|
-| tok/s | 1.75 | 4.30 |
-| latency (s) | 9.14 | 3.72 |
-| acceptance | 0.114 | unmeasured |
-| speedup vs AR | 0.407 | unmeasured |
-
-### Measured, 0.1.5 engine — TinyLlama-1.1B-Chat float16 · Tesla T4 · γ=4 · git `cb02ca1`
-
-Eight synthetic prompts, one drafter. Speedup is below 1.
-
-| | FlashSpec UCB | Vanilla AR |
-|---|---:|---:|
-| tok/s | 17.6 ± 1.43 | 29.0 ± 0.757 |
-| p50 latency (ms) | 1860 | 1090 |
-| p95 latency (ms) | 2140 | 1170 |
-| acceptance | 0.208 ± 0.00825 | unmeasured |
-| speedup vs AR | 0.606 ± 0.0501 | unmeasured |
-| gpu memory (GB) | 2.38 | 2.38 |
-
-## Microbenchmarks and historical
-
-These rows are a random network, a sampling kernel, or the historical NF4 prompt. They sit below the paired end-to-end runs. The kernel and bandit measurements are under [Experimental components](#experimental-components).
-
-### CPU toy and residual — git `da8182b`
-
-Random in-process network, and a PyTorch residual microbench. The toy
-speedup is below 1. The bandit row is a synthetic sampler, not that network.
-
-| | FlashSpec UCB | Vanilla AR |
-|---|---:|---:|
-| tok/s | 808 ± 86.4 | 2320 ± 2.51 |
-| p50 latency (ms) | 10.6 | 3.44 |
-| acceptance | 0.312 ± 0.0600 | unmeasured |
-| speedup vs AR | 0.348 ± 0.0376 | unmeasured |
-
-| Vocab | PyTorch residual (ms) | PyTorch verification (ms) |
-|---:|---:|---:|
-| 1024 | 0.0182 ± 0.000935 | 0.418 ± 0.0221 |
-| 4096 | 0.0197 ± 0.000205 | 0.523 ± 0.0435 |
-
-| Arm | Acceptance | tok/s |
-|---|---:|---:|
-| UCB on the switch | 0.556 | 5790 |
-| Fixed A | 0.200 | 2570 |
-| Fixed B | 0.200 | 3220 |
-| Single-drafter control | 0.200 | 2880 |
-
-An older notebook cell assigns 44.2 tok/s, acceptance 0.75, p50 22.1 ms; no timing log exists, so it is not used as a result.
-
-### Gamma sweep — measured (toy logprobs, synthetic)
-
-Acceptance rate and throughput across speculation lengths γ ∈ {1, 2, 4, 8, 16}.
-Data in [`benchmarks/results/gamma_sweep.csv`](benchmarks/results/gamma_sweep.csv).
-
-| γ | α (mean) | Throughput (tok/s) | Step (ms) |
-|---|---|---|---|
-| 1 | 0.720 | 1,992 | 0.50 |
-| 2 | 0.680 | 4,623 | 0.43 |
-| 4 | 0.690 | 9,746 | 0.41 |
-| 8 | 0.748 | 17,748 | 0.45 |
-| 16 | 0.714 | 35,659 | 0.45 |
-
-> Throughput here is the sampling kernel on random log-probs. The CSV
-> column `measurement_kind` is `sampling_kernel_only_random_logprobs`.
-> It is not end-to-end inference and it is not an H100 result.
-
-No H100 comparison exists, and Medusa and EAGLE are not implemented here, so no comparison with them exists.
-
----
-
-## Experimental components
-
-### Bandit (experimental, single-arm measured only)
-
-Every language-model run in this README used one drafter, so the
-selector has not been measured choosing between drafters. The regret
-numbers below come from a synthetic K=3 simulation.
-
-#### Bandit regret — measured, synthetic (T=10,000, K=3 arms)
-
-In this simulation UCB1 and Thompson sampling stay inside the
-O(√(KT log T)) bound over 10,000 rounds.
-UCB1 cumulative regret at T=10,000: **100.2** (theory bound: ~526).
-Thompson cumulative regret at T=10,000: **18.9**.
-
-![Bandit Regret](paper/figures/bandit_regret.jpg)
-
-The figure is `paper/figures/bandit_regret.jpg`. The saved output is
-`notebooks/02_bandit_analysis.ipynb` cell 3 (0-based index, execution
-count 4): UCB1 100.2, Thompson 18.9, Oracle 0.0. This is a synthetic
-K=3 arm experiment, not a throughput gain on a language model.
-
-### Experimental kernels (not on the critical path)
-
-The engine does not call these kernels. A speculative step's time is the
-drafter and target forwards (milliseconds); the accept/reject test and
-the residual are microseconds and run in PyTorch on the device.
-
-- **Triton `verify_tokens` / `gather_accepted`** (`flashspec.kernels`).
-  `verify_tokens` tiles over `(batch × γ)` positions; each thread reads
-  two scalars (`log p`, `log q` at the draft token index) and writes one
-  bool and one int32, so SRAM use does not grow with the vocabulary. It
-  matches the pure-PyTorch reference numerically. There is no GPU CI
-  runner: `notebooks/colab_triton_tests.py` runs the `@pytest.mark.gpu`
-  parity tests on Colab and writes `colab_triton_tests.log`.
-- **Assembly residual** (`flashspec-asm-kernel`, the `[asm]` extra,
-  Linux x86-64). A residual evaluation is microseconds against
-  millisecond model forwards, so it does not change end-to-end
-  throughput.
-
-#### Triton verification kernel vs the PyTorch reference — measured (Tesla T4)
-
-Saved output of `notebooks/03_kernel_profiling.ipynb` cell 3 (0-based
-index, execution count 4), printed there as a Tesla T4 run. At batch 1
-the Triton kernel is slower than the PyTorch reference.
-
-| Shape | Reference (ms) | Triton (ms) | Speedup |
-|---|---|---|---|
-| B=1 γ=4 V=32k | 0.151 | 0.785 | 0.2× |
-| B=8 γ=4 V=32k | 0.717 | 0.459 | 1.6× |
-| B=1 γ=8 V=32k | 0.231 | 1.248 | 0.2× |
-| B=32 γ=4 V=32k | 0.091 | 0.222 | 0.4× |
-
-> The Triton kernel is slower than the pure-PyTorch reference at batch 1
-> on this T4 measurement. A faster H100 result has not been measured.
-> Do not treat the H100 roofline in `docs/kernels.md` as a profile.
-
-#### Assembly residual (`[asm]` extra) — Linux, git `4e48c55`, then git `1b0cda3`
-
-Milliseconds, backend `asm`. Compare backends inside one run. The two runs do not repeat the same ordering.
-
-| Vocab | PyTorch residual | C baseline | ASM residual | PyTorch verify | ASM verify |
-|---:|---:|---:|---:|---:|---:|
-| 1024 | 0.0118 ± 0.00599 | 0.0109 ± 0.00177 | 0.0151 ± 0.00971 | 0.366 ± 0.0209 | 0.422 ± 0.0438 |
-| 4096 | 0.0116 ± 0.000285 | 0.0140 ± 0.00214 | 0.0140 ± 0.00430 | 0.495 ± 0.0218 | 0.537 ± 0.0159 |
-| 32000 | 0.0302 ± 0.00818 | 0.0430 ± 0.00268 | 0.0248 ± 0.0230 | 1.28 ± 0.638 | 1.32 ± 0.658 |
-
-| Vocab | PyTorch residual | C baseline | ASM residual | PyTorch verify | ASM verify |
-|---:|---:|---:|---:|---:|---:|
-| 1024 | 0.00686 ± 0.00312 | 0.00609 ± 0.000588 | 0.00806 ± 0.00108 | 0.158 ± 0.0421 | 0.164 ± 0.0305 |
-| 4096 | 0.00685 ± 0.000109 | 0.00785 ± 0.000559 | 0.00872 ± 0.000941 | 0.231 ± 0.0339 | 0.250 ± 0.0390 |
-| 32000 | 0.0124 ± 0.00209 | 0.0235 ± 0.00266 | 0.0151 ± 0.0187 | 0.747 ± 0.393 | 0.730 ± 0.376 |
-
----
+Provenance, the earlier bundles, the older 0.1.5 runs, kernel microbenchmarks and how a run is recorded are in [docs/benchmarks.md](https://github.com/Mattral/FlashSpec/blob/main/docs/benchmarks.md). Every number above is a stored JSON value under [benchmarks/results/gpu/8d036d7](https://github.com/Mattral/FlashSpec/tree/main/benchmarks/results/gpu/8d036d7).
 
 ## How it works
 
-Batch-1 fast path (`variant` `"rejection"` or `"greedy"`):
+Each batch-1 step does four things:
 
-```mermaid
-sequenceDiagram
-    participant E as SpeculativeEngine
-    participant B as Bandit (experimental)
-    participant D as Drafter
-    participant T as Target
+1. The drafter proposes gamma tokens, with gamma forwards on its own KV cache (a lookup drafter runs no model).
+2. The target runs one forward over the pending token and the gamma drafts.
+3. The accept/reject test runs on the device: Algorithm 1 rejection sampling at temperature > 0, or the longest prefix that matches the target's argmax at temperature 0.
+4. One device-to-host read returns the accept count and the next token, and both caches are cropped by bookkeeping, with no extra forward.
 
-    loop every decoding step
-        E->>B: select() → arm index
-        E->>D: draft γ tokens (γ forwards on its KV cache)
-        E->>T: verify pending + γ tokens [one forward]
-        E->>E: rejection_step or greedy_step on the device (PyTorch)
-        E->>E: one host read: n_accepted, next token
-        E->>D: commit: crop the cache, set the pending token
-        E->>T: commit: crop the cache, set the pending token
-        E->>B: update(arm, emitted tokens / step seconds)
-    end
-```
+With `compile` on, both models run on static KV caches and the fixed-shape decode and verify calls replay as CUDA graphs. Diagrams, batching and the proof sketch: [docs/architecture.md](https://github.com/Mattral/FlashSpec/blob/main/docs/architecture.md).
 
-**Batching.** A batch of more than one row uses the generic loop. Rows that accept different numbers of tokens finish the step at different context lengths. Each loop forwards only the largest group of rows that still share a length. Other lengths wait for a later loop. The KV cache is rolled only when that group has a single row. A larger group full-forwards. The returned tensor fills a shorter row with `-1` so the tensor is rectangular. That fill is not an attention mask. The engine does not pad unequal prompts into one masked batch.
+## Correctness
 
-**Correctness.** The accept/reject criterion is `u_i < min(1, p(xᵢ)/q(xᵢ))`
-computed in log-space to avoid underflow. Rejected positions sample a residual
-token from `max(0, p−q) / ‖max(0, p−q)‖₁` (Algorithm 1, Leviathan et al. 2023).
-Together these preserve the target distribution exactly.
+- **Sampling is lossless.** Rejection sampling follows Algorithm 1 of Leviathan et al. (2023): a draft token `x` is kept with probability `min(1, p(x)/q(x))`, and a rejection samples from `max(0, p - q)`, normalised. The output then follows your model's distribution for any drafter. CI checks this with chi-squared tests on discrete tokens: [test_output_distribution.py](https://github.com/Mattral/FlashSpec/blob/main/tests/integration/test_output_distribution.py) for model drafters and [test_output_distribution_ngram.py](https://github.com/Mattral/FlashSpec/blob/main/tests/integration/test_output_distribution_ngram.py) for prompt lookup, which also shows that the checks fail on deliberately wrong residuals.
+- **Greedy equals HuggingFace.** At temperature 0 the output is `model.generate(do_sample=False)` token for token. CI checks it in float32 on CPU ([test_greedy_gold.py](https://github.com/Mattral/FlashSpec/blob/main/tests/unit/test_greedy_gold.py)).
+- **The fp16 caveat.** On a GPU in fp16, kernels of different shapes can round an exact tie between the top two tokens differently, so greedy output can differ from HuggingFace at such a tie. A T4 diagnostic found every path token-exact in fp32, and every fp16 divergence at an exact top-2 tie on one side ([diagnostic JSON](https://github.com/Mattral/FlashSpec/blob/main/benchmarks/results/diagnostics/width_gpu_t4_125d1a1.json)). Every greedy GPU result reports how many prompts matched.
+- `variant="typical"` is lossy. `"rejection"` and `"greedy"` are the lossless variants.
 
-**Compiled path.** With `FlashSpecConfig.compile` on a CUDA device, the
-drafter and target run on preallocated static KV caches; a crop moves the
-write position instead of slicing tensors, and the fixed-shape decode and
-verify calls replay as CUDA graphs. The prompt prefill stays eager.
+## Status and limitations
 
-**Bandit (experimental).** UCB1 score for arm k at round t:
-`μ̂ₖ + c · √(2 log t / nₖ)`. Unpulled arms are selected first. The reward
-is emitted tokens per step second. In a synthetic K=3 simulation UCB1
-regret at T=10,000 is 100.2 (theory bound ≈ 526) and Thompson's is 18.9.
-No language-model run has used more than one drafter.
+FlashSpec is alpha; the release on PyPI is 0.2.0.
 
-See [`docs/architecture.md`](docs/architecture.md) for the full component
-diagram and proof sketch.
+- **Measured scope.** One model pair (`Qwen/Qwen2.5-1.5B-Instruct` verified by `Qwen/Qwen2.5-0.5B-Instruct`), one Tesla T4, fp16, batch 1, 10 MT-Bench and 10 HumanEval prompts, run from `main` at git `8d036d7` with the default `compile="auto"`. No other GPU, model pair or batch size has been measured. Every H100 number in the docs is a design target.
+- **The first call compiles.** On CUDA the first `generate` compiles the forwards and captures CUDA graphs, which can take minutes; later calls reuse them. The tables exclude that call.
+- **Batch > 1** uses the generic loop: each step forwards only the largest group of rows that share a context length.
+- **Single device.** One process and one GPU or CPU. The server has no streaming, no paged KV cache and no continuous batching.
+- **Windows and macOS.** `pip install flashspec` works, but Triton is Linux-only, so the compiled path is Linux + CUDA only.
+- **Experimental: the bandit.** The UCB1/Thompson selector was measured choosing among seven arms once (Phase 6, bundle `3e38251`) and did not beat the best fixed arm on the mixed workload. See [docs/bandit.md](https://github.com/Mattral/FlashSpec/blob/main/docs/bandit.md) and the [CHANGELOG](https://github.com/Mattral/FlashSpec/blob/main/CHANGELOG.md).
+- **Experimental: the kernels.** The Triton `verify_tokens` / `gather_accepted` kernels and the assembly residual are not called on the generation path; the accept/reject test runs in PyTorch. Measurements: [docs/kernels.md](https://github.com/Mattral/FlashSpec/blob/main/docs/kernels.md).
+- Waiting on a GPU or an upload: [docs/postponed.md](https://github.com/Mattral/FlashSpec/blob/main/docs/postponed.md).
 
----
-
-## Installation
-
-```bash
-# PyPI — cross-platform (Windows/macOS/Linux):
-pip install flashspec
-
-# PyPI — adds Triton (Linux only): the experimental Triton kernels.
-# Linux CUDA builds of PyTorch already ship Triton, which torch.compile
-# needs for the compiled path.
-pip install flashspec[gpu]
-
-# Optional AVX2 residual kernel. The wheel is a Linux x86-64 ELF library.
-# On Windows and macOS the extra installs nothing and the PyTorch residual stays selected.
-pip install flashspec[asm]
-
-# Optional single-device HTTP API (FastAPI). One GPU or CPU, no streaming.
-pip install flashspec[serve]
-
-# From source:
-git clone https://github.com/Mattral/FlashSpec && cd FlashSpec
-pip install -e ".[dev,gpu]"   # omit ",gpu" on Windows/macOS
-
-# Docker (Linux + CUDA). No image is published; build it locally:
-docker build -f deploy/Dockerfile -t flashspec .
-docker run --gpus all flashspec make test
-```
-
-> **Windows / macOS:** `pip install flashspec` works out of the box.
-> Triton has no official PyPI wheels outside Linux, so the compiled path
-> and the experimental Triton kernels are Linux + CUDA only. The engine's
-> accept/reject test is PyTorch and runs everywhere PyTorch does. The
-> kernels' pure-PyTorch reference is `flashspec.kernels._reference`.
-> Check availability at runtime: `from flashspec import TRITON_AVAILABLE`.
-
-### Requirements
-
-| Dependency | Version | Notes |
-|---|---|---|
-| Python | ≥ 3.11 | |
-| PyTorch | ≥ 2.2 | CPU or CUDA |
-| Triton | ≥ 3.0 | Optional · Linux + CUDA · needed by the compiled path (Linux CUDA PyTorch ships it) and the experimental kernels |
-| flashspec-asm-kernel | ≥ 0.1.2, < 2 | Optional · Linux x86-64 · `pip install flashspec[asm]`. 0.1.2 ships a manylinux wheel with `libflashspec_asm.so`. |
-| FastAPI, uvicorn, httpx | see `serve` extra | Optional · `pip install flashspec[serve]` |
-| CUDA | ≥ 12.0 | GPU path only |
-| transformers | ≥ 4.40 | For HuggingFace model loading |
-
-The `asm` extra installs `flashspec-asm-kernel` >= 0.1.2 and < 2 on Linux
-x86-64. Release 0.1.2 is a manylinux wheel that contains
-`libflashspec_asm.so`. Release 0.1.0 was an sdist with no shared library.
-An import error, or an `OSError` from `abi_version()`, keeps the
-pure-PyTorch residual. A residual evaluation is microseconds, and a model
-forward is milliseconds, so this kernel does not change end-to-end
-throughput. `benchmarks/results/residual_linux_gha.json` and
-`benchmarks/results/residual_linux_gha_1b0cda3.json` are source builds
-from the flashspec-asm repo, not a timing of the 0.1.2 wheel.
-The PyPI project `flashspec` at version 0.1.2 was yanked by the maintainer.
-Do not install `flashspec==0.1.2`. That yank does not apply to
-`flashspec-asm-kernel`.
-
----
-
-## Testing
-
-```bash
-make test           # unit + integration on CPU (no GPU required, ~2 min)
-make test-chaos     # adversarial bandit tests
-make test-gpu       # pytest -m gpu; needs CUDA. This repository has no GPU runner.
-make bench-quick    # sampling-kernel smoke test, no model weights, writes no result file
-make bench-cpu      # residual microbench, synthetic bandit demo, tiny_cpu.yaml
-make bench          # runs every config in benchmarks/configs; skips any checkpoint this machine cannot load
-```
-
-The distribution check in the suite is a chi-squared test
-(`tests/integration/test_output_distribution.py`, N = 30,000, vocabulary 6,
-critical value 15.086 at 5 degrees of freedom and α = 0.01). It is not a
-Kolmogorov–Smirnov test. The CPU test job runs it. Pytest fails under 83%
-line coverage, the measured unit-and-integration coverage rounded down.
-The CI lint job also runs `mypy --strict flashspec`.
-
----
-
-## Repository layout
-
-```
-flashspec/          Installable package (engine, kernels, bandit, sampling, metrics)
-benchmarks/         Runners, configs, and results/ for all paper numbers
-tests/              Unit · integration · chaos suites (83% coverage floor)
-notebooks/          Quickstart · bandit regret analysis · kernel profiling
-docs/               MkDocs site (architecture, kernels, bandit, benchmarks)
-paper/              Draft Zenodo preprint (article class) and bibliography
-paper/joss/         JOSS-format draft, not under review
-paper/figures/      Vector and raster figures (bandit_regret.jpg generated)
-scripts/            CLI tools (export draft, download models, profile kernels)
-deploy/             Dockerfile · docker-compose.yml · k8s manifests
-```
-
----
-
-## Links
-
-| Resource | URL |
-|---|---|
-| Documentation | [flashspec.readthedocs.io](https://flashspec.readthedocs.io) |
-| Preprint (Zenodo) | [10.5281/zenodo.20766119](https://doi.org/10.5281/zenodo.20766119) |
-| Draft preprint | [`paper/flashspec.tex`](paper/flashspec.tex) |
-| JOSS draft | [`paper/joss/paper.md`](paper/joss/paper.md) |
-| Benchmark guide | [`benchmarks/README.md`](benchmarks/README.md) |
-| Changelog | [`CHANGELOG.md`](CHANGELOG.md) |
-| Contributing | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
-| Publishing roadmap | [`PUBLISHING.md`](PUBLISHING.md) |
-| Postponed work | [`docs/postponed.md`](docs/postponed.md) |
-
----
-
-## Citation
+## Citing
 
 ```bibtex
 @misc{myet2026flashspec,
@@ -590,12 +320,12 @@ deploy/             Dockerfile · docker-compose.yml · k8s manifests
 }
 ```
 
-**Preprint DOI**: [10.5281/zenodo.20766119](https://doi.org/10.5281/zenodo.20766119) (June 2026). That record is the citable archive. [`paper/flashspec.tex`](paper/flashspec.tex) is a later draft (October 2026, software 0.2.0) and has not been deposited.
+**Preprint DOI**: [10.5281/zenodo.20766119](https://doi.org/10.5281/zenodo.20766119) (June 2026). That record is the citable archive. [`paper/flashspec.tex`](https://github.com/Mattral/FlashSpec/blob/main/paper/flashspec.tex) is a later draft (October 2026, software 0.2.0) and has not been deposited. Machine-readable metadata is in [`CITATION.cff`](https://github.com/Mattral/FlashSpec/blob/main/CITATION.cff).
 
-Machine-readable metadata in [`CITATION.cff`](CITATION.cff).
+## Contributing
 
----
+See [CONTRIBUTING.md](https://github.com/Mattral/FlashSpec/blob/main/CONTRIBUTING.md). `make test` runs the unit and integration suites on CPU, with no GPU needed. Test commands, the repository layout and links to the papers and notebooks are in [docs/development.md](https://github.com/Mattral/FlashSpec/blob/main/docs/development.md). Changes are listed in the [CHANGELOG](https://github.com/Mattral/FlashSpec/blob/main/CHANGELOG.md). An index for AI agents is in [llms.txt](https://github.com/Mattral/FlashSpec/blob/main/llms.txt).
 
 ## License
 
-Apache 2.0 — see [`LICENSE`](LICENSE).
+Apache 2.0. See [LICENSE](https://github.com/Mattral/FlashSpec/blob/main/LICENSE).

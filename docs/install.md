@@ -1,0 +1,96 @@
+# Installation
+
+The README has the one-line install and the extras table. This page has
+the rest: every install route, platform notes, and the requirements.
+
+## From PyPI, from source, or with Docker
+
+```bash
+# PyPI — cross-platform (Windows/macOS/Linux):
+pip install flashspec
+
+# PyPI — adds Triton (Linux only): the experimental Triton kernels.
+# Linux CUDA builds of PyTorch already ship Triton, which torch.compile
+# needs for the compiled path.
+pip install flashspec[gpu]
+
+# Optional AVX2 residual kernel. The wheel is a Linux x86-64 ELF library.
+# On Windows and macOS the extra installs nothing and the PyTorch residual stays selected.
+pip install flashspec[asm]
+
+# Optional single-device HTTP API (FastAPI). One GPU or CPU, no streaming.
+pip install flashspec[serve]
+
+# From source:
+git clone https://github.com/Mattral/FlashSpec && cd FlashSpec
+pip install -e ".[dev,gpu]"   # omit ",gpu" on Windows/macOS
+
+# Docker (Linux + CUDA). No image is published; build it locally:
+docker build -f deploy/Dockerfile -t flashspec .
+docker run --gpus all flashspec make test
+```
+
+A development checkout, by platform:
+
+```bash
+git clone https://github.com/Mattral/FlashSpec && cd FlashSpec
+
+# Linux + CUDA (accelerated Triton kernels):
+pip install -e ".[dev,gpu]"
+
+# Windows / macOS (pure-PyTorch reference kernels, numerically identical):
+pip install -e ".[dev]"
+
+# Optional CPU residual kernel (Linux x86-64, flashspec-asm-kernel>=0.1.2;
+# other platforms install nothing):
+pip install -e ".[asm]"
+
+# Optional single-device HTTP server:
+pip install -e ".[serve]"
+```
+
+**The server also needs `accelerate`.** `python -m flashspec.serve` loads
+the target with `device_map`, which transformers only accepts when
+`accelerate` is installed, and the `serve` extra does not include it:
+
+```bash
+pip install "flashspec[serve]" accelerate
+```
+
+The same applies to `TargetModel(model_id, device)` without `model=`. The
+README quickstart loads the modules itself and passes them with `model=`,
+so it does not need `accelerate`.
+
+> **Windows / macOS:** `pip install flashspec` works out of the box.
+> Triton has no official PyPI wheels outside Linux, so the compiled path
+> and the experimental Triton kernels are Linux + CUDA only. The engine's
+> accept/reject test is PyTorch and runs everywhere PyTorch does. The
+> kernels' pure-PyTorch reference is `flashspec.kernels._reference`.
+> Check availability at runtime: `from flashspec import TRITON_AVAILABLE`.
+
+## Requirements
+
+| Dependency | Version | Notes |
+|---|---|---|
+| Python | ≥ 3.11 | |
+| PyTorch | ≥ 2.2 | CPU or CUDA |
+| Triton | ≥ 3.0 | Optional · Linux + CUDA · needed by the compiled path (Linux CUDA PyTorch ships it) and the experimental kernels |
+| flashspec-asm-kernel | ≥ 0.1.2, < 2 | Optional · Linux x86-64 · `pip install flashspec[asm]`. 0.1.2 ships a manylinux wheel with `libflashspec_asm.so`. |
+| FastAPI, uvicorn, httpx | see `serve` extra | Optional · `pip install flashspec[serve]` |
+| CUDA | ≥ 12.0 | GPU path only |
+| transformers | ≥ 4.40 | For HuggingFace model loading |
+
+## The `asm` extra
+
+The `asm` extra installs `flashspec-asm-kernel` >= 0.1.2 and < 2 on Linux
+x86-64. Release 0.1.2 is a manylinux wheel that contains
+`libflashspec_asm.so`. Release 0.1.0 was an sdist with no shared library.
+An import error, or an `OSError` from `abi_version()`, keeps the
+pure-PyTorch residual. A residual evaluation is microseconds, and a model
+forward is milliseconds, so this kernel does not change end-to-end
+throughput. `benchmarks/results/residual_linux_gha.json` and
+`benchmarks/results/residual_linux_gha_1b0cda3.json` are source builds
+from the flashspec-asm repo, not a timing of the 0.1.2 wheel.
+The PyPI project `flashspec` at version 0.1.2 was yanked by the maintainer.
+Do not install `flashspec==0.1.2`. That yank does not apply to
+`flashspec-asm-kernel`.

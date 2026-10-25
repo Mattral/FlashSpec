@@ -91,6 +91,29 @@ construct an oracle.
 
 ---
 
+## Bandit regret (moved from the README) — measured, synthetic (T=10,000, K=3 arms)
+
+In this simulation UCB1 and Thompson sampling stay inside the
+O(√(KT log T)) bound over 10,000 rounds.
+UCB1 cumulative regret at T=10,000: **100.2** (theory bound: ~526).
+Thompson cumulative regret at T=10,000: **18.9**.
+
+![Bandit regret: cumulative regret of UCB1, Thompson and Oracle over 10,000 rounds; UCB1 100.2, Thompson 18.9, Oracle 0.0 at T=10,000](https://raw.githubusercontent.com/Mattral/FlashSpec/main/paper/figures/bandit_regret.jpg)
+
+The figure is `paper/figures/bandit_regret.jpg`. The saved output is
+`notebooks/02_bandit_analysis.ipynb` cell 3 (0-based index, execution
+count 4): UCB1 100.2, Thompson 18.9, Oracle 0.0. This is a synthetic
+K=3 arm experiment, not a throughput gain on a language model.
+
+**In short (experimental).** UCB1 score for arm k at round t:
+`μ̂ₖ + c · √(2 log t / nₖ)`. Unpulled arms are selected first. The reward
+is emitted tokens per step second. In a synthetic K=3 simulation UCB1
+regret at T=10,000 is 100.2 (theory bound ≈ 526) and Thompson's is 18.9.
+On a language model it was measured once, over seven arms (Phase 6, bundle
+`3e38251`), and did not beat the best fixed arm on the mixed workload.
+
+---
+
 ## UCB1 regret bound — proof sketch
 
 **Theorem** (Auer et al., 2002): For K arms and T rounds, UCB1 satisfies:

@@ -16,6 +16,79 @@ orthogonal innovations over prior work:
 
 ---
 
+## Batch-1 fast path (moved from the README)
+
+Speculative decoding lets a small "draft" model propose γ tokens that a
+larger "target" model checks in one forward pass. FlashSpec's batch-1
+step is:
+
+1. the drafter proposes γ tokens (γ incremental forwards on its KV cache);
+2. the target runs **one** forward over the pending token(s) plus the γ
+   drafts;
+3. the accept/reject test runs on the device in PyTorch: Leviathan et al.
+   Algorithm 1 rejection sampling at temperature > 0, or the longest
+   prefix that matches the target's argmax at temperature 0 (greedy);
+4. one device-to-host read per step returns the accept count and the next
+   token, and both caches are cropped by integer bookkeeping.
+
+On CUDA with Triton available, `FlashSpecConfig.compile` runs that loop on
+static KV caches and replays the fixed-shape drafter decode and target
+verify calls as CUDA graphs (`torch.compile(mode="reduce-overhead")`).
+
+Batch-1 fast path (`variant` `"rejection"` or `"greedy"`):
+
+```mermaid
+sequenceDiagram
+    participant E as SpeculativeEngine
+    participant B as Bandit (experimental)
+    participant D as Drafter
+    participant T as Target
+
+    loop every decoding step
+        E->>B: select() → arm index
+        E->>D: draft γ tokens (γ forwards on its KV cache)
+        E->>T: verify pending + γ tokens [one forward]
+        E->>E: rejection_step or greedy_step on the device (PyTorch)
+        E->>E: one host read: n_accepted, next token
+        E->>D: commit: crop the cache, set the pending token
+        E->>T: commit: crop the cache, set the pending token
+        E->>B: update(arm, emitted tokens / step seconds)
+    end
+```
+
+**Batching.** A batch of more than one row uses the generic loop. Rows that accept different numbers of tokens finish the step at different context lengths. Each loop forwards only the largest group of rows that still share a length. Other lengths wait for a later loop. The KV cache is rolled only when that group has a single row. A larger group full-forwards. The returned tensor fills a shorter row with `-1` so the tensor is rectangular. That fill is not an attention mask. The engine does not pad unequal prompts into one masked batch.
+
+**Correctness.** The accept/reject criterion is `u_i < min(1, p(xᵢ)/q(xᵢ))`
+computed in log-space to avoid underflow. Rejected positions sample a residual
+token from `max(0, p−q) / ‖max(0, p−q)‖₁` (Algorithm 1, Leviathan et al. 2023).
+Together these preserve the target distribution exactly.
+
+**Compiled path.** With `FlashSpecConfig.compile` on a CUDA device, the
+drafter and target run on preallocated static KV caches; a crop moves the
+write position instead of slicing tensors, and the fixed-shape decode and
+verify calls replay as CUDA graphs. The prompt prefill stays eager.
+
+### What CI checks
+
+On finite probabilities the output distribution follows Leviathan et al.,
+2023, Theorem 1. The CI check is a chi-squared test on discrete token ids.
+`tests/integration/test_output_distribution.py` uses fixed pairs with
+draft distribution `q` different from target distribution `p`, at gamma
+1 and gamma 4. It compares the first emitted token to `p`, and, when
+gamma is 4, the second emitted token as well. N is 30,000 and the
+vocabulary is 6, so each expected count stays above 5. The critical
+value is the chi-square 1% point for 5 degrees of freedom, 15.086. The
+same check runs on the PyTorch residual and on a kernel that implements
+the same formula. An engine test uses a toy target whose next token
+depends on the previous token and compares the first two generated
+tokens with sampling from that target. `tests/integration/test_e2e_sampling.py`
+is the gamma 1 case where the draft equals the target, so every draft
+token is accepted. It does not exercise the residual. A failing
+chi-squared test fails the suite.
+
+
+---
+
 ## Sequence diagram — speculative decoding loop
 
 ```mermaid
