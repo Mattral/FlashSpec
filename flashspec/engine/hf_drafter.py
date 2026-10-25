@@ -7,6 +7,7 @@ download; tests and local toy runs use that path.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Any
 
 import torch
@@ -226,8 +227,18 @@ class HuggingFaceDrafter:
 
     # ── Incremental batch-1 path (gamma forwards per step) ──────────────
 
-    def use_static_cache(self, max_cache_len: int, *, compile_forward: bool) -> None:
+    def use_static_cache(
+        self,
+        max_cache_len: int,
+        *,
+        compile_forward: bool,
+        pad_widths: Sequence[int] | None = None,
+    ) -> None:
         """Run the incremental path on a preallocated static cache.
+
+        Calling it again with the same ``compile_forward`` keeps the
+        session, its cache and its captured graphs (several engines can
+        share one wrapper); the pad widths are then merged.
 
         Parameters
         ----------
@@ -236,10 +247,22 @@ class HuggingFaceDrafter:
         compile_forward : bool
             Capture fixed-shape calls with CUDA graphs
             (``torch.compile(mode="reduce-overhead")``). CUDA only.
+        pad_widths : sequence of int or None
+            Fixed call widths (see
+            :class:`flashspec.engine.static_cache.StaticKvSession`).
+            ``None`` leaves calls unpadded.
         """
         from flashspec.engine.static_cache import StaticKvSession
 
-        self._inc = StaticKvSession(self._model, max_cache_len, compile_forward=compile_forward)
+        current = self._inc
+        if isinstance(current, StaticKvSession) and current.compile_requested == compile_forward:
+            if pad_widths is not None:
+                current.set_pad_widths((*current.pad_widths, *pad_widths))
+            current.reserve(max_cache_len)
+            return
+        self._inc = StaticKvSession(
+            self._model, max_cache_len, compile_forward=compile_forward, pad_widths=pad_widths
+        )
 
     def reserve_cache(self, n_tokens: int) -> None:
         """Grow a static cache to ``n_tokens`` before a call. No-op for the dynamic cache."""

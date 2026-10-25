@@ -47,6 +47,7 @@ from typing import Any, Literal
 import torch
 import torch.nn as nn
 
+from benchmarks.cuda_graphs import CaptureCounter
 from benchmarks.prompt_sets import (
     ALPACA_REASON,
     REAL_DATASETS,
@@ -93,8 +94,14 @@ HF_BASELINES: tuple[str, ...] = (
     "hf_assisted",
 )
 
-#: FlashSpec methods. ``flashspec_compiled`` runs with ``FlashSpecConfig.compile``.
-SPEC_METHODS: tuple[str, ...] = ("flashspec_ucb", "flashspec_compiled")
+#: FlashSpec methods. ``flashspec_compiled`` runs with ``FlashSpecConfig.compile``;
+#: ``flashspec_compiled_legacy`` is the same with ``compile_fixed_shapes=False``
+#: (the unpadded 0.2.0 call shapes), kept to measure the CUDA-graph count before/after.
+SPEC_METHODS: tuple[str, ...] = (
+    "flashspec_ucb",
+    "flashspec_compiled",
+    "flashspec_compiled_legacy",
+)
 
 #: Methods whose target forward is ``torch.compile``d. They are timed
 #: without forward hooks: attaching a hook changes the module and forces
@@ -105,8 +112,16 @@ SPEC_METHODS: tuple[str, ...] = ("flashspec_ucb", "flashspec_compiled")
 _COLD_STARTED: set[tuple[str, str, str]] = set()
 
 COMPILED_METHODS: frozenset[str] = frozenset(
-    {"flashspec_compiled", "hf_greedy_compiled", "hf_sample_compiled"}
+    {
+        "flashspec_compiled",
+        "flashspec_compiled_legacy",
+        "hf_greedy_compiled",
+        "hf_sample_compiled",
+    }
 )
+
+#: One process-wide CUDA-graph capture counter (a no-op without CUDA).
+_CAPTURES = CaptureCounter().install()
 
 #: ``model`` values that build randomly initialised in-process networks.
 TOY_MODELS: frozenset[str] = frozenset({"toy", "toy_llama"})
@@ -1502,8 +1517,14 @@ def _run_loaded_pair(
 
     requested = [str(name) for name in (config.get("methods") or [])]
     engines: dict[str, SpeculativeEngine] = {"flashspec_ucb": engine}
-    if "flashspec_compiled" in requested:
-        compiled_name = f"{drafter_name}-compiled"
+    for compiled_method, fixed_shapes in (
+        ("flashspec_compiled", True),
+        ("flashspec_compiled_legacy", False),
+    ):
+        if compiled_method not in requested:
+            continue
+        # Own wrappers per method: own static caches and own CUDA graphs.
+        compiled_name = f"{drafter_name}-{compiled_method}"
         unregister(compiled_name)
         compiled_drafters = load_drafters(
             [compiled_name],
@@ -1513,11 +1534,12 @@ def _run_loaded_pair(
             models={compiled_name: drafter_module},
         )
         unregister(compiled_name)
-        engines["flashspec_compiled"] = SpeculativeEngine(
+        engines[compiled_method] = SpeculativeEngine(
             engine_config.model_copy(
                 update={
                     "compile": _compile_request(config),
                     "compile_max_cache_len": int(config.get("compile_max_cache_len", 1024)),
+                    "compile_fixed_shapes": fixed_shapes,
                 }
             ),
             compiled_drafters,
@@ -1570,6 +1592,8 @@ def _run_loaded_pair(
     target_forwards = ForwardRecorder(target_module)
     drafter_forwards = ForwardRecorder(drafter_module)
     runs = {name: _MethodRuns() for name in methods}
+    # Capture counts are attributed per block and method.
+    block_id = f"{dataset}:{temperature}:{len(_COLD_STARTED)}:{id(runs)}"
     first_lengths: dict[str, list[int]] = {}
     cold_start: dict[str, dict[str, object]] = {}
 
@@ -1608,7 +1632,8 @@ def _run_loaded_pair(
             if device.type == "cuda":
                 torch.cuda.synchronize()
             started = time.perf_counter()
-            tokens, alpha, steps = _generate(name, prompt)
+            with _CAPTURES.section(f"{block_id}:{name}"):
+                tokens, alpha, steps = _generate(name, prompt)
             if device.type == "cuda":
                 torch.cuda.synchronize()
             elapsed_ms = (time.perf_counter() - started) * 1000.0
@@ -1872,17 +1897,21 @@ def _run_loaded_pair(
             **probes[spec_name],
         }
         engine_for = engines[spec_name]
-        if spec_name == "flashspec_compiled":
+        if spec_name in COMPILED_METHODS:
             target_session = getattr(engine_for._target, "_inc", None)
             spec_extra["compile"] = {
                 "requested": engine_for.compile_decision.requested,
                 "effective": engine_for.compiled,
                 "decision": engine_for.compile_decision.reason,
                 "fallback_reason": getattr(target_session, "compile_fallback_reason", None),
+                "fixed_shapes": engine_for._config.compile_fixed_shapes,
             }
+            spec_extra["cuda_graphs"] = graph_report(
+                _CAPTURES.report(f"{block_id}:{spec_name}"), engine_for
+            )
         if greedy and reference_name is not None:
             spec_extra["greedy_token_match"] = _match(spec, runs[reference_name], reference_name)
-        if greedy and spec_name == "flashspec_compiled" and "hf_greedy_compiled" in runs:
+        if greedy and spec_name in COMPILED_METHODS and "hf_greedy_compiled" in runs:
             # Same compiled numerics on both sides: this is the lossless check
             # for the compiled path (eager HF can differ in the last bits).
             spec_extra["greedy_token_match_compiled"] = _match(
@@ -1890,11 +1919,16 @@ def _run_loaded_pair(
             )
         spec_extra["outputs"] = output_records(spec.outputs, prompt_ids)
         notes = spec_notes
-        if spec_name == "flashspec_compiled":
+        if spec_name in COMPILED_METHODS:
             notes += (
                 " FlashSpecConfig.compile: static KV caches and torch.compile(mode="
                 "'reduce-overhead') CUDA graphs for the drafter decode and target verify."
             )
+            if spec_name == "flashspec_compiled_legacy":
+                notes += (
+                    " compile_fixed_shapes=False: unpadded call shapes, as in 0.2.0 "
+                    "(the before of the CUDA-graph count)."
+                )
         documents[spec_name] = assemble_result(
             model=model_name,
             method=spec_name,
@@ -1939,6 +1973,7 @@ def _run_loaded_pair(
         }
         if name.endswith("_compiled"):
             extra["compile"] = {"requested": True, "effective": device.type == "cuda"}
+            extra["cuda_graphs"] = _CAPTURES.report(f"{block_id}:{name}")
         if greedy and reference_name is not None and name not in (reference_name, "vanilla_ar"):
             extra["greedy_token_match"] = _match(runs[name], runs[reference_name], reference_name)
         notes = method_notes[name]
@@ -2031,7 +2066,38 @@ def _forward_cost(
         drafter_session = getattr(compiled_engine._drafters[0], "_inc", None)
         if target_session is not None and drafter_session is not None:
             result["compiled"] = _measure(drafter_session, target_session)
+            # With compile_fixed_shapes every compiled target call (the
+            # 1-token decode probe too) is padded to this width.
+            result["compiled_target_pad_widths"] = list(getattr(target_session, "pad_widths", ()))
     return result
+
+
+def graph_report(captures: dict[str, object], engine: SpeculativeEngine) -> dict[str, object]:
+    """CUDA-graph captures plus the call shapes each static session saw.
+
+    ``call_shapes`` maps ``"<input width>x<logit rows>"`` to the number of
+    calls on the captured path; each key is one CUDA graph (counted on CPU
+    too, where nothing is captured).
+    """
+
+    def _shapes(owner: object) -> dict[str, int] | None:
+        session = getattr(owner, "_inc", None)
+        shapes = getattr(session, "graph_call_shapes", None)
+        if not isinstance(shapes, dict):
+            return None
+        return {f"{width}x{rows}": count for (width, rows), count in sorted(shapes.items())}
+
+    drafters = {
+        str(getattr(drafter, "model_name", index)): _shapes(drafter)
+        for index, drafter in enumerate(engine._drafters)
+    }
+    return {
+        **captures,
+        "call_shapes": {"target": _shapes(engine._target), "drafters": drafters},
+        "pad_widths": {
+            "target": list(getattr(getattr(engine._target, "_inc", None), "pad_widths", ())),
+        },
+    }
 
 
 def _assistant_schedule(drafter: nn.Module) -> str:

@@ -19,6 +19,13 @@
   compile settings HuggingFace ``generate`` uses for a static cache
   (``CompileConfig()``), with its own compiled callable. Longer calls (an
   idle bandit arm catching up) run eagerly on the same cache.
+- With ``pad_widths``, every call of at most ``max(pad_widths)`` tokens is
+  padded at the end to the next listed width and asks for all of that
+  width's logit rows, so only one shape per width is ever captured. The
+  real rows are sliced out afterwards. Causal attention keeps the padded
+  positions out of the real rows, and the write position is moved back
+  over them right after the forward, so they never stay in the cache that
+  is kept. Longer calls run eagerly, unpadded, in one call.
 
 On CPU, or with ``compile_forward=False``, every call is eager; the
 bookkeeping is identical, which is how the tests check it.
@@ -26,6 +33,7 @@ bookkeeping is identical, which is how the tests check it.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Any
 
 import torch
@@ -56,7 +64,11 @@ class StaticKvSession:
     compile_forward : bool
         Capture fixed-shape calls with ``torch.compile(mode="reduce-overhead")``.
     max_graph_tokens : int
-        Calls with more input tokens than this run eagerly.
+        Calls with more input tokens than this run eagerly. Ignored when
+        ``pad_widths`` is set (its largest width is the limit).
+    pad_widths : sequence of int or None
+        Fixed input widths for calls of up to ``max(pad_widths)`` tokens.
+        ``None`` forwards every call at its own length.
     """
 
     def __init__(
@@ -66,12 +78,14 @@ class StaticKvSession:
         *,
         compile_forward: bool = False,
         max_graph_tokens: int = 16,
+        pad_widths: Sequence[int] | None = None,
     ) -> None:
         self._model = model
         self.enabled = True
         self._max_len = int(max_cache_len)
         self._keep_name = _logits_to_keep_name(model)
         self._compile_forward = compile_forward
+        self.compile_requested = compile_forward
         self._max_graph_tokens = max_graph_tokens
         self._cache: Any = None  # noqa: ANN401
         self._compiled: Any = None  # noqa: ANN401
@@ -81,6 +95,33 @@ class StaticKvSession:
         self._debug_ids: torch.Tensor | None = None
         self._arange: torch.Tensor | None = None
         self.compile_fallback_reason: str | None = None
+        self._pad_widths: tuple[int, ...] = ()
+        self.set_pad_widths(pad_widths)
+        # Calls that take (or, with compile off, would take) the captured
+        # path, by (input width, logit rows): one CUDA graph per key.
+        self.graph_call_shapes: dict[tuple[int, int], int] = {}
+
+    def set_pad_widths(self, widths: Sequence[int] | None) -> None:
+        """Set (or clear, with ``None``) the fixed widths calls are padded to."""
+        if widths is None:
+            self._pad_widths = ()
+            return
+        cleaned = tuple(sorted({int(width) for width in widths}))
+        if not cleaned or cleaned[0] < 1:
+            raise ValueError(f"pad widths must be positive integers; got {widths!r}.")
+        self._pad_widths = cleaned
+
+    @property
+    def pad_widths(self) -> tuple[int, ...]:
+        """The fixed call widths, smallest first; empty when calls are unpadded."""
+        return self._pad_widths
+
+    def _padded_width(self, n_tokens: int) -> int | None:
+        """Return the width a call of ``n_tokens`` is padded to, or ``None`` (unpadded)."""
+        for width in self._pad_widths:
+            if width >= n_tokens:
+                return width
+        return None
 
     # ── Setup ────────────────────────────────────────────────────────────
 
@@ -103,7 +144,13 @@ class StaticKvSession:
             self._compiled = torch.compile(self._model.__call__, **CompileConfig().to_dict())
 
     def reserve(self, n_tokens: int) -> None:
-        """Make sure the cache can hold ``n_tokens``; reallocate if not."""
+        """Make sure the cache can hold ``n_tokens``; reallocate if not.
+
+        With padding, room for the widest padded call is added: padded
+        positions are written before they are moved back over.
+        """
+        if self._pad_widths:
+            n_tokens += self._pad_widths[-1]
         if self._cache is None or n_tokens > self._max_len:
             if self._cache is not None:
                 logger.info(
@@ -151,14 +198,27 @@ class StaticKvSession:
         return self._cache.layers[0].cumulative_length  # type: ignore[no-any-return]
 
     def _forward(self, token_ids: torch.Tensor, keep: int, eager: bool) -> torch.Tensor:
+        real = int(token_ids.shape[1])
+        width = None if eager else self._padded_width(real)
+        if width is not None and width > real:
+            # Pad at the end with a copy of the last real token (a valid id).
+            filler = token_ids[:, -1:].expand(1, width - real)
+            token_ids = torch.cat([token_ids, filler], dim=1)
         n = int(token_ids.shape[1])
+        if width is not None:
+            # Every row of the padded call: one int for this width, so one
+            # captured shape. The real rows are sliced out below.
+            keep_rows = width
+        else:
+            keep_rows = keep
         if self._length + n > self._max_len:
             raise CacheUnavailableError(
                 f"static cache full: {self._length} + {n} > {self._max_len} tokens"
             )
         device = token_ids.device
+        longest = max(n, self._max_graph_tokens, self._pad_widths[-1] if self._pad_widths else 0)
         if self._arange is None or self._arange.device != device or self._arange.numel() < n:
-            self._arange = torch.arange(max(n, self._max_graph_tokens), device=device)
+            self._arange = torch.arange(longest, device=device)
         if self._length == 0:
             cache_position = (
                 self._arange[:n] if n <= self._arange.numel() else torch.arange(n, device=device)
@@ -172,8 +232,15 @@ class StaticKvSession:
             "use_cache": True,
         }
         if self._keep_name is not None:
-            kwargs[self._keep_name] = keep
-        use_graph = self._compiled is not None and not eager and n <= self._max_graph_tokens
+            kwargs[self._keep_name] = keep_rows
+        if self._pad_widths:
+            fits = width is not None
+        else:
+            fits = n <= self._max_graph_tokens
+        if not eager and fits:
+            shape = (n, keep_rows)
+            self.graph_call_shapes[shape] = self.graph_call_shapes.get(shape, 0) + 1
+        use_graph = self._compiled is not None and not eager and fits
         with torch.no_grad():
             output = None
             if use_graph:
@@ -195,8 +262,15 @@ class StaticKvSession:
             if output is None:
                 output = self._model(token_ids, **kwargs)
         logits: torch.Tensor = output.logits
-        if int(logits.shape[1]) != keep:
-            logits = logits[:, -keep:, :]
+        if int(logits.shape[1]) != keep_rows:
+            logits = logits[:, -keep_rows:, :]
+        if n > real:
+            # Drop the padded positions from the cache (device-side, no read).
+            for layer in self._cache.layers:
+                layer.cumulative_length.sub_(n - real)
+        if width is not None:
+            # The rows the caller asked for: [real - keep, real) of the input.
+            logits = logits[:, real - keep : real, :]
         # .float() copies out of the graph's output buffer before the next replay.
         return logits.float()
 

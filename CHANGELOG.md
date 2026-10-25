@@ -25,6 +25,26 @@ Versioning follows [Semantic Versioning 2.0.0](https://semver.org/).
   smoothed `q`, and no `log(0)`.
 - Lookup drafters run on the batch-1 fast path only; the batch > 1 loop
   raises a `ValueError` naming that.
+- Per-arm gamma (PLAN Phase 6b): `SpeculativeEngine(..., arms=[ArmSpec(drafter,
+  gamma), ...])`. Arms may share a drafter (one model, one KV cache, several
+  gammas). Without `arms` the engine keeps one arm per drafter at
+  `sampling.gamma`, as before. The acceptance rate now divides by what each
+  step proposed (`AcceptanceTracker.record(n_accepted, n_proposed)`).
+- `FlashSpecConfig.compile_fixed_shapes` (default `True`): on the compiled
+  path, the target's verify calls are padded at the end to one width,
+  `gamma_max + 1`, and a drafter's calls to `(1, 2, 4, 8, 16, 32)`. Padded
+  positions are moved out of the static cache right after the forward and
+  their logit rows are dropped, so they are never kept or accepted. Variable
+  gammas, short lookup proposals and catch-ups then replay a few CUDA graphs
+  instead of recording one per length. `False` keeps the 0.2.0 shapes.
+- An idle model drafter catches up in one forward of everything it missed
+  (Phase 6c); under compile that call is padded to the next drafter width,
+  or runs eagerly when longer than 32 tokens. Its time is part of the step
+  that uses the drafter, so it counts against that arm's reward.
+- Benchmarks: `flashspec_compiled_legacy` (compiled, `compile_fixed_shapes=False`)
+  and a `cuda_graphs` section on compiled methods: CUDA-graph captures
+  counted at `torch.cuda.CUDAGraph.capture_begin`, plus the call shapes
+  each static session sent down the captured path.
 
 ## [0.2.0] — 2026-10-25 — Compiled fast path, lossless checks, release hygiene
 

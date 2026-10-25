@@ -177,6 +177,14 @@ class FlashSpecConfig(BaseModel):
     compile_max_cache_len : int
         Initial static cache capacity in tokens. A longer call grows it
         once (and recaptures the graphs).
+    compile_fixed_shapes : bool
+        With the compiled path on, pad every compiled call at the end to a
+        few fixed widths: the target's verify to ``gamma_max + 1`` and a
+        drafter's calls to ``(1, 2, 4, 8, 16, 32)``. Padded positions are
+        cropped from the cache right after the forward and are never
+        accepted. Variable gammas, short lookup proposals and catch-ups then
+        replay a few CUDA graphs instead of recording one per length.
+        ``False`` keeps the unpadded shapes of 0.2.0.
     eos_token_ids : tuple[int, ...]
         Token ids that end a sequence. Generation of a row stops right
         after it emits one of them; the stop token is kept. Empty (the
@@ -202,6 +210,7 @@ class FlashSpecConfig(BaseModel):
     eos_token_ids: tuple[int, ...] = ()
     compile: bool | Literal["auto"] = "auto"
     compile_max_cache_len: int = Field(default=1024, ge=16)
+    compile_fixed_shapes: bool = True
     bandit: BanditConfig = Field(default_factory=BanditConfig)
     sampling: SamplingConfig = Field(default_factory=SamplingConfig)
     metrics: MetricsConfig = Field(default_factory=MetricsConfig)
