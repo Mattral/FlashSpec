@@ -784,6 +784,7 @@ class SpeculativeEngine:
                         draft_token_ids=draft_token_ids,
                         gamma=gamma,
                         typical_p=config_sampling.top_p,
+                        generator=generator,
                     )
 
             # The raw count stays the acceptance metric. The bonus token
