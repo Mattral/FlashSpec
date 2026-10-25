@@ -9,7 +9,7 @@ move without them.
 - 0.1.5 is on PyPI as a wheel and an sdist, and it has a GitHub Release.
   The Zenodo record 10.5281/zenodo.20766119 was still the 2026-06-19
   version when last checked. The draft for a later deposit is
-  `paper/flashspec.tex` (October 2026, software 0.1.5). Publishing that
+  `paper/flashspec.tex` (October 2026, software 0.2.0). Publishing that
   version stays with the maintainer.
 - The PyPI project `flashspec` at 0.1.2 was yanked by the maintainer.
   Do not install `flashspec==0.1.2`. There is no `v0.1.2` tag.
@@ -34,9 +34,8 @@ move without them.
 - Two real drafters on a real model. The synthetic two-drafter switch
   is already measured. The T4 pair used one drafter.
 - Llama-3-8B, or any larger target, is not scheduled. The v0.2.0 H100
-  run is skipped unless a specific reason comes up. It costs money, and
-  the committed pairs are already slower than plain decoding. Do not
-  tag 0.2.0.
+  run is skipped unless a specific reason comes up. It costs money. 0.2.0
+  was measured on one Tesla T4 only.
 
 This repository has no self-hosted GPU runner, so it has no GPU
 workflow. The former GPU Tests and H100 benchmark workflows were removed.

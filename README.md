@@ -29,19 +29,29 @@
 
 ---
 
-**Project status: alpha.** PyPI ships 0.1.5. `main` holds the unreleased
-0.2.0 work this README describes.
+**Project status: alpha, version 0.2.0.**
 
 **What was measured, and only this:** one model pair
 (`Qwen/Qwen2.5-1.5B-Instruct` verified by `Qwen/Qwen2.5-0.5B-Instruct`),
-one Tesla T4, fp16, batch 1, 10 MT-Bench and 10 HumanEval prompts, with
-the compiled path on (`FlashSpecConfig.compile`: static KV cache and CUDA
-graphs). On that setup FlashSpec was faster than HuggingFace `generate`
-compiled the same way in every cell of the table below. With the eager
-path (compile off), it was slower than plain HuggingFace `generate` in 7
-of the 8 cells of the earlier GPU run (two model pairs, greedy and
-T = 0.7; generated table further down). No other GPU, model pair or batch
-size has been measured. Every H100 number in the docs is a design target.
+one Tesla T4, fp16, batch 1, 10 MT-Bench and 10 HumanEval prompts, run
+from `main` at git `8d036d7` with the default `FlashSpecConfig(compile="auto")`,
+which turned the compiled path (static KV cache and CUDA graphs) on. On
+that setup FlashSpec was faster than HuggingFace `generate` compiled the
+same way in every cell of the table below: by at least 1.3x on both
+HumanEval cells, and by less on MT-Bench. With the eager path
+(`compile=False`) it was slower than plain HuggingFace `generate` in 3 of
+the 4 cells of the same run (generated table further down). No other GPU,
+model pair or batch size has been measured. Every H100 number in the docs
+is a design target.
+
+- **The first call compiles.** On CUDA with Triton, the default
+  `compile="auto"` compiles the drafter and target forwards and captures
+  CUDA graphs on the first `generate`, which can take minutes. Later calls
+  reuse them. The tables above and below exclude that first call (warmup
+  prompts absorb it). To skip compilation, pass
+  `FlashSpecConfig(compile=False)` (the eager path, slower here) or
+  `--compile off` to the server. The engine logs one line saying whether
+  the compiled path is on and why.
 
 - **Correctness** is checked in CI on CPU: a chi-squared test that emitted
   tokens follow the target when draft and target differ, and a
@@ -60,14 +70,17 @@ This is a single-device library plus a small HTTP server, not a
 production serving stack.
 
 <!-- BEGIN GENERATED: status (scripts/ingest_gpu_bundle.py) -->
-Measured at git `52993e4`: `Qwen/Qwen2.5-1.5B-Instruct` verified by `Qwen/Qwen2.5-0.5B-Instruct`, Tesla T4, fp16, batch 1, gamma 4, 10 prompts per set (chat template), 128 new tokens. One model pair, one GPU. Speedups are medians of per-prompt ratios within the same run. The headline baseline is HuggingFace `generate` with a static cache compiled the same way (CUDA graphs); eager HuggingFace and assisted generation are context. Cells are the stored JSON values.
+Measured at git `8d036d7`: `Qwen/Qwen2.5-1.5B-Instruct` verified by `Qwen/Qwen2.5-0.5B-Instruct`, Tesla T4, fp16, batch 1, gamma 4, 10 prompts per set (chat template), 128 new tokens. One model pair, one GPU. Speedups are medians of per-prompt ratios within the same run. The headline baseline is HuggingFace `generate` with a static cache compiled the same way (CUDA graphs); eager HuggingFace and assisted generation are context. Cells are the stored JSON values.
 
 | dataset | mode | FlashSpec tok/s | compiled HF tok/s | **vs compiled HF** | eager HF tok/s | vs eager HF | vs HF assisted | acceptance | c (compiled) | greedy match vs compiled HF | greedy match vs eager HF |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| humaneval | greedy | 72.82514637900351 | 49.12146246181767 | **1.4858433502745476** | 23.47412238102048 | 3.07061233431369 | 3.266906470700773 | 0.7674472295086122 | 0.47729950026754264 | n/a | 9/10 |
-| humaneval | T=0.7 | 64.65023157407026 | 49.040621806485035 | **1.320689325997725** | 23.737994536255016 | 2.7423863913637065 | 3.3484703254583867 | 0.7018560004266362 | 0.47093952934629857 | n/a | n/a |
-| mt_bench | greedy | 55.252001625954684 | 49.12532116486909 | **1.1245701242847757** | 23.397178479769785 | 2.379455989273368 | 3.2676885098898643 | 0.5310738087770345 | 0.4727048901148993 | n/a | 10/10 |
-| mt_bench | T=0.7 | 55.877849299137125 | 48.94843360467012 | **1.1410430525952333** | 22.970064276527687 | 2.4026007789116655 | 4.0319731142311515 | 0.5374968568894605 | 0.47490476916347535 | n/a | n/a |
+| humaneval | greedy | 73.49117484423093 | 49.27609336228632 | **1.4929247183661758** | 25.272922944874917 | 2.868400153448608 | 2.968039793678412 | 0.7674472295086122 | 0.47651099333876806 | 10/10 | 9/10 |
+| humaneval | T=0.7 | 65.40179447333742 | 49.24821559481592 | **1.326870202978973** | 25.444714453071143 | 2.562178271321323 | 3.06365302315802 | 0.7018560004266362 | 0.4770852877691722 | n/a | n/a |
+| mt_bench | greedy | 55.69633073174627 | 49.99045416467851 | **1.1161741322307486** | 25.20267917967235 | 2.2281081944682457 | 3.0887126152344058 | 0.5310738087770345 | 0.47418886402988414 | 10/10 | 10/10 |
+| mt_bench | T=0.7 | 53.447483345537975 | 49.189297069159096 | **1.0837177249808096** | 25.344508384460696 | 2.119677479254399 | 3.3014455192389267 | 0.5374968568894605 | 0.47562151975963995 | n/a | n/a |
+
+Greedy: compiled FlashSpec produced the same tokens as `hf_greedy_compiled`, token for token (per-prompt output hashes are in the JSON), on 10/10 humaneval prompts and 10/10 mt_bench prompts.
+Cold start: not recorded in this bundle. The first compiled call compiles the model and captures CUDA graphs, which can take minutes; the timed numbers above exclude it (warmup prompts absorb it).
 <!-- END GENERATED: status -->
 
 ---
@@ -210,72 +223,44 @@ Commands and file names are in
 
 ### Measured — GPU, real prompts (MT-Bench and HumanEval, chat template)
 
-This block is generated by `scripts/ingest_gpu_bundle.py` from the result
-JSONs of a validated bundle (`benchmarks/results/gpu/<commit>/`). Do not
-edit it by hand.
+This block is generated by `scripts/ingest_gpu_bundle.py --readme-commit 8d036d7`
+from the result JSONs of the 0.2.0 bundle only (`benchmarks/results/gpu/8d036d7/`,
+run from `main`). Do not edit it by hand. The earlier feature-branch
+bundles (`36134c0`, the Phase 4 eager run that also covered TinyLlama, and
+`52993e4`, the first compiled run) stay under `benchmarks/results/gpu/` as
+history and are not shown here.
 
 <!-- BEGIN GENERATED: gpu-results (scripts/ingest_gpu_bundle.py) -->
 #### `Qwen/Qwen2.5-1.5B-Instruct` verified, `Qwen/Qwen2.5-0.5B-Instruct` drafting
 
-GPU Tesla T4 · torch 2.11.0+cu130 · gamma 4 · 32 result files · git `36134c0`, `52993e4`. Prompts: chat_template; n per row: 10. Cells are the stored JSON values, not rounded.
+GPU Tesla T4 · torch 2.11.0+cu130 · gamma 4 · 20 result files · git `8d036d7`. Prompts: chat_template; n per row: 10. Cells are the stored JSON values, not rounded.
 
 | dataset | mode | method | tok/s median | tok/s p25 | tok/s p75 | acceptance | tokens / target fwd | target fwd / token | speedup vs plain HF (median) | speedup vs compiled plain HF (median) | speedup vs hf_assisted (median) | c (step profile) | greedy match | NaN/inf logits | peak GB |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| humaneval | greedy | flashspec_ucb | 26.23852723249483 | 24.63765887975667 | 27.162960607917213 | 0.7748324561339393 | 4.19672131147541 | 0.24609375 | 1.0229054923869696 | n/a | 1.0601084433981502 | n/a | 10/10 | 0 | 3.831118583679199 |
-| humaneval | greedy | flashspec_ucb | 23.955334966652856 | 22.118394981825364 | 24.43403990022169 | 0.7748324561339393 | 4.19672131147541 | 0.24609375 | 1.0100837739015707 | 0.48782041481421456 | 1.0609567223465555 | 0.8565146717354838 | 10/10 | 0 | 3.9242053031921387 |
-| humaneval | greedy | flashspec_compiled | 72.82514637900351 | 66.56029254824399 | 74.62784772525018 | 0.7674472295086122 | 4.169381107491857 | 0.24765625 | 3.07061233431369 | 1.4858433502745476 | 3.266906470700773 | 0.49268634551456664 | 9/10 | n/a | 3.9391956329345703 |
-| humaneval | greedy | hf_greedy | 25.747536265737693 | 25.667860736052027 | 25.94495327957157 | n/a | 1.0078740157480315 | 1.0 | n/a | n/a | n/a | n/a | n/a | 0 | 3.8375372886657715 |
-| humaneval | greedy | hf_greedy | 23.47412238102048 | 23.227123999475463 | 23.77857377434369 | n/a | 1.0078740157480315 | 1.0 | n/a | n/a | n/a | n/a | n/a | 0 | 3.9314565658569336 |
-| humaneval | greedy | hf_greedy_compiled | 49.12146246181767 | 49.063005875735676 | 49.28637488375219 | n/a | 1.0078740157480315 | 1.0 | n/a | n/a | n/a | n/a | 9/10 | n/a | 3.9255499839782715 |
-| humaneval | greedy | hf_assisted | 24.67250490527404 | 22.646022509962553 | 25.612035488652108 | n/a | 7.231638418079096 | 0.14609375 | n/a | n/a | n/a | n/a | 10/10 | 0 | 3.9205241203308105 |
-| humaneval | greedy | hf_assisted | 22.237121132281878 | 20.731428317512226 | 23.083469585054274 | n/a | 7.231638418079096 | 0.14609375 | n/a | n/a | n/a | n/a | 10/10 | 0 | 4.012396335601807 |
-| humaneval | T=0.7 | flashspec_ucb | 22.994806388294748 | 21.758612773754045 | 25.17813966076342 | 0.7036410816413052 | 3.8323353293413174 | 0.26875 | 0.9143376283741449 | n/a | 1.1413036574151052 | n/a | n/a | 0 | 3.8405613899230957 |
-| humaneval | T=0.7 | flashspec_ucb | 20.926996555037533 | 19.006980713893356 | 22.107230498003904 | 0.6882722339966006 | 3.710144927536232 | 0.27734375 | 0.8889351997557875 | 0.4261660719179908 | 1.0763259822470552 | 0.853002896534031 | n/a | 0 | 3.945862293243408 |
-| humaneval | T=0.7 | flashspec_compiled | 64.65023157407026 | 58.88331145207276 | 67.30609587744007 | 0.7018560004266362 | 3.764705882352941 | 0.2734375 | 2.7423863913637065 | 1.320689325997725 | 3.3484703254583867 | 0.5004567116939009 | n/a | n/a | 3.945862293243408 |
-| humaneval | T=0.7 | hf_sample | 25.401692277734487 | 25.188006318909956 | 25.52414674099085 | n/a | 1.0078740157480315 | 1.0 | n/a | n/a | n/a | n/a | n/a | 0 | 3.840813636779785 |
-| humaneval | T=0.7 | hf_sample | 23.737994536255016 | 23.581683402366696 | 23.790908382598783 | n/a | 1.0078740157480315 | 1.0 | n/a | n/a | n/a | n/a | n/a | 0 | 3.9465904235839844 |
-| humaneval | T=0.7 | hf_sample_compiled | 49.040621806485035 | 48.91420681457233 | 49.127526309195396 | n/a | 1.0078740157480315 | 1.0 | n/a | n/a | n/a | n/a | n/a | n/a | 3.939551830291748 |
-| humaneval | T=0.7 | hf_assisted | 19.75492333430464 | 17.68724539958827 | 22.51555521260074 | n/a | 6.2745098039215685 | 0.1671875 | n/a | n/a | n/a | n/a | n/a | 0 | 3.9224438667297363 |
-| humaneval | T=0.7 | hf_assisted | 18.252091267763525 | 17.25533897621466 | 20.413537204874352 | n/a | 6.037735849056604 | 0.1734375 | n/a | n/a | n/a | n/a | n/a | 0 | 4.025937080383301 |
-| mt_bench | greedy | flashspec_ucb | 19.263895987077582 | 17.876720942167275 | 19.932220650397593 | 0.5308389674229258 | 3.176178660049628 | 0.32265625 | 0.7528549865839097 | n/a | 1.073667645549547 | n/a | 9/10 | 0 | 3.8356237411499023 |
-| mt_bench | greedy | flashspec_ucb | 17.848947424797554 | 17.05064438910831 | 19.216907014764494 | 0.5868378012374362 | 3.2653061224489797 | 0.3140625 | 0.7712457435366594 | 0.36444516173510544 | 1.082497949211112 | 0.8492848578085832 | 9/10 | 0 | 3.905423641204834 |
-| mt_bench | greedy | flashspec_compiled | 55.252001625954684 | 51.03451752732001 | 56.23720752136681 | 0.5310738087770345 | 3.18407960199005 | 0.321875 | 2.379455989273368 | 1.1245701242847757 | 3.2676885098898643 | 0.4888912681940854 | 10/10 | n/a | 3.9152259826660156 |
-| mt_bench | greedy | hf_greedy | 25.487991963425753 | 25.439671247202842 | 25.65189575863387 | n/a | 1.0078740157480315 | 1.0 | n/a | n/a | n/a | n/a | n/a | 0 | 3.845881938934326 |
-| mt_bench | greedy | hf_greedy | 23.397178479769785 | 22.921001536069262 | 23.552116432251463 | n/a | 1.0078740157480315 | 1.0 | n/a | n/a | n/a | n/a | n/a | 0 | 3.9156312942504883 |
-| mt_bench | greedy | hf_greedy_compiled | 49.12532116486909 | 48.97701107926284 | 49.21500203797986 | n/a | 1.0078740157480315 | 1.0 | n/a | n/a | n/a | n/a | 10/10 | n/a | 3.910264492034912 |
-| mt_bench | greedy | hf_assisted | 19.857969448236993 | 15.308813592486892 | 22.27020365580778 | n/a | 3.8905775075987843 | 0.26484375 | n/a | n/a | n/a | n/a | 10/10 | 0 | 3.916429042816162 |
-| mt_bench | greedy | hf_assisted | 18.523353839382736 | 13.817359096283546 | 19.874466083142597 | n/a | 3.8905775075987843 | 0.26484375 | n/a | n/a | n/a | n/a | 10/10 | 0 | 3.9850401878356934 |
-| mt_bench | T=0.7 | flashspec_ucb | 19.856912897628682 | 18.059678676289927 | 21.612539675023445 | 0.5357908259547473 | 3.290488431876607 | 0.31171875 | 0.7713409325667324 | n/a | 1.1933850262734405 | n/a | n/a | 0 | 3.8409838676452637 |
-| mt_bench | T=0.7 | flashspec_ucb | 18.051633117833564 | 16.19958313691243 | 18.82464363903081 | 0.5437414602239845 | 3.3333333333333335 | 0.3078125 | 0.7831004034693231 | 0.3684109285057109 | 1.246618707574589 | 0.8579566227564982 | n/a | 0 | 3.923186779022217 |
-| mt_bench | T=0.7 | flashspec_compiled | 55.877849299137125 | 50.58062889171737 | 59.43849884307497 | 0.5374968568894605 | 3.2989690721649483 | 0.3109375 | 2.4026007789116655 | 1.1410430525952333 | 4.0319731142311515 | 0.5004025014700858 | n/a | n/a | 3.9273171424865723 |
-| mt_bench | T=0.7 | hf_sample | 25.708033881186918 | 25.52976546475353 | 25.845993306023857 | n/a | 1.0078740157480315 | 1.0 | n/a | n/a | n/a | n/a | n/a | 0 | 3.8480911254882812 |
-| mt_bench | T=0.7 | hf_sample | 22.970064276527687 | 22.871294494922637 | 23.08729168048587 | n/a | 1.0078740157480315 | 1.0 | n/a | n/a | n/a | n/a | n/a | 0 | 3.9295730590820312 |
-| mt_bench | T=0.7 | hf_sample_compiled | 48.94843360467012 | 48.86839827300831 | 49.071253152907715 | n/a | 1.0078740157480315 | 1.0 | n/a | n/a | n/a | n/a | n/a | n/a | 3.924206256866455 |
-| mt_bench | T=0.7 | hf_assisted | 14.715778555192315 | 12.989302254851275 | 19.21646429804001 | n/a | 3.78698224852071 | 0.271875 | n/a | n/a | n/a | n/a | n/a | 0 | 3.9214768409729004 |
-| mt_bench | T=0.7 | hf_assisted | 13.640262305103246 | 8.678840619024454 | 16.993490021453383 | n/a | 3.9751552795031055 | 0.259375 | n/a | n/a | n/a | n/a | n/a | 0 | 4.008172988891602 |
-- forward_cost (humaneval): c eager 0.8533442390730158, c compiled 0.47729950026754264
-- forward_cost (humaneval): c eager 0.8751621829653458, c compiled 0.47093952934629857
-- forward_cost (mt_bench): c eager 0.8910460117453463, c compiled 0.47490476916347535
-- forward_cost (mt_bench): c eager 0.8973067267125661, c compiled 0.4727048901148993
-
-#### `TinyLlama/TinyLlama-1.1B-Chat-v1.0` verified, `Felladrin/Llama-160M-Chat-v1` drafting
-
-GPU Tesla T4 · torch 2.11.0+cu130 · gamma 4 · 12 result files · git `36134c0`. Prompts: chat_template; n per row: 10. Cells are the stored JSON values, not rounded.
-
-| dataset | mode | method | tok/s median | tok/s p25 | tok/s p75 | acceptance | tokens / target fwd | target fwd / token | speedup vs plain HF (median) | speedup vs compiled plain HF (median) | speedup vs hf_assisted (median) | c (step profile) | greedy match | NaN/inf logits | peak GB |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| humaneval | greedy | flashspec_ucb | 31.250871186065634 | 29.67332081324305 | 31.730403496731114 | 0.3428825495568735 | 2.5 | 0.4078125 | 0.920824455046579 | n/a | 1.3627982299701538 | n/a | 9/10 | 0 | 3.3315539360046387 |
-| humaneval | greedy | hf_greedy | 33.80787372488116 | 33.588002304518476 | 34.12714768557471 | n/a | 1.0078740157480315 | 1.0 | n/a | n/a | n/a | n/a | n/a | 0 | 3.339426040649414 |
-| humaneval | greedy | hf_assisted | 22.801485829108483 | 20.90997221766804 | 23.29082343261765 | n/a | 2.644628099173554 | 0.3859375 | n/a | n/a | n/a | n/a | 10/10 | 0 | 3.357449531555176 |
-| humaneval | T=0.7 | flashspec_ucb | 29.79554888577421 | 28.57163363897569 | 30.722737408248435 | 0.37814445408204117 | 2.4521072796934864 | 0.415625 | 0.8781563928644487 | n/a | 1.5265792438087513 | n/a | n/a | 0 | 3.3389954566955566 |
-| humaneval | T=0.7 | hf_sample | 33.78956769887036 | 33.30730619276562 | 34.0416340840893 | n/a | 1.0078740157480315 | 1.0 | n/a | n/a | n/a | n/a | n/a | 0 | 3.3462777137756348 |
-| humaneval | T=0.7 | hf_assisted | 17.487019025333403 | 13.7530429740147 | 23.568704422712038 | n/a | 2.633744855967078 | 0.3875 | n/a | n/a | n/a | n/a | n/a | 0 | 3.3656387329101562 |
-| mt_bench | greedy | flashspec_ucb | 30.210543463312913 | 26.763347847207847 | 31.938117072957773 | 0.3849257507706609 | 2.4242424242424243 | 0.4203125 | 0.9063770613006314 | n/a | 1.2096862194202025 | n/a | 9/10 | 0 | 3.339047431945801 |
-| mt_bench | greedy | hf_greedy | 33.96586860489057 | 33.82290284657868 | 34.12758268923611 | n/a | 1.0078740157480315 | 1.0 | n/a | n/a | n/a | n/a | n/a | 0 | 3.3504180908203125 |
-| mt_bench | greedy | hf_assisted | 24.551502847019417 | 20.15396423641451 | 28.619996148281555 | n/a | 2.549800796812749 | 0.4 | n/a | n/a | n/a | n/a | 10/10 | 0 | 3.3552961349487305 |
-| mt_bench | T=0.7 | flashspec_ucb | 27.690370534753658 | 26.354477514108684 | 31.13884479526491 | 0.35637230927831254 | 2.4427480916030535 | 0.4171875 | 0.8500740058459157 | n/a | 1.2956752804023388 | n/a | n/a | 0 | 3.3453612327575684 |
-| mt_bench | T=0.7 | hf_sample | 33.636622481082696 | 33.08990594716871 | 34.08290521661548 | n/a | 1.0078740157480315 | 1.0 | n/a | n/a | n/a | n/a | n/a | 0 | 3.3561997413635254 |
-| mt_bench | T=0.7 | hf_assisted | 22.920757315705643 | 20.03353302426056 | 24.297143585330673 | n/a | 2.4758220502901356 | 0.41171875 | n/a | n/a | n/a | n/a | n/a | 0 | 3.361243724822998 |
+| humaneval | greedy | flashspec_ucb | 26.02536363267037 | 24.113137938821488 | 26.416962512055154 | 0.7748324561339393 | 4.19672131147541 | 0.24609375 | 1.0193827466008485 | 0.5282968591639221 | 1.0318343857730912 | 0.845041661430388 | 10/10 | 0 | 3.9210314750671387 |
+| humaneval | greedy | flashspec_compiled | 73.49117484423093 | 67.66749962983283 | 75.22223233061746 | 0.7674472295086122 | 4.169381107491857 | 0.24765625 | 2.868400153448608 | 1.4929247183661758 | 2.968039793678412 | 0.4937086544815969 | 9/10 | n/a | 3.9358386993408203 |
+| humaneval | greedy | hf_greedy | 25.272922944874917 | 25.064466964565117 | 25.500231713400083 | n/a | 1.0078740157480315 | 1.0 | n/a | n/a | n/a | n/a | n/a | 0 | 3.9280996322631836 |
+| humaneval | greedy | hf_greedy_compiled | 49.27609336228632 | 49.1847500987219 | 49.34777025069719 | n/a | 1.0078740157480315 | 1.0 | n/a | n/a | n/a | n/a | 9/10 | n/a | 3.922210216522217 |
+| humaneval | greedy | hf_assisted | 24.19664417567833 | 22.245649238351376 | 25.200750728941774 | n/a | 7.231638418079096 | 0.14609375 | n/a | n/a | n/a | n/a | 10/10 | 0 | 4.010560035705566 |
+| humaneval | T=0.7 | flashspec_ucb | 23.054835447878503 | 21.110460201553547 | 24.779995491896514 | 0.6882722339966006 | 3.710144927536232 | 0.27734375 | 0.9109461711070447 | 0.46804709580075965 | 1.0736463665588767 | 0.8629833155074336 | n/a | 0 | 3.9422059059143066 |
+| humaneval | T=0.7 | flashspec_compiled | 65.40179447333742 | 59.35656427020519 | 68.5928206976523 | 0.7018560004266362 | 3.764705882352941 | 0.2734375 | 2.562178271321323 | 1.326870202978973 | 3.06365302315802 | 0.49779909081468227 | n/a | n/a | 3.9422059059143066 |
+| humaneval | T=0.7 | hf_sample | 25.444714453071143 | 25.347879588597422 | 25.543325368357564 | n/a | 1.0078740157480315 | 1.0 | n/a | n/a | n/a | n/a | n/a | 0 | 3.9432334899902344 |
+| humaneval | T=0.7 | hf_sample_compiled | 49.24821559481592 | 49.19260891088411 | 49.33891386116446 | n/a | 1.0078740157480315 | 1.0 | n/a | n/a | n/a | n/a | n/a | n/a | 3.936194896697998 |
+| humaneval | T=0.7 | hf_assisted | 20.25776424898342 | 19.350477197434962 | 22.45474429590343 | n/a | 6.037735849056604 | 0.1734375 | n/a | n/a | n/a | n/a | n/a | 0 | 4.024886608123779 |
+| mt_bench | greedy | flashspec_ucb | 19.572806929034726 | 18.512325739597685 | 20.655499375866352 | 0.5868378012374362 | 3.2653061224489797 | 0.3140625 | 0.7776848037196118 | 0.3925474950495035 | 1.1001251488328485 | 0.8672852493814422 | 9/10 | 0 | 3.902125835418701 |
+| mt_bench | greedy | flashspec_compiled | 55.69633073174627 | 52.71416447738182 | 57.00448545307138 | 0.5310738087770345 | 3.18407960199005 | 0.321875 | 2.2281081944682457 | 1.1161741322307486 | 3.0887126152344058 | 0.48626613558395965 | 10/10 | n/a | 3.9118690490722656 |
+| mt_bench | greedy | hf_greedy | 25.20267917967235 | 25.112631097015935 | 25.30654132302575 | n/a | 1.0078740157480315 | 1.0 | n/a | n/a | n/a | n/a | n/a | 0 | 3.9123334884643555 |
+| mt_bench | greedy | hf_greedy_compiled | 49.99045416467851 | 49.59376567557413 | 50.24789576812648 | n/a | 1.0078740157480315 | 1.0 | n/a | n/a | n/a | n/a | 10/10 | n/a | 3.9069666862487793 |
+| mt_bench | greedy | hf_assisted | 19.849014490485814 | 15.136578031686579 | 22.22945913877053 | n/a | 3.8905775075987843 | 0.26484375 | n/a | n/a | n/a | n/a | 10/10 | 0 | 3.9825186729431152 |
+| mt_bench | T=0.7 | flashspec_ucb | 20.18121040233048 | 18.115274461600237 | 21.17643975210253 | 0.5437414602239845 | 3.3333333333333335 | 0.3078125 | 0.7952682871520586 | 0.41020068096677864 | 1.234533396317398 | 0.8612503546546161 | n/a | 0 | 3.9191641807556152 |
+| mt_bench | T=0.7 | flashspec_compiled | 53.447483345537975 | 50.30655289847409 | 59.43461086804307 | 0.5374968568894605 | 3.2989690721649483 | 0.3109375 | 2.119677479254399 | 1.0837177249808096 | 3.3014455192389267 | 0.5416823432691761 | n/a | n/a | 3.923170566558838 |
+| mt_bench | T=0.7 | hf_sample | 25.344508384460696 | 25.114667710180996 | 25.389395380475488 | n/a | 1.0078740157480315 | 1.0 | n/a | n/a | n/a | n/a | n/a | 0 | 3.9262752532958984 |
+| mt_bench | T=0.7 | hf_sample_compiled | 49.189297069159096 | 49.090311507338804 | 49.27322962156904 | n/a | 1.0078740157480315 | 1.0 | n/a | n/a | n/a | n/a | n/a | n/a | 3.9209084510803223 |
+| mt_bench | T=0.7 | hf_assisted | 15.343815220295882 | 9.802755592886559 | 19.533044949645106 | n/a | 3.9751552795031055 | 0.259375 | n/a | n/a | n/a | n/a | n/a | 0 | 4.005769729614258 |
+- forward_cost (humaneval): c eager 0.8840264407247382, c compiled 0.47651099333876806
+- forward_cost (humaneval): c eager 0.8922046962713643, c compiled 0.4770852877691722
+- forward_cost (mt_bench): c eager 0.8978235042101232, c compiled 0.47562151975963995
+- forward_cost (mt_bench): c eager 0.9040499147358744, c compiled 0.47418886402988414
 
 Speedups are medians of per-prompt ratios against the method in the same run. NaN/inf counts come from one untimed probe generation per method on the first prompt.
 <!-- END GENERATED: gpu-results -->
@@ -605,7 +590,7 @@ deploy/             Dockerfile · docker-compose.yml · k8s manifests
 }
 ```
 
-**Preprint DOI**: [10.5281/zenodo.20766119](https://doi.org/10.5281/zenodo.20766119) (June 2026). That record is the citable archive. [`paper/flashspec.tex`](paper/flashspec.tex) is a later draft (October 2026, software 0.1.5) and has not been deposited.
+**Preprint DOI**: [10.5281/zenodo.20766119](https://doi.org/10.5281/zenodo.20766119) (June 2026). That record is the citable archive. [`paper/flashspec.tex`](paper/flashspec.tex) is a later draft (October 2026, software 0.2.0) and has not been deposited.
 
 Machine-readable metadata in [`CITATION.cff`](CITATION.cff).
 

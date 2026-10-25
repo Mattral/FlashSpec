@@ -18,3 +18,14 @@ def test_auto_config_differs_from_phase5_only_in_compile_request() -> None:
     assert auto == base
     assert "flashspec_compiled" in auto["methods"]
     assert "hf_greedy_compiled" in auto["methods"]
+
+
+def test_package_version_matches_pyproject() -> None:
+    """publish.yml checks the tag against pyproject; the package must report the same."""
+    import tomllib
+
+    import flashspec
+
+    with open("pyproject.toml", "rb") as handle:
+        version = tomllib.load(handle)["project"]["version"]
+    assert flashspec.__version__ == version

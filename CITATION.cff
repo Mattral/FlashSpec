@@ -33,8 +33,8 @@ abstract: >-
   UCB1/Thompson draft selector is experimental: every measured run used
   one drafter. The Triton and assembly kernels are experimental and not
   on the generation critical path.
-version: 0.1.5
-date-released: "2026-10-16"
+version: 0.2.0
+date-released: "2026-10-25"
 license: Apache-2.0
 repository-code: "https://github.com/Mattral/FlashSpec"
 url: "https://flashspec.readthedocs.io"
@@ -62,6 +62,6 @@ preferred-citation:
   notes: >-
     Zenodo preprint deposited 2026-06-19.
     DOI: https://doi.org/10.5281/zenodo.20766119
-    paper/flashspec.tex is a later draft (October 2026, software 0.1.5)
+    paper/flashspec.tex is a later draft (October 2026, software 0.2.0)
     and has not been deposited. It is not an arXiv submission.
     The JOSS-format draft is not under review.

@@ -99,6 +99,11 @@ SPEC_METHODS: tuple[str, ...] = ("flashspec_ucb", "flashspec_compiled")
 #: Methods whose target forward is ``torch.compile``d. They are timed
 #: without forward hooks: attaching a hook changes the module and forces
 #: the compiled forward to recompile.
+#: (method, target, drafter) whose first generate already ran in this
+#: process. Compiled graphs and CUDA-graph captures persist in-process,
+#: so only the first block that runs a method pays the full compile.
+_COLD_STARTED: set[tuple[str, str, str]] = set()
+
 COMPILED_METHODS: frozenset[str] = frozenset(
     {"flashspec_compiled", "hf_greedy_compiled", "hf_sample_compiled"}
 )
@@ -1566,6 +1571,7 @@ def _run_loaded_pair(
     drafter_forwards = ForwardRecorder(drafter_module)
     runs = {name: _MethodRuns() for name in methods}
     first_lengths: dict[str, list[int]] = {}
+    cold_start: dict[str, dict[str, object]] = {}
 
     def _generate(name: str, prompt: torch.Tensor) -> tuple[torch.Tensor, float | None, Any]:
         if name in engines:
@@ -1606,6 +1612,19 @@ def _run_loaded_pair(
             if device.type == "cuda":
                 torch.cuda.synchronize()
             elapsed_ms = (time.perf_counter() - started) * 1000.0
+            if name not in cold_start:
+                key = (name, model_name, str(config.get("drafter", model_name)))
+                cold_start[name] = {
+                    "first_call_ms": elapsed_ms,
+                    "first_call_new_tokens": int(tokens.shape[1]),
+                    "first_call_was_warmup": not record,
+                    "first_in_process": key not in _COLD_STARTED,
+                    "source": "wall time of this method's first generate in this block "
+                    "(synchronized). For a compiled method in the first block of the "
+                    "process (first_in_process true) it includes torch.compile and "
+                    "CUDA-graph capture; later blocks can reuse compiled code",
+                }
+                _COLD_STARTED.add(key)
         finally:
             target_forwards.detach()
             drafter_forwards.detach()
@@ -1838,6 +1857,7 @@ def _run_loaded_pair(
         )
         verify_ms = profile.get("verify_ms_mean") if profile else None
         spec_extra: dict[str, object] = {
+            "cold_start": cold_start.get(spec_name),
             **common_extra,
             "step_profile": profile,
             "step_cost": {
@@ -1911,6 +1931,7 @@ def _run_loaded_pair(
         if name in SPEC_METHODS:
             continue
         extra: dict[str, object] = {
+            "cold_start": cold_start.get(name),
             **common_extra,
             "forward_counts": _forward_counts(name),
             **probes[name],

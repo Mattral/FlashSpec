@@ -384,3 +384,61 @@ def test_greedy_compiled_needs_the_compiled_match() -> None:
     assert any("greedy_token_match_compiled" in e for e in _check_document("r", doc, "c"))
     doc["greedy_token_match_compiled"] = {}
     assert not any("greedy_token_match_compiled" in e for e in _check_document("r", doc, "c"))
+
+
+def test_status_notes_cold_start_and_readme_commit(tmp_path: Path) -> None:
+    """Status notes come from the documents; --readme-commit keeps one bundle's rows."""
+    from scripts.ingest_gpu_bundle import _readme_documents, _status_notes
+
+    base = {
+        "method": "flashspec_compiled",
+        "dataset": "humaneval",
+        "decoding": {"mode": "greedy"},
+        "timestamp": "t1",
+        "greedy_token_match_compiled": {"prompts_matched": 10, "n_prompts": 10},
+    }
+    notes = _status_notes([base])
+    assert notes[1].endswith("on 10/10 humaneval prompts.")
+    assert notes[2].startswith("Cold start: not recorded in this bundle.")
+    cold = {**base, "cold_start": {"first_call_ms": 1234.5, "first_in_process": True}}
+    later = {
+        **base,
+        "timestamp": "t0",
+        "cold_start": {"first_call_ms": 9.0, "first_in_process": False},
+    }
+    assert "took 1234.5 ms including compilation" in _status_notes([later, cold])[2]
+    docs = [{"git_commit": "aaa"}, {"git_commit": "bbb"}]
+    assert _readme_documents(docs, None) == docs
+    assert _readme_documents(docs, "bbb") == [{"git_commit": "bbb"}]
+    with pytest.raises(BundleError, match="no ingested result"):
+        _readme_documents(docs, "ccc")
+
+
+def test_capture_logs_copies_torch_flashspec_and_python_warnings() -> None:
+    """run.log gets the CUDA-graph warning, the compile decision line and warnings, once each."""
+    import io
+    import logging
+    import warnings
+
+    import torch._inductor.cudagraph_utils as cudagraph_utils
+
+    from benchmarks.gpu_bundle import _capture_logs
+    from flashspec.utils.logging import get_logger
+
+    logger = get_logger("flashspec.engine.speculative")
+    level = logger.level
+    stream = io.StringIO()
+    with _capture_logs(stream), warnings.catch_warnings():
+        warnings.simplefilter("always")
+        cudagraph_utils.cudagraphs_log.warning("observed 9 distinct sizes")
+        logger.info("Compiled fast path on (probe).")
+        warnings.warn("probe warning", stacklevel=1)
+    text = stream.getvalue()
+    assert text.count("observed 9 distinct sizes") == 1
+    assert "INFO flashspec.engine.speculative: Compiled fast path on (probe)." in text
+    assert "probe warning" in text
+    assert logger.level == level
+    assert not any(
+        isinstance(handler, logging.StreamHandler) and handler.stream is stream
+        for handler in logger.handlers
+    )

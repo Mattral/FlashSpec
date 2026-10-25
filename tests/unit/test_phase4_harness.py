@@ -471,3 +471,26 @@ class TestOutputs:
         assert match_compiled["reference"] == "hf_greedy_compiled"
         assert match_compiled["prompts_matched"] == match_compiled["n_prompts"] == 3
         assert "greedy_token_match_compiled" not in paired["flashspec_ucb"]
+
+
+class TestColdStart:
+    """Every document records its method's first generate call (compile included)."""
+
+    def test_cold_start_recorded_per_method(self) -> None:
+        """first_call_ms is positive; the first block in a process is first_in_process."""
+        harness._COLD_STARTED.clear()
+        methods = ["flashspec_ucb", "flashspec_compiled", "hf_greedy", "hf_greedy_compiled"]
+        first = run_paired_generations(_toy_config(temperature=0.0, methods=methods, n_warmup=1))
+        for doc in first.values():
+            cold = doc["cold_start"]
+            assert isinstance(cold, dict)
+            assert cold["first_call_ms"] > 0  # type: ignore[operator]
+            assert cold["first_call_new_tokens"] == 6
+            assert cold["first_call_was_warmup"] is True
+            assert cold["first_in_process"] is True
+        again = run_paired_generations(_toy_config(temperature=0.0, methods=methods, n_warmup=0))
+        for doc in again.values():
+            cold = doc["cold_start"]
+            assert isinstance(cold, dict)
+            assert cold["first_in_process"] is False
+            assert cold["first_call_was_warmup"] is False
