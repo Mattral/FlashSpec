@@ -37,6 +37,7 @@ def typical_sample(
     draft_token_ids: torch.Tensor,
     gamma: int,
     typical_p: float = 0.9,
+    generator: torch.Generator | None = None,
 ) -> tuple[torch.Tensor, torch.Tensor, float]:
     r"""Apply typical-acceptance speculative sampling (lossy).
 
@@ -59,17 +60,25 @@ def typical_sample(
     typical_p : float
         Mass of the typical set.  Tokens outside the set are rejected.
         Must be in ``(0, 1]``.
+    generator : torch.Generator or None
+        Source of the draw at the first rejected position. ``None`` uses
+        the global RNG.
 
     Returns
     -------
     accepted_ids : torch.Tensor
-        Accepted draft token IDs.  Shape: ``(batch_size, gamma)`` with
-        ``-1`` padding for rejected positions.
+        The accepted prefix of the draft (positions before the first
+        rejection), then, at the first rejected position, one token sampled
+        from the target distribution there; ``-1`` after it. A fully
+        accepted row is the whole draft (the caller adds the bonus token).
+        Shape: ``(batch_size, gamma)``, the layout of
+        :func:`flashspec.sampling.rejection.rejection_sample`.
     first_rejection : torch.Tensor
         Index of first rejection per sequence.
         Shape: ``(batch_size,)``, dtype int32.
     acceptance_rate : float
-        Mean fraction of draft tokens accepted across the batch.
+        Mean fraction of draft tokens accepted (the prefix before the
+        first rejection) across the batch.
 
     Raises
     ------
@@ -135,8 +144,24 @@ def typical_sample(
         torch.full_like(first_rej_raw, gamma),
     ).to(torch.int32)
 
-    accepted_ids = draft_token_ids.clone().masked_fill(~accepted_mask, -1)
-    acceptance_rate = float(accepted_mask.float().mean().item())
+    # Keep only the prefix before the first rejection: a typical token after
+    # a rejected one was proposed on a context that is not the output's.
+    positions = torch.arange(gamma, device=device).unsqueeze(0)  # (1, γ)
+    first = first_rejection.to(device=device, dtype=torch.long).unsqueeze(-1)  # (B, 1)
+    accepted_ids = draft_token_ids.to(device).clone().masked_fill(positions >= first, -1)
+    # At the first rejected position, emit one token drawn from the target,
+    # so every step makes progress (Medusa's typical acceptance does the same).
+    rejected_row = first.squeeze(-1) < gamma  # (B,)
+    if bool(rejected_row.any()):
+        at = first.clamp(max=gamma - 1)  # (B, 1)
+        probs = tp.gather(1, at.unsqueeze(-1).expand(-1, 1, vocab_size)).squeeze(1)  # (B, V)
+        probs = probs / probs.sum(dim=-1, keepdim=True).clamp(min=_ENTROPY_CLAMP_MIN)
+        drawn = torch.multinomial(probs, num_samples=1, generator=generator)  # (B, 1)
+        current = accepted_ids.gather(1, at)
+        accepted_ids = accepted_ids.scatter(
+            1, at, torch.where(rejected_row.unsqueeze(-1), drawn.to(accepted_ids.dtype), current)
+        )
+    acceptance_rate = float((first_rejection.float() / gamma).mean().item())
 
     logger.debug(
         "typical_sample complete",

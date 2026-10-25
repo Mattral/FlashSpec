@@ -37,6 +37,15 @@ Versioning follows [Semantic Versioning 2.0.0](https://semver.org/).
   the residual are unchanged.
 
 ### Fixed
+- `sampling.variant="typical"` (lossy) produced too few tokens. A step
+  that rejected the first draft token emitted nothing, so a batch-1 call
+  stopped after one step with zero tokens, and typical draft tokens after a
+  rejected one were kept, so a step could emit a non-contiguous sequence.
+  `typical_sample` now keeps only the prefix before the first rejection and
+  fills the rejected position with one token drawn from the target
+  distribution there (seeded by `sampling.seed`), in the layout
+  `rejection_sample` uses. The acceptance criterion is unchanged, and the
+  variant stays lossy.
 - The `serve` extra installs `accelerate` (>= 1.1.0).
   `python -m flashspec.serve` loads the target with `device_map`, which
   transformers only accepts with `accelerate`, so a server installed with
