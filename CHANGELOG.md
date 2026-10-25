@@ -63,7 +63,19 @@ Versioning follows [Semantic Versioning 2.0.0](https://semver.org/).
   matches against eager and compiled HuggingFace.
   `benchmarks/configs/qwen_t4_phase6.yaml` is the T4 config (notebook cell
   3d); `scripts/phase6_report.py` evaluates the exit criteria from the JSONs.
-  No GPU number from it is in this changelog: none has been measured yet.
+- **Phase 6 result (bundle `3e38251`, one Tesla T4): the bandit failed its main
+  exit criterion.** On the mixed workload neither UCB1 nor Thompson beat the
+  best fixed arm, and UCB1 was not within 5% of each prompt set's best fixed
+  arm; it was faster than compiled HuggingFace on every set. The values are in
+  `benchmarks/results/gpu/3e38251/` (`scripts/phase6_report.py`,
+  `scripts/phase6_analysis.py`). The bandit stays experimental.
+- Greedy mismatches against compiled HuggingFace in that bundle were all in
+  the verify-width-7 group. `benchmarks/width_diagnostic.py` (notebook cell
+  3e) on the T4 found every path token-exact in fp32. In fp16, each divergence
+  is at an exact top-2 tie on one side, and the unpadded width-7 path diverges
+  identically, so the mismatches come from fp16 rounding that depends on the
+  kernel shape, not from padding. Pad content never reaches a real row (bit
+  identical). Diagnostics are in `benchmarks/results/diagnostics/`.
 - Resumable Phase 6 bundles: `gpu_bundle.py --checkpoint-dir` (notebook cell
   3d uses a Google Drive folder per commit) saves each finished block (one
   prompt set and mode) with a marker naming the commit, the config's sha256
