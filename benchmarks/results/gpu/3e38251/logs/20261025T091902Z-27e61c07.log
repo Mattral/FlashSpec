@@ -1,0 +1,658 @@
+FlashSpec GPU bundle: commit 3e38251, 1 config(s)
+
+=== benchmarks/configs/qwen_t4_phase6.yaml ===
+2026-10-25 09:19:28,196 WARNING py.warnings: /usr/local/lib/python3.13/dist-packages/huggingface_hub/utils/_auth.py:138: UserWarning: 
+Error while fetching `HF_TOKEN` secret value from your vault: 'Requesting secret HF_TOKEN timed out. Secrets can only be fetched when running from the Colab UI.'.
+  warnings.warn(f"\nError while fetching `HF_TOKEN` secret value from your vault: '{str(e)}'.")
+
+[phase6] 8 blocks: 0 restored from the checkpoint, 8 to run (1608 generations)
+[phase6] block 1/8 humaneval_greedy: starting, 153 generations (1608 left to run)
+2026-10-25 09:20:23,636 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:20:23,648 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:20:47,166 WARNING torch._inductor.utils: Not enough SMs to use max_autotune_gemm mode
+2026-10-25 09:23:44,701 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:23:44,706 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:27:34,898 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:27:34,901 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:27:37,319 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:27:37,325 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:28:52,286 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:28:52,292 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:28:54,044 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:28:54,051 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:28:55,771 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:28:55,775 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:28:57,486 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:28:59,455 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:30:21,792 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:30:21,795 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:30:23,510 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:30:23,513 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:30:25,178 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:30:25,181 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:30:26,778 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:30:26,782 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:30:28,605 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:30:28,608 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:30:30,333 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:30:30,336 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:30:31,998 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:30:32,001 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:30:33,512 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:30:35,023 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:30:49,470 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:30:49,474 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:30:49,475 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:30:49,480 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:30:49,481 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:30:49,483 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:30:49,485 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:30:49,488 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:30:49,491 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:30:49,494 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:30:49,495 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:30:49,497 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:30:49,499 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:30:49,501 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:30:49,504 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:30:49,506 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:32:18,855 WARNING torch._inductor.cudagraph_utils.__cudagraphs: CUDAGraph supports dynamic shapes by recording a new graph for each distinct input size. Recording too many CUDAGraphs may lead to extra overhead. We have observed 9 distinct sizes. Please consider the following options for better performance: a) padding inputs to a few fixed number of shapes; or b) set torch._inductor.config.triton.cudagraph_skip_dynamic_graphs=True. Set torch._inductor.config.triton.cudagraph_dynamic_shape_warn_limit=None to silence this warning.
+2026-10-25 09:35:52,796 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:35:52,799 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:35:54,889 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:35:54,892 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:35:57,047 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:35:57,050 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:35:59,574 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:35:59,576 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:36:01,485 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:36:01,488 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:36:03,270 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:36:03,273 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:36:05,049 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:36:05,051 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:36:06,738 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:36:08,702 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+arm_qwen-g2: 66.76880461803883 tok/s (block total tokens / total seconds)
+arm_qwen-g4: 69.73968151775765 tok/s (block total tokens / total seconds)
+arm_qwen-g6: 66.88096892103184 tok/s (block total tokens / total seconds)
+arm_ngram-g2: 63.45036436267508 tok/s (block total tokens / total seconds)
+arm_ngram-g4: 66.42243963127225 tok/s (block total tokens / total seconds)
+arm_ngram-g6: 67.18331562955943 tok/s (block total tokens / total seconds)
+arm_composite-g4: 76.46375542673032 tok/s (block total tokens / total seconds)
+bandit_ucb1: 72.67941480685818 tok/s (block total tokens / total seconds)
+bandit_thompson: 68.90401703893421 tok/s (block total tokens / total seconds)
+hf_greedy: 24.445733157543984 tok/s (block total tokens / total seconds)
+hf_greedy_compiled: 48.75843727359648 tok/s (block total tokens / total seconds)
+hf_assisted: 22.64158454982198 tok/s (block total tokens / total seconds)
+[phase6] block 1/8 humaneval_greedy: done in 947 s and saved to the checkpoint. Session elapsed 15.8 min; 1455 generations left, ETA about 150.1 min (estimate from this session's rate, 6.19 s per generation including compile)
+[phase6] block 2/8 humaneval_t0.7: starting, 141 generations (1455 left to run)
+2026-10-25 09:36:10,912 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:36:10,914 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:36:12,967 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:36:12,970 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:36:15,091 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:36:15,093 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:36:17,806 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:36:17,810 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:36:19,835 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:36:19,839 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:36:21,928 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:36:21,930 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:36:24,246 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:36:24,249 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:36:25,869 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:36:27,942 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:36:40,284 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:36:40,287 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:36:42,089 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:36:42,092 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:36:44,083 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:36:44,085 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:36:46,240 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:36:46,242 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:36:48,475 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:36:48,477 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:36:50,324 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:36:50,327 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:36:52,138 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:36:52,141 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:36:54,299 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:36:55,822 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:37:07,091 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:37:07,094 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:37:07,096 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:37:07,098 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:37:07,099 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:37:07,101 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:37:07,102 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:37:07,104 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:37:07,105 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:37:07,107 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:37:07,107 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:37:07,109 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:37:07,110 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:37:07,112 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:37:07,114 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:37:07,116 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:41:48,955 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:41:48,958 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:41:50,922 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:41:50,925 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:41:53,050 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:41:53,053 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:41:55,771 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:41:55,773 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:41:57,812 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:41:57,814 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:41:59,898 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:41:59,901 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:42:02,224 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:42:02,227 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:42:03,862 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:42:05,708 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+arm_qwen-g2: 66.01641305074533 tok/s (block total tokens / total seconds)
+arm_qwen-g4: 61.98276395241417 tok/s (block total tokens / total seconds)
+arm_qwen-g6: 62.229707087363245 tok/s (block total tokens / total seconds)
+arm_ngram-g2: 58.65310551171174 tok/s (block total tokens / total seconds)
+arm_ngram-g4: 61.691986617704465 tok/s (block total tokens / total seconds)
+arm_ngram-g6: 62.22049690271739 tok/s (block total tokens / total seconds)
+arm_composite-g4: 64.90609714173813 tok/s (block total tokens / total seconds)
+bandit_ucb1: 65.92538042819774 tok/s (block total tokens / total seconds)
+bandit_thompson: 62.23088804278899 tok/s (block total tokens / total seconds)
+hf_sample_compiled: 47.91703061211116 tok/s (block total tokens / total seconds)
+hf_assisted: 17.86888152245691 tok/s (block total tokens / total seconds)
+[phase6] block 2/8 humaneval_t0.7: done in 357 s and saved to the checkpoint. Session elapsed 21.7 min; 1314 generations left, ETA about 97.2 min (estimate from this session's rate, 4.44 s per generation including compile)
+[phase6] block 3/8 mt_bench_greedy: starting, 153 generations (1314 left to run)
+2026-10-25 09:42:08,294 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:42:08,297 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:42:10,572 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:42:10,575 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:42:13,205 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:42:13,208 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:42:16,453 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:42:16,455 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:42:19,090 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:42:19,093 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:42:21,755 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:42:21,757 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:42:24,491 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:42:24,495 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:42:26,935 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:42:29,893 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:42:53,137 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:42:53,140 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:42:55,431 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:42:55,433 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:42:58,131 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:42:58,134 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:43:00,561 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:43:00,564 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:43:02,689 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:43:02,693 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:43:04,771 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:43:04,773 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:43:06,581 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:43:06,583 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:43:09,010 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:43:11,160 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:43:28,512 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:43:28,515 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:43:28,516 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:43:28,518 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:43:28,520 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:43:28,523 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:43:28,524 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:43:28,528 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:43:28,529 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:43:28,531 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:43:28,532 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:43:28,534 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:43:28,535 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:43:28,537 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:43:28,539 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:43:28,542 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:49:35,746 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:49:35,749 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:49:38,034 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:49:38,036 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:49:40,684 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:49:40,687 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:49:43,938 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:49:43,941 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:49:46,583 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:49:46,585 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:49:49,244 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:49:49,246 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:49:51,979 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:49:51,981 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:49:54,331 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:49:57,242 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+arm_qwen-g2: 59.12923528903212 tok/s (block total tokens / total seconds)
+arm_qwen-g4: 53.50398304775462 tok/s (block total tokens / total seconds)
+arm_qwen-g6: 47.65504887037378 tok/s (block total tokens / total seconds)
+arm_ngram-g2: 54.23677455470492 tok/s (block total tokens / total seconds)
+arm_ngram-g4: 54.56594062718833 tok/s (block total tokens / total seconds)
+arm_ngram-g6: 54.89308401528911 tok/s (block total tokens / total seconds)
+arm_composite-g4: 56.82215431935964 tok/s (block total tokens / total seconds)
+bandit_ucb1: 53.3419607020316 tok/s (block total tokens / total seconds)
+bandit_thompson: 56.4619612719059 tok/s (block total tokens / total seconds)
+hf_greedy: 24.547322177763874 tok/s (block total tokens / total seconds)
+hf_greedy_compiled: 48.141860106610245 tok/s (block total tokens / total seconds)
+hf_assisted: 16.74767289231452 tok/s (block total tokens / total seconds)
+[phase6] block 3/8 mt_bench_greedy: done in 472 s and saved to the checkpoint. Session elapsed 29.6 min; 1161 generations left, ETA about 76.9 min (estimate from this session's rate, 3.97 s per generation including compile)
+[phase6] block 4/8 mt_bench_t0.7: starting, 141 generations (1161 left to run)
+2026-10-25 09:50:00,170 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:50:00,174 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:50:02,579 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:50:02,581 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:50:05,346 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:50:05,351 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:50:09,282 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:50:09,285 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:50:11,904 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:50:11,908 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:50:14,549 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:50:14,551 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:50:17,216 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:50:17,218 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:50:19,788 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:50:22,581 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:50:48,319 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:50:48,322 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:50:50,607 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:50:50,610 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:50:53,141 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:50:53,144 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:50:55,777 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:50:55,779 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:50:58,019 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:50:58,022 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:50:59,862 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:50:59,864 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:51:01,793 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:51:01,796 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:51:03,773 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:51:06,117 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:51:23,816 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:51:23,819 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:51:23,820 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:51:23,822 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:51:23,823 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:51:23,826 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:51:23,826 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:51:23,829 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:51:23,830 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:51:23,833 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:51:23,834 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:51:23,836 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:51:23,836 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:51:23,838 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:51:23,840 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:51:23,842 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:57:26,062 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:57:26,066 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:57:28,551 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:57:28,554 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:57:31,426 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:57:31,429 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:57:35,483 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:57:35,486 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:57:38,135 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:57:38,137 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:57:40,806 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:57:40,809 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:57:43,514 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:57:43,517 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:57:46,114 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:57:48,726 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+arm_qwen-g2: 58.20314894010966 tok/s (block total tokens / total seconds)
+arm_qwen-g4: 54.74153915549264 tok/s (block total tokens / total seconds)
+arm_qwen-g6: 44.16385268953409 tok/s (block total tokens / total seconds)
+arm_ngram-g2: 53.67526329864018 tok/s (block total tokens / total seconds)
+arm_ngram-g4: 54.128569868604735 tok/s (block total tokens / total seconds)
+arm_ngram-g6: 54.81427827007488 tok/s (block total tokens / total seconds)
+arm_composite-g4: 54.58859204822758 tok/s (block total tokens / total seconds)
+bandit_ucb1: 52.29889895462427 tok/s (block total tokens / total seconds)
+bandit_thompson: 52.642701845919284 tok/s (block total tokens / total seconds)
+hf_sample_compiled: 47.039167970961024 tok/s (block total tokens / total seconds)
+hf_assisted: 10.890847798918573 tok/s (block total tokens / total seconds)
+[phase6] block 4/8 mt_bench_t0.7: done in 471 s and saved to the checkpoint. Session elapsed 37.5 min; 1020 generations left, ETA about 65.0 min (estimate from this session's rate, 3.82 s per generation including compile)
+[phase6] block 5/8 humaneval_edit_greedy: starting, 153 generations (1020 left to run)
+2026-10-25 09:57:51,533 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:57:51,536 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:57:53,423 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:57:53,425 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:57:55,309 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:57:55,312 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:57:57,241 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:57:57,246 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:57:58,920 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:57:58,922 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:58:00,412 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:58:00,414 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:58:01,860 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:58:01,862 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:58:03,391 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:58:05,142 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:58:21,423 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:58:21,426 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:58:23,183 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:58:23,185 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:58:24,790 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:58:24,793 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:58:26,332 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:58:26,335 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:58:27,352 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:58:27,354 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:58:28,021 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:58:28,023 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:58:28,545 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:58:28,547 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:58:29,294 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:58:30,311 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:58:43,448 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:58:43,450 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:58:43,452 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:58:43,455 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:58:43,457 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:58:43,459 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:58:43,461 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:58:43,465 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:58:43,466 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:58:43,469 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:58:43,470 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:58:43,475 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:58:43,476 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 09:58:43,480 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:58:43,483 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 09:58:43,487 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:02:45,592 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:02:45,596 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:02:47,478 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:02:47,481 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:02:49,374 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:02:49,377 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:02:51,303 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:02:51,306 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:02:52,995 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:02:52,998 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:02:54,505 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:02:54,508 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:02:55,961 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:02:55,964 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:02:57,484 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:02:59,233 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+arm_qwen-g2: 70.2850088986192 tok/s (block total tokens / total seconds)
+arm_qwen-g4: 75.402769143059 tok/s (block total tokens / total seconds)
+arm_qwen-g6: 75.37199894833218 tok/s (block total tokens / total seconds)
+arm_ngram-g2: 107.22288740551457 tok/s (block total tokens / total seconds)
+arm_ngram-g4: 140.16742181403353 tok/s (block total tokens / total seconds)
+arm_ngram-g6: 161.05633283319682 tok/s (block total tokens / total seconds)
+arm_composite-g4: 135.4730685282579 tok/s (block total tokens / total seconds)
+bandit_ucb1: 122.92800505386738 tok/s (block total tokens / total seconds)
+bandit_thompson: 135.98638800139773 tok/s (block total tokens / total seconds)
+hf_greedy: 24.38033522643374 tok/s (block total tokens / total seconds)
+hf_greedy_compiled: 48.45432208206881 tok/s (block total tokens / total seconds)
+hf_assisted: 24.294584749008994 tok/s (block total tokens / total seconds)
+[phase6] block 5/8 humaneval_edit_greedy: done in 309 s and saved to the checkpoint. Session elapsed 42.6 min; 867 generations left, ETA about 49.9 min (estimate from this session's rate, 3.45 s per generation including compile)
+[phase6] block 6/8 humaneval_edit_t0.7: starting, 141 generations (867 left to run)
+2026-10-25 10:03:00,950 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:03:00,953 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:03:02,821 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:03:02,824 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:03:04,740 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:03:04,743 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:03:06,620 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:03:06,623 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:03:08,192 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:03:08,194 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:03:09,348 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:03:09,351 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:03:10,827 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:03:10,830 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:03:12,407 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:03:13,962 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:03:23,845 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:03:23,848 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:03:25,710 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:03:25,712 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:03:27,326 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:03:27,329 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:03:28,973 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:03:28,975 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:03:30,039 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:03:30,042 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:03:30,719 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:03:30,721 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:03:31,254 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:03:31,257 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:03:32,013 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:03:33,012 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:03:41,481 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:03:41,484 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:03:41,485 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:03:41,488 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:03:41,490 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:03:41,492 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:03:41,496 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:03:41,498 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:03:41,499 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:03:41,502 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:03:41,503 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:03:41,505 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:03:41,506 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:03:41,508 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:03:41,510 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:03:41,513 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:06:51,170 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:06:51,173 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:06:53,051 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:06:53,053 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:06:54,966 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:06:54,969 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:06:56,849 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:06:56,852 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:06:58,434 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:06:58,437 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:06:59,583 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:06:59,585 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:07:01,065 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:07:01,069 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:07:02,653 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:07:04,225 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+arm_qwen-g2: 67.62688823251747 tok/s (block total tokens / total seconds)
+arm_qwen-g4: 71.59995638048053 tok/s (block total tokens / total seconds)
+arm_qwen-g6: 72.96606526586656 tok/s (block total tokens / total seconds)
+arm_ngram-g2: 107.43825740553294 tok/s (block total tokens / total seconds)
+arm_ngram-g4: 156.03475447515817 tok/s (block total tokens / total seconds)
+arm_ngram-g6: 168.50972198168637 tok/s (block total tokens / total seconds)
+arm_composite-g4: 138.21937030673996 tok/s (block total tokens / total seconds)
+bandit_ucb1: 119.255063830093 tok/s (block total tokens / total seconds)
+bandit_thompson: 167.40160993296038 tok/s (block total tokens / total seconds)
+hf_sample_compiled: 47.85235447567032 tok/s (block total tokens / total seconds)
+hf_assisted: 24.072729686721566 tok/s (block total tokens / total seconds)
+[phase6] block 6/8 humaneval_edit_t0.7: done in 245 s and saved to the checkpoint. Session elapsed 46.7 min; 726 generations left, ETA about 38.4 min (estimate from this session's rate, 3.18 s per generation including compile)
+[phase6] block 7/8 mixed_greedy: starting, 363 generations (726 left to run)
+2026-10-25 10:07:05,898 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:07:05,903 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:07:07,849 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:07:07,851 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:07:09,900 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:07:09,902 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:07:12,121 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:07:12,124 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:07:14,414 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:07:14,416 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:07:16,607 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:07:16,609 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:07:18,764 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:07:18,766 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:07:20,615 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:07:22,628 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:07:24,521 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:07:24,523 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:08:29,295 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:08:31,638 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:08:31,641 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:08:33,710 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:08:33,712 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:08:35,882 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:08:35,884 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:08:38,458 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:08:38,461 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:08:40,406 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:08:40,408 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:08:42,220 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:08:42,223 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:08:44,021 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:08:44,023 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:08:45,745 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:08:47,834 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:08:49,858 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:08:49,861 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:08:52,121 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:08:54,333 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:08:54,336 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:08:54,337 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:08:54,340 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:08:54,340 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:08:54,342 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:08:54,344 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:08:54,345 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:08:54,346 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:08:54,348 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:08:54,349 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:08:54,350 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:08:54,351 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:08:54,353 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:08:54,355 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:08:54,357 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:08:54,358 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:08:54,360 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:08:54,362 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:12:03,433 WARNING torch._inductor.cudagraph_utils.__cudagraphs: CUDAGraph supports dynamic shapes by recording a new graph for each distinct input size. Recording too many CUDAGraphs may lead to extra overhead. We have observed 9 distinct sizes. Please consider the following options for better performance: a) padding inputs to a few fixed number of shapes; or b) set torch._inductor.config.triton.cudagraph_skip_dynamic_graphs=True. Set torch._inductor.config.triton.cudagraph_dynamic_shape_warn_limit=None to silence this warning.
+2026-10-25 10:13:59,620 WARNING torch._inductor.cudagraph_utils.__cudagraphs: CUDAGraph supports dynamic shapes by recording a new graph for each distinct input size. Recording too many CUDAGraphs may lead to extra overhead. We have observed 9 distinct sizes. Please consider the following options for better performance: a) padding inputs to a few fixed number of shapes; or b) set torch._inductor.config.triton.cudagraph_skip_dynamic_graphs=True. Set torch._inductor.config.triton.cudagraph_dynamic_shape_warn_limit=None to silence this warning.
+2026-10-25 10:20:49,592 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:20:49,595 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:20:51,539 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:20:51,541 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:20:53,583 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:20:53,585 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:20:55,799 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:20:55,802 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:20:58,065 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:20:58,067 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:21:00,246 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:21:00,249 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:21:02,414 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:21:02,417 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:21:04,253 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:21:06,261 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:21:08,161 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:21:08,163 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:21:10,186 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+arm_qwen-g2: 65.16081282682634 tok/s (block total tokens / total seconds)
+arm_qwen-g4: 64.74130386751415 tok/s (block total tokens / total seconds)
+arm_qwen-g6: 60.82585585764901 tok/s (block total tokens / total seconds)
+arm_ngram-g2: 68.65957746912103 tok/s (block total tokens / total seconds)
+arm_ngram-g4: 73.75676263701732 tok/s (block total tokens / total seconds)
+arm_ngram-g6: 75.96419755365469 tok/s (block total tokens / total seconds)
+arm_composite-g4: 78.89803748151297 tok/s (block total tokens / total seconds)
+bandit_ucb1: 75.01966105459854 tok/s (block total tokens / total seconds)
+bandit_thompson: 75.33373795383227 tok/s (block total tokens / total seconds)
+flashspec_compiled_legacy: 64.77049385924838 tok/s (block total tokens / total seconds)
+bandit_ucb1_legacy: 23.26460410753764 tok/s (block total tokens / total seconds)
+[phase6] block 7/8 mixed_greedy: done in 846 s and saved to the checkpoint. Session elapsed 60.8 min; 363 generations left, ETA about 17.7 min (estimate from this session's rate, 2.93 s per generation including compile)
+[phase6] block 8/8 mixed_t0.7: starting, 363 generations (363 left to run)
+2026-10-25 10:21:12,420 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:21:12,423 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:21:14,405 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:21:14,408 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:21:16,536 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:21:16,538 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:21:18,721 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:21:18,724 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:21:20,930 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:21:20,933 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:21:23,319 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:21:23,323 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:21:25,171 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:21:25,174 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:21:27,271 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:21:29,392 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:21:31,420 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:21:31,422 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:21:33,528 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:21:35,525 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:21:35,527 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:21:37,494 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:21:37,497 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:21:39,625 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:21:39,628 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:21:42,338 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:21:42,341 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:21:44,393 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:21:44,396 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:21:46,479 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:21:46,482 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:21:48,812 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:21:48,814 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:21:50,450 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:21:52,362 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:21:54,748 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:21:54,750 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:21:56,867 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:21:58,868 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:21:58,871 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:21:58,874 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:21:58,876 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:21:58,878 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:21:58,880 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:21:58,883 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:21:58,887 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:21:58,888 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:21:58,890 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:21:58,892 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:21:58,894 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:21:58,896 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:21:58,899 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:21:58,901 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:21:58,904 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:21:58,905 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:21:58,907 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:21:58,910 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:32:22,576 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:32:22,579 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:32:24,579 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:32:24,582 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:32:26,733 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:32:26,735 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:32:28,933 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:32:28,935 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:32:31,135 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:32:31,139 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:32:33,532 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:32:33,535 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:32:35,398 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:32:35,401 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:32:37,490 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:32:39,610 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:32:41,558 WARNING flashspec.engine.speculative: Bandit has a single arm and cannot adapt. Register two or more drafters before expecting a throughput or acceptance gain over a fixed drafter.
+2026-10-25 10:32:41,561 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+2026-10-25 10:32:43,671 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+arm_qwen-g2: 64.25245644372939 tok/s (block total tokens / total seconds)
+arm_qwen-g4: 61.973555181507464 tok/s (block total tokens / total seconds)
+arm_qwen-g6: 57.185096449718024 tok/s (block total tokens / total seconds)
+arm_ngram-g2: 66.61968010815546 tok/s (block total tokens / total seconds)
+arm_ngram-g4: 73.04645366961192 tok/s (block total tokens / total seconds)
+arm_ngram-g6: 74.69249788795351 tok/s (block total tokens / total seconds)
+arm_composite-g4: 73.51670787656015 tok/s (block total tokens / total seconds)
+bandit_ucb1: 72.4274254670285 tok/s (block total tokens / total seconds)
+bandit_thompson: 73.15578604574415 tok/s (block total tokens / total seconds)
+flashspec_compiled_legacy: 61.927292857811615 tok/s (block total tokens / total seconds)
+bandit_ucb1_legacy: 72.07069363483879 tok/s (block total tokens / total seconds)
+[phase6] block 8/8 mixed_t0.7: done in 693 s and saved to the checkpoint. Session elapsed 72.4 min; 0 generations left, ETA about 0.0 min (estimate from this session's rate, 2.70 s per generation including compile)
+=== benchmarks/configs/qwen_t4_phase6.yaml: ok in 4407.869784374 s ===
+
+Total: 4410.003510455001 s
