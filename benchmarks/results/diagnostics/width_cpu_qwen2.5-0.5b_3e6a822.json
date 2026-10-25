@@ -1,0 +1,247 @@
+{
+  "git_commit": "3e6a822",
+  "target": "Qwen/Qwen2.5-0.5B-Instruct",
+  "device": "cpu",
+  "torch": "2.14.1+cpu",
+  "new_tokens": 128,
+  "cases": [
+    {
+      "dataset": "mt_bench",
+      "prompt_id": "81",
+      "bundle_divergence": 74,
+      "bundle_group": "verify_width_7",
+      "prompt_tokens": 51,
+      "paths": {
+        "hf_eager": {
+          "divergence_vs_hf_static": null
+        },
+        "hf_static": {
+          "divergence_vs_hf_static": null
+        },
+        "flashspec_g6_padded_w7": {
+          "verify_call_widths": [
+            7
+          ],
+          "divergence_vs_hf_static": null,
+          "divergence_vs_hf_eager": null
+        },
+        "flashspec_g6_unpadded": {
+          "verify_call_widths": [
+            6,
+            7
+          ],
+          "divergence_vs_hf_static": null,
+          "divergence_vs_hf_eager": null
+        },
+        "flashspec_g4_padded_w5": {
+          "verify_call_widths": [
+            5
+          ],
+          "divergence_vs_hf_static": null,
+          "divergence_vs_hf_eager": null
+        },
+        "flashspec_g2_padded_w7": {
+          "verify_call_widths": [
+            7
+          ],
+          "divergence_vs_hf_static": null,
+          "divergence_vs_hf_eager": null
+        },
+        "flashspec_g2_unpadded": {
+          "verify_call_widths": [
+            2,
+            3
+          ],
+          "divergence_vs_hf_static": null,
+          "divergence_vs_hf_eager": null
+        }
+      },
+      "pad_independence_at_bundle_divergence": {
+        "width": 7,
+        "trials": 4,
+        "row0_bit_identical": true,
+        "max_abs_difference": 0.0
+      },
+      "dtype": "float32"
+    },
+    {
+      "dataset": "mt_bench",
+      "prompt_id": "101",
+      "bundle_divergence": 44,
+      "bundle_group": "verify_width_7",
+      "prompt_tokens": 67,
+      "paths": {
+        "hf_eager": {
+          "divergence_vs_hf_static": null
+        },
+        "hf_static": {
+          "divergence_vs_hf_static": null
+        },
+        "flashspec_g6_padded_w7": {
+          "verify_call_widths": [
+            7
+          ],
+          "divergence_vs_hf_static": null,
+          "divergence_vs_hf_eager": null
+        },
+        "flashspec_g6_unpadded": {
+          "verify_call_widths": [
+            6,
+            7
+          ],
+          "divergence_vs_hf_static": null,
+          "divergence_vs_hf_eager": null
+        },
+        "flashspec_g4_padded_w5": {
+          "verify_call_widths": [
+            5
+          ],
+          "divergence_vs_hf_static": null,
+          "divergence_vs_hf_eager": null
+        },
+        "flashspec_g2_padded_w7": {
+          "verify_call_widths": [
+            7
+          ],
+          "divergence_vs_hf_static": null,
+          "divergence_vs_hf_eager": null
+        },
+        "flashspec_g2_unpadded": {
+          "verify_call_widths": [
+            2,
+            3
+          ],
+          "divergence_vs_hf_static": null,
+          "divergence_vs_hf_eager": null
+        }
+      },
+      "pad_independence_at_bundle_divergence": {
+        "width": 7,
+        "trials": 4,
+        "row0_bit_identical": true,
+        "max_abs_difference": 0.0
+      },
+      "dtype": "float32"
+    },
+    {
+      "dataset": "humaneval",
+      "prompt_id": "HumanEval/53",
+      "bundle_divergence": 94,
+      "bundle_group": "verify_width_7",
+      "prompt_tokens": 77,
+      "paths": {
+        "hf_eager": {
+          "divergence_vs_hf_static": null
+        },
+        "hf_static": {
+          "divergence_vs_hf_static": null
+        },
+        "flashspec_g6_padded_w7": {
+          "verify_call_widths": [
+            7
+          ],
+          "divergence_vs_hf_static": null,
+          "divergence_vs_hf_eager": null
+        },
+        "flashspec_g6_unpadded": {
+          "verify_call_widths": [
+            6,
+            7
+          ],
+          "divergence_vs_hf_static": null,
+          "divergence_vs_hf_eager": null
+        },
+        "flashspec_g4_padded_w5": {
+          "verify_call_widths": [
+            5
+          ],
+          "divergence_vs_hf_static": null,
+          "divergence_vs_hf_eager": null
+        },
+        "flashspec_g2_padded_w7": {
+          "verify_call_widths": [
+            7
+          ],
+          "divergence_vs_hf_static": null,
+          "divergence_vs_hf_eager": null
+        },
+        "flashspec_g2_unpadded": {
+          "verify_call_widths": [
+            2,
+            3
+          ],
+          "divergence_vs_hf_static": null,
+          "divergence_vs_hf_eager": null
+        }
+      },
+      "pad_independence_at_bundle_divergence": {
+        "width": 7,
+        "trials": 4,
+        "row0_bit_identical": true,
+        "max_abs_difference": 0.0
+      },
+      "dtype": "float32"
+    },
+    {
+      "dataset": "mt_bench",
+      "prompt_id": "82",
+      "bundle_divergence": 97,
+      "bundle_group": "legacy (unpadded) bandit",
+      "prompt_tokens": 75,
+      "paths": {
+        "hf_eager": {
+          "divergence_vs_hf_static": null
+        },
+        "hf_static": {
+          "divergence_vs_hf_static": null
+        },
+        "flashspec_g6_padded_w7": {
+          "verify_call_widths": [
+            7
+          ],
+          "divergence_vs_hf_static": null,
+          "divergence_vs_hf_eager": null
+        },
+        "flashspec_g6_unpadded": {
+          "verify_call_widths": [
+            6,
+            7
+          ],
+          "divergence_vs_hf_static": null,
+          "divergence_vs_hf_eager": null
+        },
+        "flashspec_g4_padded_w5": {
+          "verify_call_widths": [
+            5
+          ],
+          "divergence_vs_hf_static": null,
+          "divergence_vs_hf_eager": null
+        },
+        "flashspec_g2_padded_w7": {
+          "verify_call_widths": [
+            7
+          ],
+          "divergence_vs_hf_static": null,
+          "divergence_vs_hf_eager": null
+        },
+        "flashspec_g2_unpadded": {
+          "verify_call_widths": [
+            2,
+            3
+          ],
+          "divergence_vs_hf_static": null,
+          "divergence_vs_hf_eager": null
+        }
+      },
+      "pad_independence_at_bundle_divergence": {
+        "width": 7,
+        "trials": 4,
+        "row0_bit_identical": true,
+        "max_abs_difference": 0.0
+      },
+      "dtype": "float32"
+    }
+  ],
+  "fp32_all_match": true,
+  "pad_independence_all_bit_identical": true
+}
