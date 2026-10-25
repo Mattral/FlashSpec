@@ -1,0 +1,52 @@
+# 0.3.0 release measurement on a Colab Tesla T4: qwen_t4_compile_auto.yaml
+# (the 0.2.0 release config) with the FlashSpec methods built the way a
+# default 0.3.0 user gets them.
+#
+# Identical to qwen_t4_compile_auto.yaml (same pair, prompts, modes, lengths,
+# warmups, seed and the same seven methods, including compiled HuggingFace
+# greedy and sampled) except for one key:
+#
+#   drafter_strategy: auto
+#
+# flashspec_ucb (eager, compile=False) and flashspec_compiled
+# (compile="auto") then run with FlashSpecConfig(drafter_strategy="auto"):
+# one model drafter at batch 1 resolves to composite-g6-f2 (prompt lookup up
+# to 6 tokens when the context has a match, else Qwen2.5-0.5B drafts 2).
+# Each result records the requested and resolved strategy, the reason, and
+# a per-arm report (lookup vs model steps).
+#
+# Run it from a commit on main through notebooks/04_gpu_measurement.ipynb
+# (cells 1, 2 and 3g). The README tables for 0.3.0 are generated from this
+# bundle only (scripts/ingest_gpu_bundle.py --readme-commit <that commit>).
+
+model: Qwen/Qwen2.5-1.5B-Instruct
+drafter: Qwen/Qwen2.5-0.5B-Instruct
+device: cuda:0
+dtype: float16
+gamma: 4
+batch_size: 1
+max_new_tokens: 128
+n_warmup: 2
+n_samples: 10
+seed: 0
+chat_template: true
+compile_max_cache_len: 1024
+flashspec_compile: auto
+drafter_strategy: auto
+
+datasets:
+  - mt_bench
+  - humaneval
+
+temperatures:
+  - 0.0
+  - 0.7
+
+methods:
+  - flashspec_ucb
+  - flashspec_compiled
+  - hf_greedy
+  - hf_greedy_compiled
+  - hf_sample
+  - hf_sample_compiled
+  - hf_assisted
