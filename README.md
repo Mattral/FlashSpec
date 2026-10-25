@@ -37,14 +37,14 @@ pip install flashspec
 | extra | adds | when you want it |
 |---|---|---|
 | `flashspec[gpu]` | Triton (Linux only) | The compiled path needs Triton; Linux CUDA builds of PyTorch already ship it. Also enables the experimental Triton kernels. |
-| `flashspec[serve]` | FastAPI, uvicorn, httpx | The OpenAI-compatible server. Also `pip install accelerate`: the server loads checkpoints with `device_map`. |
+| `flashspec[serve]` | FastAPI, uvicorn, httpx, accelerate | The OpenAI-compatible server (it loads checkpoints with `device_map`, which needs `accelerate`). |
 | `flashspec[asm]` | `flashspec-asm-kernel` (Linux x86-64) | An experimental CPU residual kernel. It does not change end-to-end speed. |
 
 You need Python 3.11 or later, PyTorch 2.2 or later and transformers 4.40 or later. Installing from source, Docker, Windows and macOS notes, and the full requirements table are in [docs/install.md](https://github.com/Mattral/FlashSpec/blob/main/docs/install.md).
 
 ## Quickstart
 
-This loads the measured model pair, decodes greedily, and prints the text and the speed. Without CUDA it falls back to CPU and float32, which is slow.
+This loads the measured model pair, decodes greedily, and prints the text and the speed. With one model drafter the default `drafter_strategy="auto"` runs `composite-g6-f2`: prompt lookup when the context has a match, else the drafter (see [Choose a drafter](https://github.com/Mattral/FlashSpec#choose-a-drafter)). Without CUDA it falls back to CPU and float32, which is slow.
 
 ```python
 import torch
@@ -83,16 +83,31 @@ There are three kinds, and all are lossless:
 - **prompt lookup** (`NgramDrafter`): proposes the continuation of the most recent earlier match of the last 1 to 3 tokens. No second model;
 - **composite**: prompt lookup when the context has a match, else the model drafter.
 
-```python
-from flashspec.engine import ArmSpec, NgramDrafter
+`FlashSpecConfig.drafter_strategy` names the arms the engine builds when you do not pass `arms=` (the server takes the same names as `--drafter-strategy`):
 
-lookup = SpeculativeEngine(config, [NgramDrafter()], target, UCB1Selector(n_arms=1))
-composite = SpeculativeEngine(
-    config, [drafter, NgramDrafter()], target, UCB1Selector(n_arms=1),
-    arms=[ArmSpec(drafter=1, gamma=4, fallback=0)],  # drafter 1 = lookup, fallback 0 = model
-)
-result = composite.generate(prompt, max_new_tokens=64)
-print([step.drafter for step in result.arm_steps])  # which drafter proposed each step
+| strategy | what drafts each step | drafters to pass |
+|---|---|---|
+| `"auto"` (default) | `"composite-g6-f2"` when you pass one model drafter, the `"bandit"` path otherwise; a call at batch > 1 or with `variant="typical"` uses the model drafter at `sampling.gamma` | one or more drafters |
+| `"bandit"` (0.2.0 behaviour) | one arm per drafter at `sampling.gamma`, chosen online by the selector you pass (experimental) | one or more drafters |
+| `"composite-g4"` | prompt lookup, up to 4 tokens, when the context has a match; else the model drafter drafts 4 | a model drafter (an `NgramDrafter` is added if you pass none) |
+| `"composite-g6-f2"` | prompt lookup, up to 6 tokens, when the context has a match; else the model drafter drafts 2 | a model drafter (an `NgramDrafter` is added if you pass none) |
+
+A composite strategy is one fixed arm (`bandit.n_arms` defaults to 1), runs at batch 1 with `variant` `"rejection"` or `"greedy"` (set explicitly, any other call raises), and verifies at width `max gamma + 1`. Lookup steps use Algorithm 1 with a one-hot draft distribution, so it is lossless; the chi-squared tests cover separate lookup and fallback gammas. The engine logs one line with the strategy it chose and why, and keeps them in `engine.drafter_strategy` and `engine.drafter_strategy_reason`. `drafter_strategy="bandit"` restores the 0.2.0 behaviour.
+
+The default was chosen by a rule fixed before the run (`benchmarks/configs/qwen_t4_composite.yaml`, applied by `scripts/composite_report.py`). In that T4 run (bundle `fdd3be9`), composite-g6-f2 had the higher mixed-workload greedy throughput, was faster than compiled HuggingFace on HumanEval, MT-Bench and HumanEval-edit in greedy and at T=0.7, and matched compiled HuggingFace greedy output except at three fp16 exact ties (HumanEval/53, MT-Bench 81 and 101, the ties the #47 diagnostic found) ([values](https://github.com/Mattral/FlashSpec/tree/main/benchmarks/results/gpu/fdd3be9)). The README tables below are still the 0.2.0 model-drafter run.
+
+```python
+from flashspec.engine import NgramDrafter
+
+greedy = SamplingConfig(temperature=0.0)
+composite = FlashSpecConfig(device=str(device), drafter_strategy="composite-g6-f2", sampling=greedy)
+engine = SpeculativeEngine(composite, [drafter, NgramDrafter()], target, UCB1Selector(n_arms=1))
+result = engine.generate(prompt, max_new_tokens=64)
+print(engine.arms, [step.drafter for step in result.arm_steps])  # drafter used at each step
+
+lookup_only = FlashSpecConfig(device=str(device), drafter_strategy="bandit",  # one arm per drafter
+                              bandit=BanditConfig(n_arms=1), sampling=greedy)
+lookup = SpeculativeEngine(lookup_only, [NgramDrafter()], target, UCB1Selector(n_arms=1))
 ```
 
 Which is fastest depends on the prompts. In the Phase 6 T4 run (greedy, bundle `3e38251`), the fastest fixed choice was the composite at gamma 4 on HumanEval and on the mixed workload, the model drafter at gamma 2 on MT-Bench, and prompt lookup at gamma 6 on code edits ([values](https://github.com/Mattral/FlashSpec/tree/main/benchmarks/results/gpu/3e38251)). Several arms plus a UCB1 or Thompson selector let a bandit choose online; that is experimental, and in the same run it did not beat the best fixed arm ([bandit](https://github.com/Mattral/FlashSpec/blob/main/docs/bandit.md)).
@@ -124,7 +139,7 @@ The default `compile="auto"` turns the compiled path on when the device is CUDA 
 ### Run the OpenAI-compatible server
 
 ```bash
-pip install "flashspec[serve]" accelerate
+pip install "flashspec[serve]"
 python -m flashspec.serve --target Qwen/Qwen2.5-1.5B-Instruct --drafter Qwen/Qwen2.5-0.5B-Instruct \
     --device cuda:0 --dtype float16 --temperature 0
 ```
@@ -158,7 +173,7 @@ own = SpeculativeEngine(config, [RepeatLast(target.vocab_size)], target, UCB1Sel
 result = own.generate(prompt, max_new_tokens=32)
 ```
 
-The proposals must be draws from the distribution you return. Algorithm 1 is then exact for any drafter, and a poor drafter only lowers the acceptance rate. To build a drafter by name with `load_drafters`, decorate its class with `@flashspec.register("name")`; the constructor then receives `device`, `dtype` and `temperature`.
+With the default `drafter_strategy="auto"`, one drafter of yours becomes the fallback of the composite (prompt lookup first); pass `drafter_strategy="bandit"` to run it alone. The proposals must be draws from the distribution you return. Algorithm 1 is then exact for any drafter, and a poor drafter only lowers the acceptance rate. To build a drafter by name with `load_drafters`, decorate its class with `@flashspec.register("name")`; the constructor then receives `device`, `dtype` and `temperature`.
 
 ## API at a glance
 
@@ -169,7 +184,7 @@ Generated from the code by `scripts/readme_api.py`; a test fails when it is stal
 
 | API | What it does | Key arguments, with defaults |
 |---|---|---|
-| `flashspec.FlashSpecConfig` | Top-level FlashSpec runtime configuration. | fields: `drafter_name: str = "llama3-1b"`, `target_name: str = "meta-llama/Llama-3-8B-Instruct"`, `device: str = "cuda:0"`, `dtype: "float32" \| "bfloat16" \| "float16" = "bfloat16"`, `max_new_tokens: int = 512`, `eos_token_ids: tuple[int, ...] = ()`, `compile: bool \| "auto" = "auto"`, `compile_max_cache_len: int = 1024`, `compile_fixed_shapes: bool = True`, `bandit: BanditConfig = BanditConfig()`, `sampling: SamplingConfig = SamplingConfig()`, `metrics: MetricsConfig = MetricsConfig()` |
+| `flashspec.FlashSpecConfig` | Top-level FlashSpec runtime configuration. | fields: `drafter_name: str = "llama3-1b"`, `target_name: str = "meta-llama/Llama-3-8B-Instruct"`, `device: str = "cuda:0"`, `dtype: "float32" \| "bfloat16" \| "float16" = "bfloat16"`, `max_new_tokens: int = 512`, `eos_token_ids: tuple[int, ...] = ()`, `drafter_strategy: "auto" \| "bandit" \| "composite-g4" \| "composite-g6-f2" = "auto"`, `compile: bool \| "auto" = "auto"`, `compile_max_cache_len: int = 1024`, `compile_fixed_shapes: bool = True`, `bandit: BanditConfig = BanditConfig()`, `sampling: SamplingConfig = SamplingConfig()`, `metrics: MetricsConfig = MetricsConfig()` |
 | `flashspec.SamplingConfig` | Configuration for speculative sampling. | fields: `gamma: int = 4`, `temperature: float = 1.0`, `top_p: float = 1.0`, `seed: int \| None = None`, `variant: "rejection" \| "typical" \| "greedy" = "rejection"` |
 | `flashspec.BanditConfig` | Configuration for the online bandit draft selector. | fields: `strategy: "ucb1" \| "thompson" \| "oracle" = "ucb1"`, `window_size: int = 500`, `n_arms: int = 2`, `ucb_exploration_constant: float = 1.0`, `thompson_prior_alpha: float = 1.0`, `thompson_prior_beta: float = 1.0` |
 | `flashspec.SpeculativeEngine` | Adaptive speculative-decoding inference engine. | arguments: `config: FlashSpecConfig`, `drafters: list[DraftModel]`, `target: TargetModel`, `bandit: DraftSelector`, `arms: Sequence[ArmSpec] \| None = None` |
@@ -179,7 +194,7 @@ Generated from the code by `scripts/readme_api.py`; a test fails when it is stal
 | `flashspec.engine.HuggingFaceDrafter` | Draft model backed by a HuggingFace causal LM. | arguments: `model_name_or_path: str`, `device: torch.device \| str`, `dtype: torch.dtype = torch.float32`, `temperature: float = 1.0`, `model: Any \| None = None` |
 | `flashspec.engine.load_drafters` | Instantiate drafters in arm order. | arguments: `names: list[str] \| tuple[str, ...]`, `device: torch.device \| str`, `dtype: torch.dtype = torch.float32`, `temperature: float = 1.0`, `models: dict[str, Any] \| None = None` |
 | `flashspec.engine.NgramDrafter` | Prompt-lookup drafter: continue the most recent earlier match of the last n tokens. | arguments: `max_ngram: int = 3`, `min_ngram: int = 1`, `name: str = "ngram"` |
-| `flashspec.engine.ArmSpec` | One bandit arm. | fields: `drafter: int`, `gamma: int`, `label: str = ""`, `fallback: int \| None = None` |
+| `flashspec.engine.ArmSpec` | One bandit arm. | fields: `drafter: int`, `gamma: int`, `label: str = ""`, `fallback: int \| None = None`, `fallback_gamma: int \| None = None` |
 | `flashspec.bandit.UCB1Selector` | UCB1 bandit selector for adaptive draft-model selection. | arguments: `n_arms: int`, `window_size: int = 500`, `exploration_constant: float = 1.0`, `normalise_rewards: bool = True` |
 | `flashspec.bandit.ThompsonSelector` | Thompson sampling bandit selector for draft-model selection. | arguments: `n_arms: int`, `window_size: int = 500`, `prior_alpha: float = 1.0`, `prior_beta: float = 1.0`, `seed: int \| None = None` |
 | `flashspec.engine.DraftModel` | Protocol that every draft model must satisfy. | methods: `generate_draft(input_ids: torch.Tensor, gamma: int)`, `compute_logprobs(input_ids: torch.Tensor, draft_token_ids: torch.Tensor)` |
@@ -191,8 +206,8 @@ Defaults that change behaviour:
 - `FlashSpecConfig.compile = "auto"`: the compiled path (static KV cache, CUDA graphs) turns on when the device is CUDA and Triton is installed, and stays off otherwise.
 - `SamplingConfig.temperature = 1.0` with `variant = "rejection"`: the default samples (Algorithm 1). `temperature=0.0` selects `variant="greedy"`.
 - `SamplingConfig.gamma = 4`: draft tokens per step.
-- Drafter strategy: `SpeculativeEngine(..., arms=None)` makes one arm per drafter at `sampling.gamma`, and the selector you pass chooses between them. With one drafter that is a fixed drafter.
-- `BanditConfig.n_arms = 2`: it must equal the number of arms, so pass `BanditConfig(n_arms=1)` for one drafter.
+- `FlashSpecConfig.drafter_strategy = "auto"`: the arms `SpeculativeEngine(..., arms=None)` builds. `"auto"` runs `"composite-g6-f2"` (prompt lookup when the context has a match, else the model drafter; an `NgramDrafter` is added) when given one model drafter, and the `"bandit"` path otherwise; a call at batch > 1 or with `variant="typical"` uses the model drafter at `sampling.gamma`. `"bandit"` (the 0.2.0 behaviour) is one arm per drafter at `sampling.gamma`, chosen by the selector you pass. An explicit composite needs batch 1.
+- `BanditConfig.n_arms = 2` when you pass a `BanditConfig` yourself: it must equal the number of arms, so pass `BanditConfig(n_arms=1)` for one arm. Under `"auto"` with no `bandit=`, or a composite with no `bandit=`, it is not a constraint.
 - `FlashSpecConfig.device = "cuda:0"`, `max_new_tokens = 512`.
 
 Server flags (`python -m flashspec.serve`):
@@ -210,6 +225,7 @@ Server flags (`python -m flashspec.serve`):
 | `--gamma` | `4` |  |
 | `--max-new-tokens` | `128` |  |
 | `--temperature` | `1.0` |  |
+| `--drafter-strategy` | `"auto"` | "auto", "bandit", "composite-g4", "composite-g6-f2" |
 | `--strategy` | `"ucb1"` | "ucb1", "thompson" |
 | `--dtype` | `"float32"` | "float32", "bfloat16", "float16" |
 | `--compile` | `"auto"` | "auto", "on", "off" |
@@ -301,9 +317,17 @@ FlashSpec is alpha; the release on PyPI is 0.2.0.
 - **Batch > 1** uses the generic loop: each step forwards only the largest group of rows that share a context length.
 - **Single device.** One process and one GPU or CPU. The server has no streaming, no paged KV cache and no continuous batching.
 - **Windows and macOS.** `pip install flashspec` works, but Triton is Linux-only, so the compiled path is Linux + CUDA only.
+- **Default drafter strategy.** `"auto"`, which runs `composite-g6-f2` with one model drafter at batch 1. Pass `drafter_strategy="bandit"` for the 0.2.0 behaviour.
 - **Experimental: the bandit.** The UCB1/Thompson selector was measured choosing among seven arms once (Phase 6, bundle `3e38251`) and did not beat the best fixed arm on the mixed workload. See [docs/bandit.md](https://github.com/Mattral/FlashSpec/blob/main/docs/bandit.md) and the [CHANGELOG](https://github.com/Mattral/FlashSpec/blob/main/CHANGELOG.md).
 - **Experimental: the kernels.** The Triton `verify_tokens` / `gather_accepted` kernels and the assembly residual are not called on the generation path; the accept/reject test runs in PyTorch. Measurements: [docs/kernels.md](https://github.com/Mattral/FlashSpec/blob/main/docs/kernels.md).
 - Waiting on a GPU or an upload: [docs/postponed.md](https://github.com/Mattral/FlashSpec/blob/main/docs/postponed.md).
+
+### Future work
+
+Not scheduled and not implemented:
+
+- **A contextual bandit, run once.** The Phase 6 bandit had no context, and the best fixed arm changed between consecutive prompts of the mixed workload more often than not. A pre-registered design: the context is the next lookup's match length bucket ({0, 1-2, 3-4, >= 5}), which the step's single device read already carries; with no match the arms are Qwen at gamma 2, 4 and 6, otherwise n-gram and Qwen at gamma 2, 4 and 6; the value per (context, arm) is total emitted tokens / total seconds, not a mean of per-step ratios; UCB1, normalised, verify width 7. Its exit criteria would be fixed before the run (beat `composite-g4` and every fixed arm on the mixed workload in both modes, within 5% of each set's best fixed arm, faster than compiled HuggingFace everywhere, no new greedy mismatches), and a miss would be recorded without tuning or a second attempt. The oracle ceiling estimated from the Phase 6 bundle is small, so near parity with the composite strategy is the expected outcome.
+- A larger target (Qwen2.5-3B-Instruct with the 0.5B drafter on the T4), the batch > 1 path, and draft log-probs kept in the model dtype.
 
 ## Citing
 

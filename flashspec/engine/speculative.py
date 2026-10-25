@@ -16,10 +16,17 @@ from typing import Any
 import torch
 
 from flashspec.bandit.base import DraftSelector
-from flashspec.engine.arms import ArmSpec, ArmStep, default_arms, validate_arms
+from flashspec.engine.arms import (
+    COMPOSITE_STRATEGIES,
+    ArmSpec,
+    ArmStep,
+    default_arms,
+    strategy_arms,
+    validate_arms,
+)
 from flashspec.engine.drafter import DraftModel
 from flashspec.engine.kv_cache import CacheUnavailableError, debug_cache_enabled
-from flashspec.engine.ngram import is_lookup_drafter
+from flashspec.engine.ngram import NgramDrafter, is_lookup_drafter
 from flashspec.engine.verifier import TargetModel
 from flashspec.metrics.acceptance import AcceptanceTracker
 from flashspec.metrics.latency import LatencyTracker
@@ -32,7 +39,7 @@ from flashspec.utils.config import FlashSpecConfig
 from flashspec.utils.device import CompileDecision, get_device, resolve_compile
 from flashspec.utils.logging import get_logger
 
-__all__ = ["DRAFTER_PAD_WIDTHS", "SpeculativeEngine", "GenerationResult"]
+__all__ = ["AUTO_STRATEGY", "DRAFTER_PAD_WIDTHS", "SpeculativeEngine", "GenerationResult"]
 
 logger = get_logger(__name__)
 
@@ -41,6 +48,10 @@ logger = get_logger(__name__)
 # catch-up. A call is padded at the end to the next width, so these are the
 # only shapes captured. Longer catch-ups run eagerly in one call.
 DRAFTER_PAD_WIDTHS: tuple[int, ...] = (1, 2, 4, 8, 16, 32)
+
+#: What ``drafter_strategy="auto"`` picks when it can: the winner of the
+#: pre-registered composite comparison (bundle ``fdd3be9``, Tesla T4).
+AUTO_STRATEGY = "composite-g6-f2"
 
 
 @dataclass(slots=True, frozen=True)
@@ -311,13 +322,26 @@ class SpeculativeEngine:
     arms : sequence of ArmSpec or None
         The bandit's arms: a drafter index and a gamma each, so arms can
         share a drafter (one model, one cache) at different gammas.
-        ``None`` makes one arm per drafter at ``config.sampling.gamma``.
+        ``None`` builds them from ``config.drafter_strategy``
+        (:func:`flashspec.engine.arms.strategy_arms`): for ``"bandit"``,
+        one arm per drafter at ``config.sampling.gamma``; for a composite
+        strategy, one composite arm over the first lookup drafter and the
+        first model drafter, with an :class:`NgramDrafter` added when none
+        is given. ``"auto"`` (the default) resolves to
+        :data:`AUTO_STRATEGY` when the drafters are one model drafter and at
+        most one lookup drafter, and to ``"bandit"`` otherwise; a call that
+        the composite cannot run (batch > 1 or ``variant="typical"``) then
+        uses the model drafter at ``config.sampling.gamma``. The choice and
+        its reason are logged once and kept in :attr:`drafter_strategy` and
+        :attr:`drafter_strategy_reason`.
 
     Raises
     ------
     ValueError
-        If the number of arms (``len(drafters)`` when ``arms`` is ``None``)
-        does not match ``config.bandit.n_arms``, or an arm is invalid.
+        If the number of arms does not match ``config.bandit.n_arms`` (not
+        checked for ``"auto"`` when ``config.bandit`` was left at its
+        default), a composite strategy has no model drafter, or an arm is
+        invalid.
 
     Notes
     -----
@@ -344,20 +368,61 @@ class SpeculativeEngine:
         bandit: DraftSelector,
         arms: Sequence[ArmSpec] | None = None,
     ) -> None:
-        if arms is None:
-            if len(drafters) != config.bandit.n_arms:
-                raise ValueError(
-                    f"len(drafters)={len(drafters)} must match "
-                    f"config.bandit.n_arms={config.bandit.n_arms}."
-                )
-            arms = default_arms(len(drafters), config.sampling.gamma)
+        drafters = list(drafters)
         lookup = [is_lookup_drafter(drafter) for drafter in drafters]
+        gamma = config.sampling.gamma
+        requested = config.drafter_strategy
+        # Under "auto" with the bandit config left at its default, the arm
+        # count follows the drafters instead of config.bandit.n_arms.
+        check_n_arms = requested != "auto" or "bandit" in config.model_fields_set
+        # Arms a call that the auto-chosen composite cannot run uses instead.
+        self._auto_fallback: list[ArmSpec] | None = None
+        if arms is not None:
+            strategy, reason = "arms", "arms= given"
+        else:
+            models = [index for index, flag in enumerate(lookup) if not flag]
+            n_lookup = len(drafters) - len(models)
+            if requested != "auto":
+                strategy, reason = requested, "set explicitly"
+            elif len(models) == 1 and n_lookup <= 1:
+                strategy = AUTO_STRATEGY
+                reason = "auto: one model drafter; batch-1 calls only, others use the model drafter"
+            else:
+                strategy = "bandit"
+                reason = (
+                    f"auto: {len(models)} model and {n_lookup} lookup drafters given; "
+                    f"{AUTO_STRATEGY} needs one model drafter"
+                )
+            if strategy in COMPOSITE_STRATEGIES and n_lookup == 0 and models:
+                drafters.append(NgramDrafter())  # type: ignore[arg-type]
+                lookup.append(True)
+                reason += "; prompt lookup (NgramDrafter) added"
+            if strategy == "bandit":
+                if check_n_arms and len(drafters) != config.bandit.n_arms:
+                    raise ValueError(
+                        f"len(drafters)={len(drafters)} must match "
+                        f"config.bandit.n_arms={config.bandit.n_arms}."
+                    )
+                arms = default_arms(len(drafters), gamma)
+            else:
+                arms = strategy_arms(strategy, lookup, gamma)
+                if requested == "auto":
+                    self._auto_fallback = [ArmSpec(models[0], gamma, label="model")]
+            logger.info(
+                "Drafter strategy %s (%s).",
+                strategy,
+                reason,
+                extra={"drafter_strategy": strategy, "requested": requested},
+            )
         validate_arms(arms, len(drafters), lookup)
-        if len(arms) != config.bandit.n_arms:
+        if check_n_arms and len(arms) != config.bandit.n_arms:
             raise ValueError(
                 f"len(arms)={len(arms)} must match config.bandit.n_arms={config.bandit.n_arms}."
             )
-        if config.bandit.n_arms < 2:
+        self._strategy = strategy
+        self._strategy_reason = reason
+        self._fallback_logged: set[str] = set()
+        if len(arms) < 2 and strategy == "bandit":
             logger.warning(
                 "Bandit has a single arm and cannot adapt. Register two or "
                 "more drafters before expecting a throughput or acceptance "
@@ -376,7 +441,7 @@ class SpeculativeEngine:
         # variable number of tokens; they need the batch-1 fast path.
         self._lookup = lookup
         self._arms: list[ArmSpec] = list(arms)
-        self._gamma_max = max(arm.gamma for arm in self._arms)
+        self._gamma_max = max(arm.max_gamma for arm in (*self._arms, *(self._auto_fallback or ())))
         self._target = target
         self._bandit = bandit
         self._device = get_device(config.device)
@@ -437,6 +502,20 @@ class SpeculativeEngine:
     def arms(self) -> tuple[ArmSpec, ...]:
         """The bandit's arms, in bandit index order."""
         return tuple(self._arms)
+
+    @property
+    def drafter_strategy(self) -> str:
+        """The strategy the engine runs: ``"bandit"``, a composite name, or ``"arms"``.
+
+        ``"arms"`` means explicit ``arms=`` were given. Under
+        ``drafter_strategy="auto"`` this is what ``"auto"`` resolved to.
+        """
+        return self._strategy
+
+    @property
+    def drafter_strategy_reason(self) -> str:
+        """Why :attr:`drafter_strategy` was chosen (also logged once at INFO)."""
+        return self._strategy_reason
 
     @property
     def compiled(self) -> bool:
@@ -519,12 +598,35 @@ class SpeculativeEngine:
         eos = frozenset(int(token) for token in stop_ids)
         generator = self._make_generator()
         fast = self._config.sampling.variant in ("rejection", "greedy")
-        if int(input_ids.shape[0]) == 1 and fast:
+        batch = int(input_ids.shape[0])
+        if self._auto_fallback is not None and (batch != 1 or not fast):
+            # drafter_strategy="auto" chose a composite this call cannot run.
+            why = f"batch size {batch}" if batch != 1 else "variant 'typical'"
+            if why not in self._fallback_logged:
+                self._fallback_logged.add(why)
+                logger.info(
+                    "Drafter strategy bandit for this call (auto: %s; %s needs batch 1 and "
+                    "variant 'rejection' or 'greedy'), with the model drafter at gamma %d.",
+                    why,
+                    self._strategy,
+                    self._config.sampling.gamma,
+                    extra={"drafter_strategy": "bandit", "requested": "auto"},
+                )
+            chosen = self._arms
+            self._arms = self._auto_fallback
+            try:
+                return self._generate_generic(input_ids, max_tokens, eos, generator)
+            finally:
+                self._arms = chosen
+        if batch == 1 and fast:
             return self._generate_single(input_ids, max_tokens, eos, generator)
-        if any(self._lookup):
+        if any(self._lookup[spec.drafter] or spec.fallback is not None for spec in self._arms):
             raise ValueError(
                 "A lookup (n-gram) drafter runs only on the batch-1 fast path: batch size 1 "
-                "and sampling.variant 'rejection' or 'greedy'."
+                "and sampling.variant 'rejection' or 'greedy'. "
+                f"drafter_strategy={self._strategy!r} uses one; pass "
+                "FlashSpecConfig(drafter_strategy='bandit') (or 'auto') for this batch size "
+                "or variant."
             )
         return self._generate_generic(input_ids, max_tokens, eos, generator)
 
@@ -903,8 +1005,10 @@ class SpeculativeEngine:
             gamma = spec.gamma
             slot = spec.drafter
             if spec.fallback is not None and proposal_len.get(slot, 0) == 0:
-                # Composite arm, no lookup proposal this step: model drafter.
+                # Composite arm, no lookup proposal this step: model drafter,
+                # at the fallback's gamma.
                 slot = spec.fallback
+                gamma = spec.step_gamma(fallback=True)
             drafter = self._drafters[slot]
             n_valid: torch.Tensor | None = None
             pending_before = 0

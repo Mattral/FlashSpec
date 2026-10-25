@@ -183,6 +183,7 @@ def test_engine_steps_do_not_reforward_the_prompt() -> None:
     drafter = HuggingFaceDrafter("draft", device="cpu", model=drafter_model)
     target = TargetModel("target", torch.device("cpu"), torch.float32, model=target_model)
     config = FlashSpecConfig(
+        drafter_strategy="bandit",
         device="cpu",
         dtype="float32",
         max_new_tokens=6,

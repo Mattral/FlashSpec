@@ -69,6 +69,7 @@ def _run(gamma: int, seed: int) -> tuple[GenerationResult, list[int], list[int]]
     target_model = _llama(4, seed)
     drafter_model = _llama(2, seed + 1)
     config = FlashSpecConfig(
+        drafter_strategy="bandit",
         device="cpu",
         dtype="float32",
         max_new_tokens=_MAX_NEW,

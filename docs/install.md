@@ -49,17 +49,12 @@ pip install -e ".[asm]"
 pip install -e ".[serve]"
 ```
 
-**The server also needs `accelerate`.** `python -m flashspec.serve` loads
-the target with `device_map`, which transformers only accepts when
-`accelerate` is installed, and the `serve` extra does not include it:
-
-```bash
-pip install "flashspec[serve]" accelerate
-```
-
-The same applies to `TargetModel(model_id, device)` without `model=`. The
-README quickstart loads the modules itself and passes them with `model=`,
-so it does not need `accelerate`.
+**`accelerate`.** `python -m flashspec.serve` loads the target with
+`device_map`, which transformers only accepts when `accelerate` is
+installed, so the `serve` extra includes `accelerate` (0.2.0's did not).
+The same applies to `TargetModel(model_id, device)` without `model=` in
+your own code: install `accelerate`, or load the module yourself and pass
+it with `model=`, as the README quickstart does.
 
 > **Windows / macOS:** `pip install flashspec` works out of the box.
 > Triton has no official PyPI wheels outside Linux, so the compiled path
@@ -76,7 +71,7 @@ so it does not need `accelerate`.
 | PyTorch | ≥ 2.2 | CPU or CUDA |
 | Triton | ≥ 3.0 | Optional · Linux + CUDA · needed by the compiled path (Linux CUDA PyTorch ships it) and the experimental kernels |
 | flashspec-asm-kernel | ≥ 0.1.2, < 2 | Optional · Linux x86-64 · `pip install flashspec[asm]`. 0.1.2 ships a manylinux wheel with `libflashspec_asm.so`. |
-| FastAPI, uvicorn, httpx | see `serve` extra | Optional · `pip install flashspec[serve]` |
+| FastAPI, uvicorn, httpx, accelerate | see `serve` extra | Optional · `pip install flashspec[serve]` |
 | CUDA | ≥ 12.0 | GPU path only |
 | transformers | ≥ 4.40 | For HuggingFace model loading |
 

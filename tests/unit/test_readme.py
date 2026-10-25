@@ -138,7 +138,9 @@ def test_readme_python_blocks_run_on_cpu(tiny_hub: list[str]) -> None:
     assert "tok/s, acceptance" in printed
     # The last recipe's engine ran and produced every token.
     assert namespace["result"].n_tokens_generated == 32
-    assert namespace["composite"].arms[0].fallback == 0
+    # The drafter recipe built the composite strategy's arm and a lookup-only engine.
+    assert "label='composite-g6-f2', fallback=0, fallback_gamma=2" in printed
+    assert namespace["lookup"].arms[0].fallback is None
     assert "False |" in printed  # the compile-off recipe printed its decision
 
 
@@ -345,3 +347,16 @@ def test_llms_txt() -> None:
             assert re.match(r"- \[[^\]]+\]\(https://[^)]+\)", line), line
     for url in _links(text):
         _check_link(url)
+
+
+def test_serve_extra_covers_the_server_install_line() -> None:
+    """`pip install "flashspec[serve]"` is enough: the server loads with device_map (accelerate)."""
+    import tomllib
+
+    extras = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"][
+        "optional-dependencies"
+    ]
+    names = {re.split(r"[<>=;\s\[]", item, maxsplit=1)[0] for item in extras["serve"]}
+    assert {"fastapi", "uvicorn", "accelerate"} <= names
+    installs = [c for c in _commands(README) if c[:2] == ["pip", "install"]]
+    assert ["pip", "install", "flashspec[serve]"] in installs

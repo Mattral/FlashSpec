@@ -10,7 +10,60 @@ Versioning follows [Semantic Versioning 2.0.0](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed (behaviour)
+- **The default drafter strategy is now `drafter_strategy="auto"`.** Like
+  `compile="auto"`, it picks per engine and logs one INFO line with the
+  choice and the reason (`engine.drafter_strategy`,
+  `engine.drafter_strategy_reason`). Given one model drafter and no `arms=`,
+  the engine runs `"composite-g6-f2"`: prompt lookup up to 6 tokens when the
+  context has a match, else the model drafter drafts 2. It adds an
+  `NgramDrafter` when none is passed. A call it cannot run that way (batch
+  > 1, or `variant="typical"`) uses the model drafter at `sampling.gamma`,
+  with one INFO line; several drafters get the 0.2.0 one-arm-per-drafter
+  path. Under `"auto"`, `config.bandit.n_arms` is only checked when you pass
+  a `BanditConfig`. An explicit `drafter_strategy` is always respected, and
+  an explicit composite at batch > 1 raises a `ValueError` naming the fix.
+  **To get the 0.2.0 behaviour back, pass
+  `FlashSpecConfig(drafter_strategy="bandit")`.** The server's
+  `--drafter-strategy` defaults to `auto` as well.
+- Why: the pre-registered comparison (`benchmarks/configs/qwen_t4_composite.yaml`,
+  bundle `fdd3be9`, Tesla T4) passed for composite-g6-f2: composite-g6-f2 had the higher mixed-workload greedy throughput, was faster than compiled HuggingFace on HumanEval, MT-Bench and HumanEval-edit in greedy and at T=0.7, and matched compiled HuggingFace greedy output except at three fp16 exact ties (HumanEval/53, MT-Bench 81 and 101, the ties the #47 diagnostic found). Values in `benchmarks/results/gpu/fdd3be9/`
+  (`scripts/composite_report.py`). The README tables are still the 0.2.0
+  model-drafter run (`8d036d7`).
+- Tests, benchmark harness methods and diagnostics that mean the
+  model-drafter path pin `drafter_strategy="bandit"`, so they test and
+  measure what they did before. That includes one added keyword in
+  `tests/integration/test_output_distribution.py`; its Algorithm 1 check and
+  the residual are unchanged.
+
+### Fixed
+- The `serve` extra installs `accelerate` (>= 1.1.0).
+  `python -m flashspec.serve` loads the target with `device_map`, which
+  transformers only accepts with `accelerate`, so a server installed with
+  `pip install "flashspec[serve]"` failed at model load.
+
 ### Added
+- Separate lookup and fallback gammas for a composite arm:
+  `ArmSpec(lookup, gamma, fallback=model, fallback_gamma=g)`. The model
+  drafter drafts `fallback_gamma` tokens on fallback steps (`gamma` when
+  unset); the verify width is `max gamma + 1`.
+- `FlashSpecConfig.drafter_strategy`: `"auto"` (the default; see
+  Changed), `"bandit"` (the 0.2.0 behaviour), `"composite-g4"` (lookup 4 /
+  fallback 4, the Phase 6 composite arm) or `"composite-g6-f2"` (lookup 6 /
+  fallback 2). Without `arms=`, the
+  engine builds the strategy's arms (`flashspec.engine.arms.strategy_arms`).
+  A composite strategy is one arm and defaults `bandit.n_arms` to 1. The
+  server takes `--drafter-strategy`; an explicit composite takes one
+  `--drafter` and requires `--batch-size 1`, and the engine adds the
+  prompt-lookup drafter.
+- Default-strategy comparison, pre-registered:
+  `benchmarks/configs/qwen_t4_composite.yaml` (notebook cell 3f) runs both
+  composite variants against compiled HuggingFace on the Phase 6 prompt
+  sets; `scripts/composite_report.py` applies the rule fixed in the config.
+  The runner's `greedy_tie_check: true` replays each greedy divergence from
+  compiled HuggingFace and classifies it with `benchmarks/tie_check.py`
+  (fp16 exact tie, as found in #47, or a mismatch). Result: see Changed
+  (behaviour).
 - Prompt-lookup (n-gram) drafter, `flashspec.engine.NgramDrafter` (PLAN
   Phase 6a). It proposes the continuation of the most recent earlier
   occurrence of the last 3, 2 or 1 context tokens, searched on the device

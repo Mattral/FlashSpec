@@ -83,6 +83,7 @@ def _engine(
 ) -> SpeculativeEngine:
     """One-arm engine. Gamma is 4."""
     config = FlashSpecConfig(
+        drafter_strategy="bandit",
         device="cpu",
         dtype="float32",
         max_new_tokens=max_new_tokens,

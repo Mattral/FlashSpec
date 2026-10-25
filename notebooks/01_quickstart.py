@@ -21,6 +21,7 @@ set_seed(42)
 
 # %%
 config = FlashSpecConfig(
+    drafter_strategy="bandit",
     device="cpu",
     dtype="float32",
     drafter_name="toy",

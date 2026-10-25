@@ -92,6 +92,7 @@ def _composite_engine(
     if extra_arms:
         arms += [ArmSpec(0, 2), ArmSpec(1, 6)]
     config = FlashSpecConfig(
+        drafter_strategy="bandit",
         device="cpu",
         dtype="float32",
         max_new_tokens=_NEW,

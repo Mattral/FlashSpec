@@ -1,0 +1,70 @@
+# Default drafter strategy for 0.3.0 (HANDOFF proposal (a)): which composite
+# variant, if either, becomes FlashSpecConfig.drafter_strategy's default.
+# Run through notebooks/04_gpu_measurement.ipynb, cell 3f, on a Colab T4.
+#
+# Same setup as qwen_t4_phase6.yaml: Qwen2.5-1.5B-Instruct verified by
+# Qwen2.5-0.5B-Instruct, fp16, batch 1, compile="auto", prompts through the
+# chat template, 128 new tokens, no EOS stop, greedy and T = 0.7, n_warmup 2,
+# seed 0, the same prompt sets and orders.
+#
+# Variants (each a single fixed arm; no bandit):
+#   composite-g4     n-gram lookup up to 4 tokens if the context has a match,
+#                    else Qwen2.5-0.5B drafts 4. The Phase 6 composite arm.
+#                    Verify width 5.
+#   composite-g6-f2  n-gram lookup up to 6 tokens if the context has a match,
+#                    else Qwen2.5-0.5B drafts 2. Verify width 7.
+#
+# Blocks: HumanEval, MT-Bench, HumanEval-edit (10 prompts each, with compiled
+# HF; eager hf_greedy runs too, as context and for greedy_token_match, and
+# does not enter the rule), then the mixed workload (the 30 prompts in the
+# stored shuffled order of benchmarks/prompt_sets/mixed.json; greedy
+# references from the per-set blocks by prompt id). Each set x mode is one
+# block: 8 blocks.
+#
+# Decision rule (pre-registered before any run; scripts/composite_report.py
+# applies it to the result JSONs; throughput = metrics.workload_tokens_per_second,
+# block total tokens / block total seconds):
+#   1. Pick the variant with the higher mixed-block greedy throughput.
+#   2. The pick must beat compiled HF on every single set (HumanEval,
+#      MT-Bench, HumanEval-edit) in both modes: its throughput >
+#      hf_greedy_compiled (greedy) and > hf_sample_compiled (T = 0.7).
+#   3. The pick's greedy output must match hf_greedy_compiled on every
+#      prompt of every greedy block (the three sets and mixed), except
+#      divergences that greedy_tie_check classifies as fp16 exact ties
+#      (benchmarks/tie_check.py; the finding of the #47 width diagnostic).
+#   The pick becomes the default only if 2 and 3 both pass. If either fails,
+#   neither variant becomes the default from this run; the other variant is
+#   not considered in its place. No tuning and no rerun after a miss.
+
+runner: phase6
+model: Qwen/Qwen2.5-1.5B-Instruct
+drafter: Qwen/Qwen2.5-0.5B-Instruct
+device: cuda:0
+dtype: float16
+max_new_tokens: 128
+n_warmup: 2
+seed: 0
+chat_template: true
+compile: auto
+compile_max_cache_len: 1024
+greedy_tie_check: true
+
+temperatures:
+  - 0.0
+  - 0.7
+
+arms:
+  - {label: composite-g4, drafter: ngram, gamma: 4, fallback: model}
+  - {label: composite-g6-f2, drafter: ngram, gamma: 6, fallback: model, fallback_gamma: 2}
+
+bandits: []
+
+blocks:
+  - dataset: humaneval
+    methods: [fixed_arms, hf_greedy, hf_greedy_compiled, hf_sample_compiled]
+  - dataset: mt_bench
+    methods: [fixed_arms, hf_greedy, hf_greedy_compiled, hf_sample_compiled]
+  - dataset: humaneval_edit
+    methods: [fixed_arms, hf_greedy, hf_greedy_compiled, hf_sample_compiled]
+  - dataset: mixed
+    methods: [fixed_arms]

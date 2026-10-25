@@ -357,15 +357,70 @@ def test_main_one_drafter_warns_and_missing_uvicorn_raises(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """One drafter is a warning. A missing uvicorn install raises ImportError."""
+    """One drafter with an explicit bandit is a warning. A missing uvicorn raises ImportError.
+
+    Under the default ``--drafter-strategy auto`` one drafter is the
+    composite strategy, so there is no bandit to warn about.
+    """
     cli = _patch_server_loaders(monkeypatch, n_drafters=1)
     monkeypatch.setitem(sys.modules, "uvicorn", None)
     with caplog.at_level(logging.WARNING), pytest.raises(ImportError, match="flashspec\\[serve\\]"):
-        cli.main(["--target", "toy", "--drafter", "only"])
+        cli.main(["--target", "toy", "--drafter", "only", "--drafter-strategy", "bandit"])
     assert "will not adapt" in caplog.text
+    caplog.clear()
+    with caplog.at_level(logging.WARNING), pytest.raises(ImportError, match="flashspec\\[serve\\]"):
+        cli.main(["--target", "toy", "--drafter", "only"])
+    assert "will not adapt" not in caplog.text
 
 
 def test_prompt_helper_rejects_non_string_content() -> None:
     """Multipart content is outside the server's supported subset."""
     with pytest.raises(ValueError, match="string"):
         messages_to_prompt([{"role": "user", "content": ["not", "a", "string"]}])  # type: ignore[list-item]
+
+
+def test_drafter_strategy_flag(monkeypatch: pytest.MonkeyPatch) -> None:
+    """--drafter-strategy: default auto; an explicit composite is one arm, batch 1, one drafter."""
+    from flashspec.engine.arms import DRAFTER_STRATEGIES
+    from flashspec.serve.__main__ import build_parser
+
+    args = build_parser().parse_args(["--target", "toy", "--drafter", "a"])
+    assert args.drafter_strategy == "auto"
+    choices = next(a for a in build_parser()._actions if a.dest == "drafter_strategy").choices
+    assert tuple(choices) == ("auto", *DRAFTER_STRATEGIES)  # type: ignore[arg-type]
+
+    cli = _patch_server_loaders(monkeypatch, n_drafters=1)
+    calls: list[tuple[object, ...]] = []
+
+    def _engine(config: object, *args: object, **kwargs: object) -> object:
+        calls.append((config, *args))
+        return object()
+
+    monkeypatch.setattr(cli, "SpeculativeEngine", _engine)
+    uvicorn = types.ModuleType("uvicorn")
+    uvicorn.run = lambda app, host, port: None  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "uvicorn", uvicorn)
+    cli.main(["--target", "toy", "--drafter", "a", "--drafter-strategy", "composite-g6-f2"])
+    ((config, drafters, _target, bandit),) = calls
+    assert config.drafter_strategy == "composite-g6-f2"  # type: ignore[attr-defined]
+    assert config.bandit.n_arms == 1  # type: ignore[attr-defined]
+    assert len(drafters) == 1  # type: ignore[arg-type]  # the engine adds prompt lookup
+    assert bandit.n_arms == 1  # type: ignore[attr-defined]
+
+    # The default: one drafter is one arm, any batch size is accepted.
+    calls.clear()
+    cli.main(["--target", "toy", "--drafter", "a", "--batch-size", "4"])
+    ((config, drafters, _target, bandit),) = calls
+    assert config.drafter_strategy == "auto"  # type: ignore[attr-defined]
+    assert config.bandit.n_arms == 1 and bandit.n_arms == 1  # type: ignore[attr-defined]
+
+    with pytest.raises(SystemExit, match="exactly one --drafter"):
+        cli.main(
+            ["--target", "toy", "--drafter", "a", "--drafter", "b"]
+            + ["--drafter-strategy", "composite-g4"]
+        )
+    with pytest.raises(SystemExit, match="batch 1 only"):
+        cli.main(
+            ["--target", "toy", "--drafter", "a", "--drafter-strategy", "composite-g4"]
+            + ["--batch-size", "2"]
+        )

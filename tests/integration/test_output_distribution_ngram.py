@@ -167,6 +167,7 @@ class TestSingleRowEngineNgram:
         """
         target_table = _rolled_table((0.40, 0.20, 0.15, 0.12, 0.08, 0.05))
         config = FlashSpecConfig(
+            drafter_strategy="bandit",
             device="cpu",
             dtype="float32",
             max_new_tokens=2,
@@ -208,6 +209,7 @@ class TestCompositeArmEngine:
         target_table = _rolled_table((0.40, 0.20, 0.15, 0.12, 0.08, 0.05))
         draft_table = _rolled_table((0.05, 0.08, 0.12, 0.15, 0.25, 0.35))
         config = FlashSpecConfig(
+            drafter_strategy="bandit",
             device="cpu",
             dtype="float32",
             max_new_tokens=2,
@@ -226,6 +228,47 @@ class TestCompositeArmEngine:
         results = [engine.generate(prompt) for _ in range(_ENGINE_SINGLE_N)]
         used = {step.drafter for result in results for step in result.arm_steps}
         assert used == {0, 1}
+        outputs = torch.cat([result.output_ids for result in results], dim=0)
+        assert bool((outputs >= 0).all())
+        p_first = target_table[2]
+        first_stat = _chi2(outputs[:, 0], p_first)
+        mixture = (p_first[:, None] * target_table).sum(dim=0)
+        second_stat = _chi2(outputs[:, 1], mixture)
+        assert first_stat < _CHI2_CRITICAL_DF5, f"first-token chi-square {first_stat:.3f}"
+        assert second_stat < _CHI2_CRITICAL_DF5, f"second-token chi-square {second_stat:.3f}"
+
+    @pytest.mark.parametrize(("gamma", "fallback_gamma"), [(2, 1), (1, 2)])
+    def test_separate_gammas_match_target_chain(self, gamma: int, fallback_gamma: int) -> None:
+        """Lookup and fallback at different gammas (as in ``composite-g6-f2``): still the target.
+
+        The prompt ``[0, 1, 2]`` has no repeat, so the first step drafts
+        ``fallback_gamma`` tokens with the model; later steps look up to
+        ``gamma`` tokens when a match exists.
+        """
+        target_table = _rolled_table((0.40, 0.20, 0.15, 0.12, 0.08, 0.05))
+        draft_table = _rolled_table((0.05, 0.08, 0.12, 0.15, 0.25, 0.35))
+        config = FlashSpecConfig(
+            drafter_strategy="bandit",
+            device="cpu",
+            dtype="float32",
+            max_new_tokens=2,
+            bandit=BanditConfig(n_arms=1, strategy="ucb1", window_size=0),
+            sampling=SamplingConfig(gamma=1, temperature=1.0),
+        )
+        engine = SpeculativeEngine(
+            config,
+            [_ContextTable(draft_table), NgramDrafter()],  # type: ignore[list-item]
+            _ContextTable(target_table),  # type: ignore[arg-type]
+            UCB1Selector(n_arms=1, window_size=0),
+            arms=[ArmSpec(1, gamma, fallback=0, fallback_gamma=fallback_gamma)],
+        )
+        prompt = torch.tensor([[0, 1, 2]], dtype=torch.long)
+        torch.manual_seed(78)
+        results = [engine.generate(prompt) for _ in range(_ENGINE_SINGLE_N)]
+        steps = [step for result in results for step in result.arm_steps]
+        assert {step.drafter for step in steps} == {0, 1}
+        assert {step.proposed for step in steps if step.drafter == 0} == {fallback_gamma}
+        assert max(step.proposed for step in steps if step.drafter == 1) <= gamma
         outputs = torch.cat([result.output_ids for result in results], dim=0)
         assert bool((outputs >= 0).all())
         p_first = target_table[2]

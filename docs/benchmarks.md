@@ -118,7 +118,33 @@ the result JSON itself. Cite the notes for the run you quote.
 gamma {2, 4, 6} plus the composite arm, against the UCB1 and Thompson
 bandits over all of them, on each set and on the mixed workload, next to
 compiled HuggingFace. `scripts/phase6_report.py <results dir>` prints the
-exit criteria from the JSONs. No Phase 6 GPU result has been ingested yet.
+exit criteria from the JSONs. Result (bundle `3e38251`, in
+`benchmarks/results/gpu/3e38251/`): the bandit failed its main exit
+criterion; see the CHANGELOG.
+
+### Default drafter strategy: composite-g4 against composite-g6-f2
+
+`benchmarks/configs/qwen_t4_composite.yaml` (same runner, models, prompts,
+modes and seed as Phase 6; notebook cell 3f) runs the two composite
+variants alone, next to compiled HuggingFace (and eager HuggingFace greedy
+as context), on each set and on the mixed workload. With
+`greedy_tie_check: true`, every greedy output that differs from
+`hf_greedy_compiled` is replayed after its block and classified by
+`benchmarks/tie_check.py`: an allowed fp16 exact tie (same prefix, the two
+diverging tokens are both rows' top 2, one row's top-2 margin is exactly
+0.0, both replays reproduce the recorded outputs) or a mismatch.
+
+The decision rule is fixed in the config before the run, and
+`scripts/composite_report.py <results dir>` applies it: the variant with
+the higher mixed greedy throughput is picked; it becomes the default only
+if it beats compiled HuggingFace on every single set in both modes and its
+greedy output matches compiled HuggingFace except at allowed exact ties.
+Otherwise neither variant becomes the default from this run.
+
+Result (bundle `fdd3be9`, Tesla T4, one session; JSONs in
+`benchmarks/results/gpu/fdd3be9/`): the rule passed for the pick. composite-g6-f2 had the higher mixed-workload greedy throughput, was faster than compiled HuggingFace on HumanEval, MT-Bench and HumanEval-edit in greedy and at T=0.7, and matched compiled HuggingFace greedy output except at three fp16 exact ties (HumanEval/53, MT-Bench 81 and 101, the ties the #47 diagnostic found). composite-g4 also passed both checks, with no greedy divergence.
+`composite-g6-f2` is therefore what `drafter_strategy="auto"`, the default,
+runs with one model drafter at batch 1.
 
 ---
 

@@ -101,6 +101,7 @@ def _check(dtype: torch.dtype) -> None:
         }[arm_set]
         target = TargetModel(_TARGET, torch.device(_DEVICE), dtype, model=target_module)
         config = FlashSpecConfig(
+            drafter_strategy="bandit",
             device=_DEVICE,
             # The gold reference is eager generate(); keep FlashSpec eager too.
             compile=False,

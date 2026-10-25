@@ -71,6 +71,9 @@ def arm_report(
             "drafter": arms[index].drafter,
             "gamma": arms[index].gamma,
             "fallback": arms[index].fallback,
+            "fallback_gamma": arms[index].step_gamma(fallback=True)
+            if arms[index].fallback is not None
+            else None,
             "pulls": pulls,
             "share": pulls / total_steps if total_steps else 0.0,
             "proposed": proposed,

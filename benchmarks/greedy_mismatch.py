@@ -114,6 +114,7 @@ def _flashspec_greedy(
 
     target._verify_rows = _capture  # type: ignore[method-assign]
     config = FlashSpecConfig(
+        drafter_strategy="bandit",  # the model-drafter path measured before 0.3.0
         device=str(device),
         compile=False,  # eager diagnostic: compared with eager generate()
         dtype=str(dtype).removeprefix("torch."),  # type: ignore[arg-type]

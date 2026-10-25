@@ -32,6 +32,12 @@ in greedy mode, and ``metrics.workload_tokens_per_second`` (total tokens /
 total seconds over the block). The mixed block takes its greedy references
 from the per-set blocks by prompt id when it does not run HuggingFace
 itself, so list the per-set blocks first.
+
+With ``greedy_tie_check: true`` in the config, every greedy FlashSpec
+output that differs from ``hf_greedy_compiled`` is replayed after the
+block (untimed, after its documents are assembled) and classified by
+:func:`benchmarks.tie_check.classify`; the result is the document's
+``greedy_tie_check``.
 """
 
 from __future__ import annotations
@@ -73,6 +79,13 @@ from benchmarks.harness import (
     write_result,
 )
 from benchmarks.prompt_sets import REAL_DATASETS, canonical_dataset, load_prompt_set
+from benchmarks.tie_check import (
+    RULE,
+    capture_verify_rows,
+    classify,
+    first_divergence,
+    hf_compiled_logits,
+)
 from flashspec.bandit.base import DraftSelector
 from flashspec.bandit.thompson import ThompsonSelector
 from flashspec.bandit.ucb import UCB1Selector
@@ -148,12 +161,14 @@ def _parse_arms(config: dict[str, Any]) -> list[ArmSpec]:
             raise RuntimeError(f"Each arm must be a mapping; got {item!r}.")
         drafter = _DRAFTERS[str(item["drafter"])]
         fallback = item.get("fallback")
+        fallback_gamma = item.get("fallback_gamma")
         arms.append(
             ArmSpec(
                 drafter=drafter,
                 gamma=int(item["gamma"]),
                 label=str(item["label"]),
                 fallback=_DRAFTERS[str(fallback)] if fallback is not None else None,
+                fallback_gamma=int(fallback_gamma) if fallback_gamma is not None else None,
             )
         )
     labels = [arm.label for arm in arms]
@@ -287,7 +302,7 @@ def run_phase6_config(
     longest = max(
         int(prompt.shape[1]) for _d, _i, prompts, _n in block_prompts for prompt in prompts
     )
-    gamma_max = max(arm.gamma for arm in arms)
+    gamma_max = max(arm.max_gamma for arm in arms)
     cache_len = max(
         int(config.get("compile_max_cache_len", 1024)),
         longest + max_new_tokens + 2 * (gamma_max + 1) + 64,
@@ -302,7 +317,7 @@ def run_phase6_config(
     # drafter calls use the same widths, so they share one drafter wrapper.
     shared_drafter: HuggingFaceDrafter | None = None
     for method in spec_methods.values():
-        width = max(arm.gamma for arm in method.arms) + 1
+        width = max(arm.max_gamma for arm in method.arms) + 1
         key = f"verify_width_{width}" if method.fixed_shapes else f"legacy_{method.name}"
         if key not in groups:
             drafter = HuggingFaceDrafter(
@@ -757,6 +772,9 @@ def _run_block(
                     "drafter": "ngram" if arm.drafter == _NGRAM else "model",
                     "gamma": arm.gamma,
                     "fallback": None if arm.fallback is None else "model",
+                    "fallback_gamma": arm.step_gamma(fallback=True)
+                    if arm.fallback is not None
+                    else None,
                 }
                 for arm in method.arms
             ]
@@ -812,7 +830,7 @@ def _run_block(
         documents[name] = assemble_result(
             model=model_name,
             method=name,
-            gamma=max(arm.gamma for arm in spec_methods[name].arms) if is_spec else 0,
+            gamma=max(arm.max_gamma for arm in spec_methods[name].arms) if is_spec else 0,
             dataset=dataset,
             n_samples=len(prompts),
             metrics=metrics,
@@ -823,7 +841,85 @@ def _run_block(
             prompt_ids=prompt_ids,
             extra=extra,
         )
+    if greedy and config.get("greedy_tie_check"):
+        # Untimed replays, after the documents (and their CUDA-graph
+        # reports) are assembled; captures go to their own section.
+        hf_replays: dict[int, tuple[list[int], list[torch.Tensor]]] = {}
+        with _CAPTURES.section(f"{block_id}:tie_check"):
+            for name in engines:
+                documents[name]["greedy_tie_check"] = _tie_check(
+                    name,
+                    method=spec_methods[name],
+                    make=make,
+                    outputs=runs[name].outputs,
+                    prompt_ids=prompt_ids,
+                    prompts=prompts,
+                    wanted=[
+                        references.get((temperature, dataset, pid), {}).get("hf_greedy_compiled")
+                        for pid in prompt_ids
+                    ],
+                    target_module=target_module,
+                    hf_cache=hf_cache,
+                    hf_replays=hf_replays,
+                    max_new_tokens=max_new_tokens,
+                )
     return documents
+
+
+def _tie_check(
+    name: str,
+    *,
+    method: _Method,
+    make: Any,  # noqa: ANN401
+    outputs: list[list[int]],
+    prompt_ids: list[str],
+    prompts: list[torch.Tensor],
+    wanted: list[list[int] | None],
+    target_module: nn.Module,
+    hf_cache: Any,  # noqa: ANN401
+    hf_replays: dict[int, tuple[list[int], list[torch.Tensor]]],
+    max_new_tokens: int,
+) -> dict[str, object]:
+    """Replay and classify each greedy divergence from ``hf_greedy_compiled``."""
+    dtype = str(next(target_module.parameters()).dtype).removeprefix("torch.")
+    base: dict[str, object] = {"reference": "hf_greedy_compiled", "rule": RULE, "dtype": dtype}
+    if hf_cache is None or not _uses_hf_generate(target_module) or any(w is None for w in wanted):
+        return {**base, "checked": False, "note": "no compiled HuggingFace greedy reference"}
+    assert method.group is not None
+    entries: list[dict[str, Any]] = []
+    for index, (pid, got, want) in enumerate(zip(prompt_ids, outputs, wanted, strict=True)):
+        assert want is not None
+        position = first_divergence(got, want)
+        if position is None:
+            continue
+        prompt = prompts[index]
+        if index not in hf_replays:
+            hf_replays[index] = hf_compiled_logits(target_module, prompt, max_new_tokens, hf_cache)
+        ref_replay, ref_logits = hf_replays[index]
+        engine = make(name)
+        with capture_verify_rows(method.group.target, int(prompt.shape[1])) as rows:
+            out = engine.generate(prompt, max_new_tokens=max_new_tokens)
+        path_replay = [int(t) for t in out.output_ids[out.output_ids >= 0].view(-1).tolist()]
+        entry = classify(
+            dtype=dtype,
+            reference=want,
+            path=got,
+            reference_replay=ref_replay,
+            path_replay=path_replay,
+            reference_row=ref_logits[position] if position < len(ref_logits) else None,
+            path_row=rows.get(position),
+        )
+        entries.append({"prompt_id": pid, **entry})
+    return {
+        **base,
+        "checked": True,
+        "n_prompts": len(prompt_ids),
+        "n_divergent": len(entries),
+        "divergences": entries,
+        "all_divergences_allowed": all(bool(e["allowed_exact_tie"]) for e in entries),
+        "scope": "untimed replays after the block; later blocks' cumulative call-shape "
+        "counts include them",
+    }
 
 
 def _forward_counts(stats: _Runs, is_spec: bool) -> dict[str, object]:
