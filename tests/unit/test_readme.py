@@ -347,3 +347,16 @@ def test_llms_txt() -> None:
             assert re.match(r"- \[[^\]]+\]\(https://[^)]+\)", line), line
     for url in _links(text):
         _check_link(url)
+
+
+def test_serve_extra_covers_the_server_install_line() -> None:
+    """`pip install "flashspec[serve]"` is enough: the server loads with device_map (accelerate)."""
+    import tomllib
+
+    extras = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"][
+        "optional-dependencies"
+    ]
+    names = {re.split(r"[<>=;\s\[]", item, maxsplit=1)[0] for item in extras["serve"]}
+    assert {"fastapi", "uvicorn", "accelerate"} <= names
+    installs = [c for c in _commands(README) if c[:2] == ["pip", "install"]]
+    assert ["pip", "install", "flashspec[serve]"] in installs

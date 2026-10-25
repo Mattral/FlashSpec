@@ -37,7 +37,7 @@ pip install flashspec
 | extra | adds | when you want it |
 |---|---|---|
 | `flashspec[gpu]` | Triton (Linux only) | The compiled path needs Triton; Linux CUDA builds of PyTorch already ship it. Also enables the experimental Triton kernels. |
-| `flashspec[serve]` | FastAPI, uvicorn, httpx | The OpenAI-compatible server. Also `pip install accelerate`: the server loads checkpoints with `device_map`. |
+| `flashspec[serve]` | FastAPI, uvicorn, httpx, accelerate | The OpenAI-compatible server (it loads checkpoints with `device_map`, which needs `accelerate`). |
 | `flashspec[asm]` | `flashspec-asm-kernel` (Linux x86-64) | An experimental CPU residual kernel. It does not change end-to-end speed. |
 
 You need Python 3.11 or later, PyTorch 2.2 or later and transformers 4.40 or later. Installing from source, Docker, Windows and macOS notes, and the full requirements table are in [docs/install.md](https://github.com/Mattral/FlashSpec/blob/main/docs/install.md).
@@ -136,7 +136,7 @@ The default `compile="auto"` turns the compiled path on when the device is CUDA 
 ### Run the OpenAI-compatible server
 
 ```bash
-pip install "flashspec[serve]" accelerate
+pip install "flashspec[serve]"
 python -m flashspec.serve --target Qwen/Qwen2.5-1.5B-Instruct --drafter Qwen/Qwen2.5-0.5B-Instruct \
     --device cuda:0 --dtype float16 --temperature 0
 ```

@@ -4,7 +4,7 @@
 
 Key facts for calling it correctly:
 
-- Build `TargetModel(model_id, device, dtype, model=module)` and `HuggingFaceDrafter(model_id, device, dtype, model=module)` from modules you load with `AutoModelForCausalLM.from_pretrained`; without `model=`, `TargetModel` needs `accelerate`.
+- Build `TargetModel(model_id, device, dtype, model=module)` and `HuggingFaceDrafter(model_id, device, dtype, model=module)` from modules you load with `AutoModelForCausalLM.from_pretrained`; without `model=`, `TargetModel` needs `accelerate` (the `serve` extra installs it).
 - `SpeculativeEngine(config, drafters, target, bandit, arms=None)`; with one drafter pass `FlashSpecConfig(bandit=BanditConfig(n_arms=1), ...)` and `UCB1Selector(n_arms=1)`, because `BanditConfig.n_arms` defaults to 2 and must equal the number of arms.
 - `SamplingConfig.temperature` defaults to 1.0 (sampling); `gamma` defaults to 4.
 - `engine.generate(input_ids, max_new_tokens=...)` returns `GenerationResult` with `output_ids` of shape `(batch, max_new_tokens)`, padded with -1 after `n_tokens_generated`, plus `tokens_per_second` and `acceptance_rate`.

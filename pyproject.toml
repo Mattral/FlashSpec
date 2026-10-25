@@ -41,6 +41,9 @@ serve = [
     "fastapi>=0.110",
     "uvicorn>=0.27",
     "httpx>=0.27",
+    # python -m flashspec.serve loads the target with device_map, which
+    # transformers only accepts when accelerate is installed.
+    "accelerate>=1.1.0",
 ]
 onnx = ["onnx>=1.16", "onnxruntime-gpu>=1.18"]
 dev = [
