@@ -144,6 +144,8 @@ def _check_document(name: str, doc: dict[str, Any], commit: str) -> list[str]:
     if decoding.get("mode") == "greedy" and method in (*SPECS, "hf_assisted"):
         if "greedy_token_match" not in doc:
             errors.append(f"{name}: greedy {method} result without greedy_token_match")
+    if "phase6" in doc:
+        errors.extend(_check_phase6(name, doc))
     metrics = doc.get("metrics") or {}
     if (
         decoding.get("mode") == "greedy"
@@ -152,6 +154,24 @@ def _check_document(name: str, doc: dict[str, Any], commit: str) -> list[str]:
         and "greedy_token_match_compiled" not in doc
     ):
         errors.append(f"{name}: greedy flashspec_compiled without greedy_token_match_compiled")
+    return errors
+
+
+def _check_phase6(name: str, doc: dict[str, Any]) -> list[str]:
+    """Extra sections a Phase 6 (``benchmarks/phase6.py``) document must carry."""
+    errors: list[str] = []
+    metrics = doc.get("metrics") or {}
+    if "workload_tokens_per_second" not in metrics:
+        errors.append(f"{name}: phase6 result without metrics.workload_tokens_per_second")
+    if "arms" not in doc:
+        return errors  # a HuggingFace baseline
+    for section in ("arm_report", "step_profile", "compile", "cuda_graphs", "bandit"):
+        if section not in doc:
+            errors.append(f"{name}: phase6 FlashSpec result without {section!r}")
+    if (doc.get("decoding") or {}).get("mode") == "greedy":
+        for section in ("greedy_token_match", "greedy_token_match_compiled"):
+            if section not in doc:
+                errors.append(f"{name}: greedy phase6 FlashSpec result without {section!r}")
     return errors
 
 
@@ -491,7 +511,13 @@ def _replace_block(readme: str, body: str, begin: str = BEGIN, end: str = END) -
 
 
 def _readme_documents(documents: list[dict[str, Any]], commit: str | None) -> list[dict[str, Any]]:
-    """All documents, or only ``commit``'s; refuse a commit with none."""
+    """All documents, or only ``commit``'s; refuse a commit with none.
+
+    Phase 6 documents (``"phase6"`` key) never enter these tables: their
+    methods and blocks do not fit the columns. ``scripts/phase6_report.py``
+    reports them.
+    """
+    documents = [doc for doc in documents if "phase6" not in doc]
     if commit is None:
         return documents
     chosen = [doc for doc in documents if str(doc.get("git_commit")) == commit]

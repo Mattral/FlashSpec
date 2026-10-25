@@ -188,6 +188,7 @@ def render_profile(documents: list[dict[str, Any]]) -> str:
             metrics = doc.get("metrics") or {}
             lines.append(f"[{doc.get('method')}]")
             for key in (
+                "workload_tokens_per_second",
                 "tokens_per_second_median",
                 "tokens_per_second_p25",
                 "tokens_per_second_p75",

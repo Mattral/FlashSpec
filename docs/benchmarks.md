@@ -37,6 +37,21 @@ the result JSON itself. Cite the notes for the run you quote.
   HumanEval/23.
 - **Alpaca**: named as an instruction-following set. The Alpaca text is
   not in this tree, and no Alpaca generation result is committed.
+- **HumanEval-edit** (`humaneval_edit`): 10 copy-heavy code-editing prompts
+  built from HumanEval (MIT), for the prompt-lookup drafter. See
+  `benchmarks/prompt_sets/README.md` for the selection rule and license.
+- **Mixed** (`mixed`): the 30 MT-Bench, HumanEval and HumanEval-edit prompts
+  in one stored shuffled order, run on one engine so a bandit's state
+  carries across prompts.
+
+### Phase 6: bandit against fixed arms
+
+`benchmarks/configs/qwen_t4_phase6.yaml` (`runner: phase6`, run by
+`benchmarks/phase6.py`) measures every fixed arm, {Qwen2.5-0.5B, n-gram} x
+gamma {2, 4, 6} plus the composite arm, against the UCB1 and Thompson
+bandits over all of them, on each set and on the mixed workload, next to
+compiled HuggingFace. `scripts/phase6_report.py <results dir>` prints the
+exit criteria from the JSONs. No Phase 6 GPU result has been ingested yet.
 
 ---
 
