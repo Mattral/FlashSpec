@@ -1,0 +1,127 @@
+{
+  "dataset": "mixed",
+  "description": "mt_bench, humaneval and humaneval_edit interleaved in one fixed shuffled order (random.Random(0).shuffle, stored here). Licenses are those of the three sets.",
+  "built_by": "scripts/build_humaneval_edit.py",
+  "order": [
+    {
+      "dataset": "mt_bench",
+      "id": "121"
+    },
+    {
+      "dataset": "humaneval",
+      "id": "HumanEval/23"
+    },
+    {
+      "dataset": "humaneval",
+      "id": "HumanEval/24"
+    },
+    {
+      "dataset": "humaneval",
+      "id": "HumanEval/47"
+    },
+    {
+      "dataset": "mt_bench",
+      "id": "131"
+    },
+    {
+      "dataset": "mt_bench",
+      "id": "81"
+    },
+    {
+      "dataset": "mt_bench",
+      "id": "151"
+    },
+    {
+      "dataset": "humaneval_edit",
+      "id": "HumanEval/9:docstring"
+    },
+    {
+      "dataset": "humaneval_edit",
+      "id": "HumanEval/12:docstring"
+    },
+    {
+      "dataset": "humaneval",
+      "id": "HumanEval/34"
+    },
+    {
+      "dataset": "humaneval_edit",
+      "id": "HumanEval/0:docstring"
+    },
+    {
+      "dataset": "humaneval_edit",
+      "id": "HumanEval/8:type_hints"
+    },
+    {
+      "dataset": "humaneval_edit",
+      "id": "HumanEval/1:rename"
+    },
+    {
+      "dataset": "mt_bench",
+      "id": "111"
+    },
+    {
+      "dataset": "humaneval",
+      "id": "HumanEval/27"
+    },
+    {
+      "dataset": "mt_bench",
+      "id": "91"
+    },
+    {
+      "dataset": "humaneval_edit",
+      "id": "HumanEval/5:docstring"
+    },
+    {
+      "dataset": "mt_bench",
+      "id": "141"
+    },
+    {
+      "dataset": "humaneval",
+      "id": "HumanEval/45"
+    },
+    {
+      "dataset": "humaneval_edit",
+      "id": "HumanEval/3:type_hints"
+    },
+    {
+      "dataset": "mt_bench",
+      "id": "92"
+    },
+    {
+      "dataset": "humaneval_edit",
+      "id": "HumanEval/11:type_hints"
+    },
+    {
+      "dataset": "humaneval",
+      "id": "HumanEval/83"
+    },
+    {
+      "dataset": "humaneval",
+      "id": "HumanEval/85"
+    },
+    {
+      "dataset": "mt_bench",
+      "id": "82"
+    },
+    {
+      "dataset": "mt_bench",
+      "id": "101"
+    },
+    {
+      "dataset": "humaneval",
+      "id": "HumanEval/55"
+    },
+    {
+      "dataset": "humaneval_edit",
+      "id": "HumanEval/6:rename"
+    },
+    {
+      "dataset": "humaneval",
+      "id": "HumanEval/53"
+    },
+    {
+      "dataset": "humaneval_edit",
+      "id": "HumanEval/10:rename"
+    }
+  ]
+}

@@ -30,7 +30,8 @@ class UCB1Selector(DraftSelector):
         \text{score}_k = \hat{\mu}_k + c \sqrt{\frac{2 \log t}{n_k}}
 
     where :math:`\hat{\mu}_k` is the arm's mean reward (the accept count
-    when ``reward`` is omitted),
+    when ``reward`` is omitted) divided by the largest reward seen so far
+    (``normalise_rewards``, on by default),
     :math:`t` is the total number of rounds, :math:`n_k` is the number of
     pulls for arm :math:`k`, and :math:`c` is the exploration constant.
 
@@ -45,6 +46,14 @@ class UCB1Selector(DraftSelector):
         Rolling window for acceptance statistics.  0 disables windowing.
     exploration_constant : float
         Multiplier for the exploration bonus.  Default 1.0.
+    normalise_rewards : bool
+        Divide mean rewards by the largest absolute reward observed so far.
+        UCB1's bonus assumes rewards in ``[0, 1]``; the engine's reward is
+        tokens per second, where an unscaled bonus of about 1 is negligible
+        and the selector stops exploring after one pull per arm. Scaling by
+        the running maximum makes the choice independent of the reward's
+        unit. For rewards already in ``[0, 1]`` that reach 1 it changes
+        nothing. Default ``True``.
 
     Raises
     ------
@@ -75,11 +84,14 @@ class UCB1Selector(DraftSelector):
         n_arms: int,
         window_size: int = 500,
         exploration_constant: float = _DEFAULT_EXPLORATION_CONSTANT,
+        normalise_rewards: bool = True,
     ) -> None:
         if exploration_constant <= 0.0:
             raise ValueError(f"exploration_constant must be > 0; got {exploration_constant}.")
         super().__init__(n_arms=n_arms, window_size=window_size)
         self._c = exploration_constant
+        self._normalise = normalise_rewards
+        self._reward_scale = 0.0
 
     def select(self) -> int:
         """Select the arm with the highest UCB1 score.
@@ -109,8 +121,9 @@ class UCB1Selector(DraftSelector):
                     return k
             # All arms pulled at least once: use UCB1 scores.
             t = max(self._t, 1)
+            scale = self._reward_scale if self._normalise and self._reward_scale > 0.0 else 1.0
             scores = [
-                arm.mean_reward + self._c * math.sqrt(2.0 * math.log(t) / arm.n_pulls)
+                arm.mean_reward / scale + self._c * math.sqrt(2.0 * math.log(t) / arm.n_pulls)
                 for arm in self._arms
             ]
             best = int(max(range(self._n_arms), key=lambda k: scores[k]))
@@ -147,6 +160,8 @@ class UCB1Selector(DraftSelector):
             raise ValueError(f"arm must be in [0, {self._n_arms}); got {arm}.")
         with self._lock:
             self._arms[arm].record(accepted, reward=reward)
+            observed = float(accepted) if reward is None else float(reward)
+            self._reward_scale = max(self._reward_scale, abs(observed))
             self._t += 1
         logger.debug(
             "UCB1 update",
@@ -159,6 +174,8 @@ class UCB1Selector(DraftSelector):
             "n_arms": self._n_arms,
             "window_size": self._window_size,
             "exploration_constant": self._c,
+            "normalise_rewards": self._normalise,
+            "reward_scale": self._reward_scale,
             "t": self._t,
             "arms": [a.to_dict() for a in self._arms],
         }
@@ -169,7 +186,10 @@ class UCB1Selector(DraftSelector):
             n_arms=state["n_arms"],
             window_size=state["window_size"],
             exploration_constant=state["exploration_constant"],
+            # States saved before normalisation existed restore unscaled.
+            normalise_rewards=bool(state.get("normalise_rewards", False)),
         )
+        obj._reward_scale = float(state.get("reward_scale", 0.0))
         obj._t = state["t"]
         obj._arms = [ArmStats.from_dict(d) for d in state["arms"]]
         return obj

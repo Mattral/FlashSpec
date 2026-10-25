@@ -16,7 +16,7 @@ from typing import Any
 import torch
 
 from flashspec.bandit.base import DraftSelector
-from flashspec.engine.arms import ArmSpec, default_arms, validate_arms
+from flashspec.engine.arms import ArmSpec, ArmStep, default_arms, validate_arms
 from flashspec.engine.drafter import DraftModel
 from flashspec.engine.kv_cache import CacheUnavailableError, debug_cache_enabled
 from flashspec.engine.ngram import is_lookup_drafter
@@ -60,6 +60,9 @@ class GenerationResult:
     step_profile : tuple[StepRecord, ...] or None
         Per-step time breakdown for this call when
         ``config.metrics.profile_steps`` is true, otherwise ``None``.
+    arm_steps : tuple[ArmStep, ...]
+        One record per step: the arm, the drafter that proposed, proposed,
+        accepted and emitted counts, step seconds and the reward.
     """
 
     output_ids: torch.Tensor
@@ -67,6 +70,7 @@ class GenerationResult:
     acceptance_rate: float
     tokens_per_second: float
     step_profile: tuple[StepRecord, ...] | None = None
+    arm_steps: tuple[ArmStep, ...] = ()
 
 
 # ── Batch-1 incremental cache bookkeeping ────────────────────────────────────
@@ -347,7 +351,8 @@ class SpeculativeEngine:
                     f"config.bandit.n_arms={config.bandit.n_arms}."
                 )
             arms = default_arms(len(drafters), config.sampling.gamma)
-        validate_arms(arms, len(drafters))
+        lookup = [is_lookup_drafter(drafter) for drafter in drafters]
+        validate_arms(arms, len(drafters), lookup)
         if len(arms) != config.bandit.n_arms:
             raise ValueError(
                 f"len(arms)={len(arms)} must match config.bandit.n_arms={config.bandit.n_arms}."
@@ -369,7 +374,7 @@ class SpeculativeEngine:
         self._drafters = drafters
         # Lookup drafters (prompt lookup) run no model and propose a
         # variable number of tokens; they need the batch-1 fast path.
-        self._lookup = [is_lookup_drafter(drafter) for drafter in drafters]
+        self._lookup = lookup
         self._arms: list[ArmSpec] = list(arms)
         self._gamma_max = max(arm.gamma for arm in self._arms)
         self._target = target
@@ -556,6 +561,7 @@ class SpeculativeEngine:
             return sum(piece.shape[1] for piece in generated_rows[index])
 
         finished: set[int] = set()
+        arm_steps: list[ArmStep] = []
 
         def _open(index: int) -> bool:
             return index not in finished and _row_count(index) < max_tokens
@@ -758,6 +764,17 @@ class SpeculativeEngine:
             self._bandit.update(arm, accepted=n_accepted, reward=reward)
             self._acceptance_tracker.record(n_accepted, gamma)
             self._latency_tracker.stop()
+            arm_steps.append(
+                ArmStep(
+                    arm=arm,
+                    drafter=slot,
+                    proposed=gamma,
+                    accepted=n_accepted,
+                    emitted=emitted,
+                    seconds=elapsed,
+                    reward=reward,
+                )
+            )
             if profiler is not None:
                 profiler.mark("bookkeeping")
                 profiler.end_step(emitted)
@@ -802,6 +819,7 @@ class SpeculativeEngine:
             acceptance_rate=self._acceptance_tracker.mean_acceptance_rate,
             tokens_per_second=tokens_per_second,
             step_profile=tuple(profiler.records()) if profiler is not None else None,
+            arm_steps=tuple(arm_steps),
         )
 
     def _generate_single(
@@ -813,11 +831,20 @@ class SpeculativeEngine:
     ) -> GenerationResult:
         """Batch-1 loop with one device-to-host read per step.
 
-        Per step: draft, verify, then :func:`rejection_step` or
-        :func:`greedy_step` give ``[n_accepted, next_token]`` on the
-        device. One ``tolist()`` of that pair plus the draft ids is the
+        Per step: draft, verify, then :func:`rejection_step`,
+        :func:`rejection_step_onehot` or :func:`greedy_step` give
+        ``[n_accepted, next_token]`` on the device. One ``tolist()`` is the
         only read. The accepted tokens are written into a preallocated
         sequence buffer by index, and the caches commit by count.
+
+        With a lookup drafter, its proposal for the next step is computed
+        at the end of this step, before that read: the step's tokens are
+        written into the buffer on the device and the lookup runs on the
+        device-side new length. The read then also carries the next
+        proposal's real length, which is what a composite arm needs to
+        choose between lookup and its model fallback without a second read.
+        When a composite arm exists, the first step's choice costs one read
+        before the loop.
         """
         sampling = self._config.sampling
         greedy = sampling.greedy
@@ -831,11 +858,33 @@ class SpeculativeEngine:
         buffer[:, :prompt_len] = prompt
         length = prompt_len
         produced: list[int] = []
+        arm_steps: list[ArmStep] = []
         incremental = _Incremental.for_call(self._target, self._drafters)
         for owner in (self._target, *self._drafters):
             reserve = getattr(owner, "reserve_cache", None)
             if callable(reserve):
                 reserve(capacity + 1)
+
+        # Lookup drafters: proposal width per drafter (its widest arm), and
+        # the current proposal (ids, n_valid on the device, n_valid on the
+        # host when known).
+        lookup_width: dict[int, int] = {}
+        for spec in self._arms:
+            if self._lookup[spec.drafter]:
+                lookup_width[spec.drafter] = max(lookup_width.get(spec.drafter, 0), spec.gamma)
+        lookup_slots = sorted(lookup_width)
+        composite = any(spec.fallback is not None for spec in self._arms)
+        proposals: dict[int, tuple[torch.Tensor, torch.Tensor]] = {}
+        proposal_len: dict[int, int] = {}
+        for slot in lookup_slots:
+            proposals[slot] = self._drafters[slot].propose(  # type: ignore[attr-defined]
+                buffer, length, lookup_width[slot]
+            )
+        if composite and lookup_slots:
+            counts = torch.cat([proposals[slot][1].view(-1) for slot in lookup_slots]).tolist()
+            proposal_len = {
+                slot: int(count) for slot, count in zip(lookup_slots, counts, strict=True)
+            }
 
         profiler = self._profiler
         if profiler is not None:
@@ -853,13 +902,20 @@ class SpeculativeEngine:
             spec = self._arms[arm]
             gamma = spec.gamma
             slot = spec.drafter
+            if spec.fallback is not None and proposal_len.get(slot, 0) == 0:
+                # Composite arm, no lookup proposal this step: model drafter.
+                slot = spec.fallback
             drafter = self._drafters[slot]
             n_valid: torch.Tensor | None = None
+            pending_before = 0
 
             if self._lookup[slot]:
-                # Prompt lookup: gamma proposals of which n_valid (a device
-                # tensor) are real. No model forward and no device read.
-                draft_ids, n_valid = drafter.propose(buffer, length, gamma)  # type: ignore[attr-defined]
+                # Prompt lookup (computed at the end of the previous step):
+                # gamma proposals of which n_valid are real. No model
+                # forward and no device read.
+                full_ids, full_valid = proposals[slot]
+                draft_ids = full_ids[:, :gamma]
+                n_valid = full_valid.clamp(max=gamma)
                 if profiler is not None:
                     profiler.mark("draft")
                 if greedy:
@@ -880,41 +936,63 @@ class SpeculativeEngine:
                     step = rejection_step_onehot(
                         draft_ids, target_logprobs, n_valid, generator=generator
                     )
-            elif greedy:
-                draft_ids, _ = incremental.draft(
-                    slot, drafter, context, gamma, greedy=True, generator=generator
-                )
-                if profiler is not None:
-                    profiler.mark("draft")
-                target_argmax = incremental.verify(
-                    self._target, context, draft_ids, gamma, 1.0, greedy=True
-                )
-                if profiler is not None:
-                    profiler.mark("verify")
-                step = greedy_step(draft_ids, target_argmax)
             else:
-                draft_ids, draft_logprobs = incremental.draft(
-                    slot, drafter, context, gamma, generator=generator
+                if incremental.drafter_live[slot]:
+                    pending_before = int(getattr(drafter, "pending_length", 0))
+                if greedy:
+                    draft_ids, _ = incremental.draft(
+                        slot, drafter, context, gamma, greedy=True, generator=generator
+                    )
+                    if profiler is not None:
+                        profiler.mark("draft")
+                    target_argmax = incremental.verify(
+                        self._target, context, draft_ids, gamma, 1.0, greedy=True
+                    )
+                    if profiler is not None:
+                        profiler.mark("verify")
+                    step = greedy_step(draft_ids, target_argmax)
+                else:
+                    draft_ids, draft_logprobs = incremental.draft(
+                        slot, drafter, context, gamma, generator=generator
+                    )
+                    if draft_logprobs is None:
+                        raise RuntimeError("Drafter returned no log-probs for a sampling step.")
+                    if profiler is not None:
+                        profiler.mark("draft")
+                    target_logprobs = incremental.verify(
+                        self._target, context, draft_ids, gamma, sampling.temperature
+                    )
+                    if profiler is not None:
+                        profiler.mark("verify")
+                    step = rejection_step(
+                        draft_ids, draft_logprobs, target_logprobs, generator=generator
+                    )
+
+            if lookup_slots:
+                # Write this step's tokens on the device (accepted drafts,
+                # then the next token at n_accepted) and look up the next
+                # proposal on the device-side new length, before the read.
+                count = step[:, 0:1]
+                nxt = step[:, 1:2]
+                written = torch.cat([draft_ids, nxt.clamp(min=0)], dim=1).scatter(
+                    1, count, nxt.clamp(min=0)
                 )
-                if draft_logprobs is None:
-                    raise RuntimeError("Drafter returned no log-probs for a sampling step.")
-                if profiler is not None:
-                    profiler.mark("draft")
-                target_logprobs = incremental.verify(
-                    self._target, context, draft_ids, gamma, sampling.temperature
-                )
-                if profiler is not None:
-                    profiler.mark("verify")
-                step = rejection_step(
-                    draft_ids, draft_logprobs, target_logprobs, generator=generator
-                )
+                buffer[:, length : length + gamma + 1] = written
+                new_length = (length + count + (nxt >= 0).long()).view(())
+                for lookup_slot in lookup_slots:
+                    proposals[lookup_slot] = self._drafters[lookup_slot].propose(  # type: ignore[attr-defined]
+                        buffer, new_length, lookup_width[lookup_slot]
+                    )
 
             # The one device-to-host read of the step: [n_accepted,
-            # next_token, (n_valid for a lookup arm), *draft_ids].
+            # next_token, (n_valid for a lookup step), *draft_ids,
+            # *next n_valid per lookup drafter].
             pieces = [step.view(-1)]
             if n_valid is not None:
                 pieces.append(n_valid.view(-1).to(step.device))
             pieces.append(draft_ids.view(-1).to(step.device))
+            for lookup_slot in lookup_slots:
+                pieces.append(proposals[lookup_slot][1].view(-1).to(step.device))
             host = torch.cat(pieces).tolist()
             n_accepted, next_token = int(host[0]), int(host[1])
             head = 2
@@ -923,6 +1001,11 @@ class SpeculativeEngine:
                 n_proposed = int(host[2])
                 head = 3
             new_tokens = host[head : head + n_accepted]
+            tail = host[head + gamma :]
+            proposal_len = {
+                lookup_slot: int(value)
+                for lookup_slot, value in zip(lookup_slots, tail, strict=True)
+            }
             if next_token >= 0:
                 new_tokens.append(next_token)
             take = new_tokens[: max_tokens - len(produced)]
@@ -941,7 +1024,8 @@ class SpeculativeEngine:
             else:
                 full = draft_ids[:, :n_accepted]
             piece = full[:, :emitted]
-            buffer[:, length : length + emitted] = piece
+            if not lookup_slots:
+                buffer[:, length : length + emitted] = piece
             length += emitted
             produced.extend(take)
             accepted_prefix = buffer[:, :length]
@@ -964,6 +1048,18 @@ class SpeculativeEngine:
             self._bandit.update(arm, accepted=n_accepted, reward=reward)
             self._acceptance_tracker.record(n_accepted, n_proposed)
             self._latency_tracker.record(elapsed * 1000.0)
+            arm_steps.append(
+                ArmStep(
+                    arm=arm,
+                    drafter=slot,
+                    proposed=n_proposed,
+                    accepted=n_accepted,
+                    emitted=emitted,
+                    seconds=elapsed,
+                    reward=reward,
+                    drafter_pending=pending_before,
+                )
+            )
             if profiler is not None:
                 profiler.mark("bookkeeping")
                 profiler.end_step(emitted)
@@ -991,6 +1087,7 @@ class SpeculativeEngine:
             acceptance_rate=self._acceptance_tracker.mean_acceptance_rate,
             tokens_per_second=tokens_per_second,
             step_profile=tuple(profiler.records()) if profiler is not None else None,
+            arm_steps=tuple(arm_steps),
         )
 
 

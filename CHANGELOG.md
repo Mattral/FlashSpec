@@ -41,10 +41,36 @@ Versioning follows [Semantic Versioning 2.0.0](https://semver.org/).
   (Phase 6c); under compile that call is padded to the next drafter width,
   or runs eagerly when longer than 32 tokens. Its time is part of the step
   that uses the drafter, so it counts against that arm's reward.
+- Composite arm (PLAN Phase 6d): `ArmSpec(lookup, gamma, fallback=model)`
+  uses the lookup proposal when one exists and the model drafter
+  otherwise. The next step's lookup is computed on the device before the
+  step's one read, which carries its length, so the choice adds no read per
+  step (one per `generate` call, before the first step).
+- `GenerationResult.arm_steps`: one record per step (arm, drafter used,
+  proposed, accepted, emitted, seconds, reward, catch-up tokens), and
+  `benchmarks/arm_report.py` for per-run reports: pulls over time,
+  per-arm acceptance and tokens per step, cumulative reward.
+- Prompt sets (PLAN Phase 6e): `humaneval_edit`, 10 copy-heavy code-editing
+  prompts built from HumanEval (MIT) by `scripts/build_humaneval_edit.py`,
+  and `mixed`, the 30 MT-Bench, HumanEval and HumanEval-edit prompts in one
+  stored shuffled order.
 - Benchmarks: `flashspec_compiled_legacy` (compiled, `compile_fixed_shapes=False`)
   and a `cuda_graphs` section on compiled methods: CUDA-graph captures
   counted at `torch.cuda.CUDAGraph.capture_begin`, plus the call shapes
   each static session sent down the captured path.
+
+### Changed
+- `UCB1Selector` divides mean rewards by the largest reward seen so far
+  (`normalise_rewards=True`). With the engine's tokens-per-second reward the
+  unscaled exploration bonus was negligible, so UCB1 stopped exploring after
+  one pull per arm. For rewards in `[0, 1]` that reach 1 nothing changes.
+  Saved states without the field restore unscaled.
+- `ThompsonSelector` samples a Gaussian posterior on the reward when one
+  is passed (the engine always passes one); before, it ignored the reward
+  and sampled a Beta posterior on the accept count. Without a reward it
+  keeps the Beta posterior, now with `beta += max(0, 1 - accepted)` so an
+  accept count above 1 can no longer drive beta to zero or below. New
+  `seed=` argument.
 
 ## [0.2.0] — 2026-10-25 — Compiled fast path, lossless checks, release hygiene
 

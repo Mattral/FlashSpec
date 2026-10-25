@@ -30,6 +30,7 @@ import torch
 
 import flashspec.sampling.rejection as rejection
 from flashspec.bandit.ucb import UCB1Selector
+from flashspec.engine.arms import ArmSpec
 from flashspec.engine.ngram import NgramDrafter
 from flashspec.engine.speculative import SpeculativeEngine
 from flashspec.utils.config import BanditConfig, FlashSpecConfig, SamplingConfig
@@ -186,6 +187,46 @@ class TestSingleRowEngineNgram:
             [engine.generate(prompt).output_ids for _ in range(_ENGINE_SINGLE_N)], dim=0
         )
         assert outputs.shape == (_ENGINE_SINGLE_N, 2)
+        assert bool((outputs >= 0).all())
+        p_first = target_table[2]
+        first_stat = _chi2(outputs[:, 0], p_first)
+        mixture = (p_first[:, None] * target_table).sum(dim=0)
+        second_stat = _chi2(outputs[:, 1], mixture)
+        assert first_stat < _CHI2_CRITICAL_DF5, f"first-token chi-square {first_stat:.3f}"
+        assert second_stat < _CHI2_CRITICAL_DF5, f"second-token chi-square {second_stat:.3f}"
+
+
+class TestCompositeArmEngine:
+    """Composite arm: lookup where the context has a match, the model drafter elsewhere."""
+
+    def test_matches_target_chain(self) -> None:
+        """Steps alternate between one-hot and model ``q``; the chain still follows the target.
+
+        The prompt ``[0, 1, 2]`` has no repeat, so the first step drafts with
+        the model; the second step usually finds a lookup match.
+        """
+        target_table = _rolled_table((0.40, 0.20, 0.15, 0.12, 0.08, 0.05))
+        draft_table = _rolled_table((0.05, 0.08, 0.12, 0.15, 0.25, 0.35))
+        config = FlashSpecConfig(
+            device="cpu",
+            dtype="float32",
+            max_new_tokens=2,
+            bandit=BanditConfig(n_arms=1, strategy="ucb1", window_size=0),
+            sampling=SamplingConfig(gamma=1, temperature=1.0),
+        )
+        engine = SpeculativeEngine(
+            config,
+            [_ContextTable(draft_table), NgramDrafter()],  # type: ignore[list-item]
+            _ContextTable(target_table),  # type: ignore[arg-type]
+            UCB1Selector(n_arms=1, window_size=0),
+            arms=[ArmSpec(1, 1, fallback=0)],
+        )
+        prompt = torch.tensor([[0, 1, 2]], dtype=torch.long)
+        torch.manual_seed(77)
+        results = [engine.generate(prompt) for _ in range(_ENGINE_SINGLE_N)]
+        used = {step.drafter for result in results for step in result.arm_steps}
+        assert used == {0, 1}
+        outputs = torch.cat([result.output_ids for result in results], dim=0)
         assert bool((outputs >= 0).all())
         p_first = target_table[2]
         first_stat = _chi2(outputs[:, 0], p_first)

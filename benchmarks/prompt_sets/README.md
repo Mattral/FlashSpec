@@ -65,6 +65,43 @@ then HumanEval/34, /83, /85, /47, /24, /27.
 License: MIT. Copyright (c) OpenAI. The license text is
 `LICENSE.humaneval-mit` in this directory.
 
+## HumanEval code edits (`humaneval_edit`)
+
+A copy-heavy set for the prompt-lookup drafter. Each prompt shows one
+complete HumanEval function, the task prompt followed by its canonical
+solution, and asks for an edit that keeps most of the code. The edits
+rotate through three kinds, in this order: rewrite the docstring in Google
+style, rename variables to descriptive names, add type hints to local
+variables. A good answer restates most of the function.
+
+Selection, fixed before any measurement: tasks in file order whose
+canonical solution has at least 5 non-empty lines, skipping the ten tasks
+in `humaneval.json` so the sets do not overlap; the first 10. That gives
+HumanEval/0, 1, 3, 5, 6, 8, 9, 10, 11 and 12.
+
+Built by `scripts/build_humaneval_edit.py` from `data/HumanEval.jsonl.gz`
+at openai/human-eval commit `b9453e8f1865df0a0057a1383767caa400acfbcf`
+(file sha256
+`b796127e635a67f93fb35c04f4cb03cf06f38c8072ee7cee8833d7bee06979ef`).
+
+License: MIT. Copyright (c) OpenAI. The license text is
+`LICENSE.humaneval-mit` in this directory. The repository's license was
+checked on GitHub (SPDX `MIT`) when the set was built.
+
+A summarisation set was considered first. BillSum was not used: its only
+license statement is the `cc0-1.0` tag on the Hugging Face card, whose
+licensing section is empty, and the source repository (FiscalNote/BillSum)
+declares no license.
+
+## Mixed workload (`mixed`)
+
+The 30 prompts of `mt_bench`, `humaneval` and `humaneval_edit` in one
+fixed interleaved order: shuffled once with `random.Random(0)` and stored
+in `mixed.json`, so the order does not depend on the Python version.
+Record ids are `<dataset>/<id>`. The licenses are those of the three sets.
+A benchmark runs the whole list on one engine, so the bandit's state
+carries across prompts.
+
 ## Alpaca
 
 Stanford Alpaca instruction text is CC BY-NC 4.0. It is not copied into

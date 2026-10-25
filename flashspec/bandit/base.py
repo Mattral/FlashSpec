@@ -37,6 +37,7 @@ class ArmStats:
     n_pulls: int = 0
     n_accepted: int = 0
     reward_total: float = 0.0
+    reward_sq_total: float = 0.0
     window_accepts: deque[int] = field(default_factory=deque)
     window_rewards: deque[float] = field(default_factory=deque)
     window_size: int = 500
@@ -75,6 +76,7 @@ class ArmStats:
         self.n_accepted += accepted
         observed = float(accepted) if reward is None else float(reward)
         self.reward_total += observed
+        self.reward_sq_total += observed * observed
         if self.window_size > 0:
             self.window_accepts.append(accepted)
             self.window_rewards.append(observed)
@@ -129,6 +131,35 @@ class ArmStats:
             return self.reward_total / self.n_pulls
         return 0.0
 
+    @property
+    def reward_count(self) -> int:
+        """Observations behind :attr:`mean_reward` (the window when windowing is on)."""
+        if self.window_size > 0 and self.window_rewards:
+            return len(self.window_rewards)
+        return self.n_pulls
+
+    @property
+    def reward_variance(self) -> float:
+        """Sample variance (``n - 1``) of the rewards behind :attr:`mean_reward`; 0 below 2.
+
+        Returns
+        -------
+        float
+            Windowed when windowing is on, otherwise over every pull.
+        """
+        if self.window_size > 0 and self.window_rewards:
+            values = list(self.window_rewards)
+            count = len(values)
+            if count < 2:
+                return 0.0
+            mean = sum(values) / count
+            return sum((value - mean) ** 2 for value in values) / (count - 1)
+        count = self.n_pulls
+        if count < 2:
+            return 0.0
+        mean = self.reward_total / count
+        return max(0.0, (self.reward_sq_total - count * mean * mean) / (count - 1))
+
     def to_dict(self) -> dict[str, Any]:
         """Serialise to a JSON-compatible dict.
 
@@ -154,6 +185,7 @@ class ArmStats:
             "n_pulls": self.n_pulls,
             "n_accepted": self.n_accepted,
             "reward_total": self.reward_total,
+            "reward_sq_total": self.reward_sq_total,
             "window_accepts": list(self.window_accepts),
             "window_rewards": list(self.window_rewards),
             "window_size": self.window_size,
@@ -192,6 +224,7 @@ class ArmStats:
             window_size=d["window_size"],
         )
         obj.reward_total = float(d.get("reward_total", d["n_accepted"]))
+        obj.reward_sq_total = float(d.get("reward_sq_total", 0.0))
         obj.window_accepts = deque(d["window_accepts"], maxlen=d["window_size"] or None)
         obj.window_rewards = deque(
             d.get("window_rewards", d.get("window_accepts", [])),

@@ -264,6 +264,11 @@ class HuggingFaceDrafter:
             self._model, max_cache_len, compile_forward=compile_forward, pad_widths=pad_widths
         )
 
+    @property
+    def pending_length(self) -> int:
+        """Committed tokens the next incremental forward carries (its catch-up)."""
+        return int(getattr(self._inc, "pending_length", 0))
+
     def reserve_cache(self, n_tokens: int) -> None:
         """Grow a static cache to ``n_tokens`` before a call. No-op for the dynamic cache."""
         reserve = getattr(self._inc, "reserve", None)

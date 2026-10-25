@@ -12,11 +12,15 @@ import torch
 
 _DIR = Path(__file__).resolve().parent
 
-REAL_DATASETS: frozenset[str] = frozenset({"humaneval", "mt_bench"})
+REAL_DATASETS: frozenset[str] = frozenset({"humaneval", "mt_bench", "humaneval_edit", "mixed"})
+
+#: The sets the mixed workload interleaves, in ``mixed.json``'s stored order.
+MIXED_SOURCES: tuple[str, ...] = ("mt_bench", "humaneval", "humaneval_edit")
 
 _ALIASES: dict[str, str] = {
     "human_eval": "humaneval",
     "mtbench": "mt_bench",
+    "human_eval_edit": "humaneval_edit",
 }
 
 ALPACA_REASON: str = (
@@ -55,7 +59,9 @@ def load_prompt_set(name: str) -> list[dict[str, str]]:
     Returns
     -------
     list[dict[str, str]]
-        Records with ``id`` and ``text``, in file order.
+        Records with ``id``, ``text`` and ``dataset``, in file order. For
+        ``mixed`` they follow the stored interleaved order and ``id`` is
+        ``"<dataset>/<id>"``.
 
     Raises
     ------
@@ -67,6 +73,8 @@ def load_prompt_set(name: str) -> list[dict[str, str]]:
         raise RuntimeError(ALPACA_REASON)
     if slug not in REAL_DATASETS:
         raise RuntimeError(f"No fixed prompt set named {name!r}. No result file was written.")
+    if slug == "mixed":
+        return _load_mixed()
     path = _DIR / f"{slug}.json"
     payload = json.loads(path.read_text(encoding="utf-8"))
     prompts = payload.get("prompts")
@@ -79,7 +87,30 @@ def load_prompt_set(name: str) -> list[dict[str, str]]:
         text = str(item["text"])
         if not text:
             raise RuntimeError(f"{path.name} contains an empty prompt.")
-        records.append({"id": str(item["id"]), "text": text})
+        records.append({"id": str(item["id"]), "text": text, "dataset": slug})
+    return records
+
+
+def _load_mixed() -> list[dict[str, str]]:
+    """Load the mixed workload: the three sets in ``mixed.json``'s stored order."""
+    payload = json.loads((_DIR / "mixed.json").read_text(encoding="utf-8"))
+    by_key = {
+        (source, record["id"]): record
+        for source in MIXED_SOURCES
+        for record in load_prompt_set(source)
+    }
+    order = payload.get("order")
+    if not isinstance(order, list) or not order:
+        raise RuntimeError("mixed.json has no order. No result file was written.")
+    records: list[dict[str, str]] = []
+    for item in order:
+        key = (str(item["dataset"]), str(item["id"]))
+        if key not in by_key:
+            raise RuntimeError(f"mixed.json names {key}, which is not in its source set.")
+        record = by_key[key]
+        records.append({"id": f"{key[0]}/{key[1]}", "text": record["text"], "dataset": key[0]})
+    if len(records) != len(by_key):
+        raise RuntimeError("mixed.json does not list every prompt of its sources exactly once.")
     return records
 
 
