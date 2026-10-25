@@ -141,6 +141,11 @@ if it beats compiled HuggingFace on every single set in both modes and its
 greedy output matches compiled HuggingFace except at allowed exact ties.
 Otherwise neither variant becomes the default from this run.
 
+Result (bundle `fdd3be9`, Tesla T4, one session; JSONs in
+`benchmarks/results/gpu/fdd3be9/`): the rule passed for the pick. composite-g6-f2 had the higher mixed-workload greedy throughput, was faster than compiled HuggingFace on HumanEval, MT-Bench and HumanEval-edit in greedy and at T=0.7, and matched compiled HuggingFace greedy output except at three fp16 exact ties (HumanEval/53, MT-Bench 81 and 101, the ties the #47 diagnostic found). composite-g4 also passed both checks, with no greedy divergence.
+`composite-g6-f2` is therefore what `drafter_strategy="auto"`, the default,
+runs with one model drafter at batch 1.
+
 ---
 
 ## Baselines

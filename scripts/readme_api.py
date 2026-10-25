@@ -168,6 +168,7 @@ def _server_rows() -> list[str]:
 def render() -> str:
     """Return the block's markdown, between (not including) the markers."""
     from flashspec import FlashSpecConfig, SamplingConfig
+    from flashspec.engine.speculative import AUTO_STRATEGY
     from flashspec.utils.config import BanditConfig
 
     config, sampling, bandit = FlashSpecConfig(), SamplingConfig(), BanditConfig()
@@ -190,12 +191,17 @@ def render() -> str:
         '`temperature=0.0` selects `variant="greedy"`.',
         f"- `SamplingConfig.gamma = {_value(sampling.gamma)}`: draft tokens per step.",
         f"- `FlashSpecConfig.drafter_strategy = {_value(config.drafter_strategy)}`: the arms "
-        '`SpeculativeEngine(..., arms=None)` builds. `"bandit"` is one arm per drafter at '
-        "`sampling.gamma`, chosen by the selector you pass; a composite strategy is one arm "
-        "(prompt lookup when the context has a match, else the model drafter) and needs batch 1.",
+        '`SpeculativeEngine(..., arms=None)` builds. `"auto"` runs '
+        f"`{_value(AUTO_STRATEGY)}` (prompt lookup when the context has a match, else the model "
+        "drafter; an `NgramDrafter` is added) when given one model drafter, and the "
+        '`"bandit"` path otherwise; a call at batch > 1 or with `variant="typical"` uses the '
+        'model drafter at `sampling.gamma`. `"bandit"` (the 0.2.0 behaviour) is one arm per '
+        "drafter at `sampling.gamma`, chosen by the selector you pass. An explicit composite "
+        "needs batch 1.",
         f"- `BanditConfig.n_arms = {_value(bandit.n_arms)}` when you pass a `BanditConfig` "
         "yourself: it must equal the number of arms, so pass `BanditConfig(n_arms=1)` for one "
-        "arm. A composite strategy with no `bandit=` given gets `n_arms=1`.",
+        'arm. Under `"auto"` with no `bandit=`, or a composite with no `bandit=`, it is not a '
+        "constraint.",
         f"- `FlashSpecConfig.device = {_value(config.device)}`, "
         f"`max_new_tokens = {_value(config.max_new_tokens)}`.",
         "",

@@ -222,6 +222,7 @@ def _engine(
             if callable(use):
                 use(64, compile_forward=False)
     config = FlashSpecConfig(
+        drafter_strategy="bandit",
         device="cpu",
         dtype="float32",
         max_new_tokens=_NEW,

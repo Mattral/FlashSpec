@@ -55,6 +55,7 @@ def _engine(
     drafters: list[HuggingFaceDrafter], target: TargetModel, gamma: int, max_new: int
 ) -> SpeculativeEngine:
     config = FlashSpecConfig(
+        drafter_strategy="bandit",
         device="cpu",
         dtype="float32",
         max_new_tokens=max_new,

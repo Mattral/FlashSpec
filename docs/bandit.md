@@ -39,17 +39,22 @@ on the compiled path.
 `FlashSpecConfig.drafter_strategy` (server: `--drafter-strategy`) builds the
 arms when the engine is not given `arms=`:
 
-- `"bandit"` (default, as in 0.2.0): one arm per drafter at
+- `"auto"` (default): `"composite-g6-f2"` when the engine is given one
+  model drafter, the `"bandit"` path otherwise; a call at batch > 1 or with
+  `variant="typical"` uses the model drafter at `sampling.gamma`. One INFO
+  line names the choice and the reason.
+- `"bandit"` (the 0.2.0 behaviour): one arm per drafter at
   `sampling.gamma`, chosen by the selector.
 - `"composite-g4"`: one composite arm, lookup 4 / fallback 4 (the Phase 6
   composite arm).
 - `"composite-g6-f2"`: one composite arm, lookup 6 / fallback 2.
 
-A composite strategy needs one model drafter and an `NgramDrafter`, uses a
-single bandit arm (`bandit.n_arms` defaults to 1), and runs at batch 1.
-Which of the two becomes the 0.3.0 default is decided by the pre-registered
-comparison in `benchmarks/configs/qwen_t4_composite.yaml`; until that run
-is ingested the default stays `"bandit"`.
+A composite strategy needs one model drafter (an `NgramDrafter` is added
+when none is given), uses a single bandit arm (`bandit.n_arms` defaults to
+1), and runs at batch 1; set explicitly, any other call raises. The
+pre-registered comparison in `benchmarks/configs/qwen_t4_composite.yaml`
+picked `"composite-g6-f2"` as the target of `"auto"` (bundle `fdd3be9`; see
+[Benchmarks](benchmarks.md#default-drafter-strategy-composite-g4-against-composite-g6-f2)).
 
 A contextual bandit (context: the next lookup's match length) is recorded as
 future work in the README; it is not implemented.

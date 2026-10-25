@@ -167,6 +167,7 @@ class TestSingleRowEngineNgram:
         """
         target_table = _rolled_table((0.40, 0.20, 0.15, 0.12, 0.08, 0.05))
         config = FlashSpecConfig(
+            drafter_strategy="bandit",
             device="cpu",
             dtype="float32",
             max_new_tokens=2,
@@ -208,6 +209,7 @@ class TestCompositeArmEngine:
         target_table = _rolled_table((0.40, 0.20, 0.15, 0.12, 0.08, 0.05))
         draft_table = _rolled_table((0.05, 0.08, 0.12, 0.15, 0.25, 0.35))
         config = FlashSpecConfig(
+            drafter_strategy="bandit",
             device="cpu",
             dtype="float32",
             max_new_tokens=2,
@@ -246,6 +248,7 @@ class TestCompositeArmEngine:
         target_table = _rolled_table((0.40, 0.20, 0.15, 0.12, 0.08, 0.05))
         draft_table = _rolled_table((0.05, 0.08, 0.12, 0.15, 0.25, 0.35))
         config = FlashSpecConfig(
+            drafter_strategy="bandit",
             device="cpu",
             dtype="float32",
             max_new_tokens=2,

@@ -51,18 +51,18 @@ class TestDecision:
     """resolve_compile: on with CUDA + Triton, off otherwise, always with a reason."""
 
     def test_default_is_auto(self) -> None:
-        """FlashSpecConfig() defaults to compile='auto'."""
-        assert FlashSpecConfig().compile == "auto"
+        """FlashSpecConfig(drafter_strategy="bandit") defaults to compile='auto'."""
+        assert FlashSpecConfig(drafter_strategy="bandit").compile == "auto"
 
     @pytest.mark.parametrize("value", [True, False, "auto"])
     def test_config_accepts(self, value: bool | str) -> None:
         """True, False and 'auto' are valid."""
-        assert FlashSpecConfig(compile=value).compile == value  # type: ignore[arg-type]
+        assert FlashSpecConfig(drafter_strategy="bandit", compile=value).compile == value  # type: ignore[arg-type]
 
     def test_config_rejects_other_strings(self) -> None:
         """Any other string is a validation error."""
         with pytest.raises(ValueError):
-            FlashSpecConfig(compile="sometimes")  # type: ignore[arg-type]
+            FlashSpecConfig(drafter_strategy="bandit", compile="sometimes")  # type: ignore[arg-type]
 
     def test_auto_on_with_cuda_and_triton(self) -> None:
         """CUDA device and Triton present: on, with the Triton version in the reason."""
@@ -109,6 +109,7 @@ def _engine(compile_value: bool | str) -> tuple[SpeculativeEngine, TargetModel, 
     target = TargetModel("t", _CPU, torch.float32, model=_llama(1))
     drafter = HuggingFaceDrafter("d", device="cpu", model=_llama(2))
     config = FlashSpecConfig(
+        drafter_strategy="bandit",
         device="cpu",
         dtype="float32",
         max_new_tokens=12,

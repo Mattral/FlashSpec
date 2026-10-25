@@ -34,6 +34,7 @@ def _llama(seed: int) -> LlamaForCausalLM:
 
 def _engine(variant: str) -> SpeculativeEngine:
     config = FlashSpecConfig(
+        drafter_strategy="bandit",
         device="cpu",
         dtype="float32",
         max_new_tokens=4,

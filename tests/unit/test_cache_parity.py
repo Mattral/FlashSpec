@@ -54,6 +54,7 @@ def _generate(gamma: int, temperature: float, seed: int, cached: bool) -> torch.
         drafter._kv.disable()
         target._kv.disable()
     config = FlashSpecConfig(
+        drafter_strategy="bandit",
         device="cpu",
         dtype="float32",
         max_new_tokens=48,

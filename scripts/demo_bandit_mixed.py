@@ -170,6 +170,7 @@ def _run_policy(
         Engine result for this policy.
     """
     config = FlashSpecConfig(
+        drafter_strategy="bandit",
         device="cpu",
         dtype="float32",
         drafter_name="mixed-demo",

@@ -5,7 +5,7 @@
 Key facts for calling it correctly:
 
 - Build `TargetModel(model_id, device, dtype, model=module)` and `HuggingFaceDrafter(model_id, device, dtype, model=module)` from modules you load with `AutoModelForCausalLM.from_pretrained`; without `model=`, `TargetModel` needs `accelerate` (the `serve` extra installs it).
-- `SpeculativeEngine(config, drafters, target, bandit, arms=None)`; with one drafter pass `FlashSpecConfig(bandit=BanditConfig(n_arms=1), ...)` and `UCB1Selector(n_arms=1)`, because `BanditConfig.n_arms` defaults to 2 and must equal the number of arms.
+- `SpeculativeEngine(config, drafters, target, bandit, arms=None)`. The default `FlashSpecConfig.drafter_strategy="auto"` runs `"composite-g6-f2"` (prompt lookup when the context has a match, else the model drafter; an `NgramDrafter` is added for you) when you pass one model drafter, and one arm per drafter otherwise; calls at batch > 1 use the model drafter. `drafter_strategy="bandit"` is the 0.2.0 behaviour. Pass `UCB1Selector(n_arms=1)` for one arm; if you pass a `BanditConfig`, its `n_arms` must equal the number of arms (it defaults to 2).
 - `SamplingConfig.temperature` defaults to 1.0 (sampling); `gamma` defaults to 4.
 - `engine.generate(input_ids, max_new_tokens=...)` returns `GenerationResult` with `output_ids` of shape `(batch, max_new_tokens)`, padded with -1 after `n_tokens_generated`, plus `tokens_per_second` and `acceptance_rate`.
 - The drafter must share the target's tokenizer; the engine does not check it.

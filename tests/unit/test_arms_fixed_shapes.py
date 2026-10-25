@@ -97,6 +97,7 @@ def _engine(
     max_new: int = _NEW,
 ) -> SpeculativeEngine:
     config = FlashSpecConfig(
+        drafter_strategy="bandit",
         device="cpu",
         dtype="float32",
         max_new_tokens=max_new,
@@ -167,7 +168,9 @@ class TestArmSpec:
         target = TargetModel("t", torch.device("cpu"), torch.float32, model=_llama(1, 1))
         with pytest.raises(ValueError, match="len\\(arms\\)"):
             SpeculativeEngine(
-                FlashSpecConfig(device="cpu", bandit=BanditConfig(n_arms=2)),
+                FlashSpecConfig(
+                    drafter_strategy="bandit", device="cpu", bandit=BanditConfig(n_arms=2)
+                ),
                 [NgramDrafter()],  # type: ignore[list-item]
                 target,
                 UCB1Selector(n_arms=2),

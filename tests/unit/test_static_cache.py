@@ -79,6 +79,7 @@ def _engine(
         for owner in (target, *drafters):
             owner.use_static_cache(cache_len, compile_forward=False)
     config = FlashSpecConfig(
+        drafter_strategy="bandit",
         device="cpu",
         dtype="float32",
         max_new_tokens=max_new,
@@ -254,6 +255,7 @@ def test_compile_flag_is_a_no_op_on_cpu(caplog: pytest.LogCaptureFixture) -> Non
     target = TargetModel("t", torch.device("cpu"), torch.float32, model=_llama(1, 60))
     drafter = HuggingFaceDrafter("d", device="cpu", model=_llama(1, 61))
     config = FlashSpecConfig(
+        drafter_strategy="bandit",
         device="cpu",
         dtype="float32",
         max_new_tokens=8,

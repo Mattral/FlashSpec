@@ -100,6 +100,7 @@ def test_engine_rewards_emitted_tokens_per_step_second(monkeypatch: pytest.Monke
     monkeypatch.setattr(speculative, "time", SimpleNamespace(perf_counter=lambda: next(ticks)))
     bandit = _RecordingUCB()
     config = FlashSpecConfig(
+        drafter_strategy="bandit",
         device="cpu",
         dtype="float32",
         max_new_tokens=5,

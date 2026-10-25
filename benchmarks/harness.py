@@ -1425,6 +1425,7 @@ def _run_loaded_pair(
     if stop_at_eos and not eos_ids:
         raise RuntimeError("stop_at_eos is set but the target has no eos_token_id.")
     engine_config = FlashSpecConfig(
+        drafter_strategy="bandit",  # the model-drafter path measured before 0.3.0
         drafter_name=drafter_name,
         target_name=model_name,
         device=str(device),

@@ -157,7 +157,7 @@ class TestStrategies:
 
     def test_names_match_the_config_literal(self) -> None:
         """``DrafterStrategy`` and ``DRAFTER_STRATEGIES`` list the same names."""
-        assert set(typing.get_args(DrafterStrategy)) == set(DRAFTER_STRATEGIES)
+        assert set(typing.get_args(DrafterStrategy)) == {"auto", *DRAFTER_STRATEGIES}
         assert COMPOSITE_STRATEGIES == {"composite-g4": (4, 4), "composite-g6-f2": (6, 2)}
 
     def test_arms(self) -> None:
@@ -179,11 +179,12 @@ class TestStrategies:
 class TestConfig:
     """``FlashSpecConfig.drafter_strategy``."""
 
-    def test_default_is_the_bandit(self) -> None:
-        """Until the comparison run decides, the default stays 0.2.0's."""
+    def test_default_is_auto(self) -> None:
+        """The default resolves in the engine; the bare config constructs."""
         config = FlashSpecConfig()
-        assert config.drafter_strategy == "bandit"
+        assert config.drafter_strategy == "auto"
         assert config.bandit.n_arms == 2
+        assert FlashSpecConfig(drafter_strategy="bandit").drafter_strategy == "bandit"
 
     def test_composite_is_one_arm(self) -> None:
         """An omitted bandit gets ``n_arms=1``; an explicit other count is an error."""
@@ -208,13 +209,18 @@ class TestEngine:
         assert engine.arms == (ArmSpec(1, 6, "composite-g6-f2", fallback=0, fallback_gamma=2),)
         assert "cannot adapt" not in caplog.text
 
-    def test_composite_needs_both_drafters(self) -> None:
-        """Without a lookup drafter the composite strategy is refused."""
+    def test_composite_adds_the_lookup_and_needs_a_model_drafter(self) -> None:
+        """A composite gets an NgramDrafter added; without a model drafter it is refused."""
         target = TargetModel("t", torch.device("cpu"), torch.float32, model=_llama(2, 1))
         drafter = HuggingFaceDrafter("d", device="cpu", model=_llama(2, 2))
         config = FlashSpecConfig(device="cpu", dtype="float32", drafter_strategy="composite-g4")
+        drafters = [drafter]
+        engine = SpeculativeEngine(config, drafters, target, UCB1Selector(n_arms=1))  # type: ignore[list-item]
+        assert drafters == [drafter]  # the caller's list is not changed
+        assert engine.arms == (ArmSpec(1, 4, "composite-g4", fallback=0),)
+        assert "NgramDrafter" in engine.drafter_strategy_reason
         with pytest.raises(ValueError, match="lookup drafter"):
-            SpeculativeEngine(config, [drafter], target, UCB1Selector(n_arms=1))
+            SpeculativeEngine(config, [NgramDrafter()], target, UCB1Selector(n_arms=1))  # type: ignore[list-item]
 
     @pytest.mark.parametrize("static", [False, True])
     def test_separate_gammas_are_exact_and_used(
@@ -283,3 +289,152 @@ class TestEngine:
             result = engine.generate(_prompts()[1])
         assert counter.count == len(result.arm_steps) + 1, counter.by_kind
         assert result.n_tokens_generated == _NEW
+
+
+class TestAuto:
+    """drafter_strategy="auto" (the default) resolves like compile="auto"."""
+
+    @staticmethod
+    def _engine(
+        drafters: list[object],
+        target_model: LlamaForCausalLM,
+        *,
+        temperature: float = 0.0,
+        variant: str | None = None,
+        **config: object,
+    ) -> SpeculativeEngine:
+        sampling: dict[str, object] = {"gamma": 3, "temperature": temperature, "seed": 1}
+        if variant is not None:
+            sampling["variant"] = variant
+        target = TargetModel("t", torch.device("cpu"), torch.float32, model=target_model)
+        return SpeculativeEngine(
+            FlashSpecConfig(
+                device="cpu",
+                dtype="float32",
+                max_new_tokens=_NEW,
+                sampling=SamplingConfig(**sampling),  # type: ignore[arg-type]
+                **config,  # type: ignore[arg-type]
+            ),
+            drafters,  # type: ignore[arg-type]
+            target,
+            UCB1Selector(n_arms=1, window_size=0),
+        )
+
+    @staticmethod
+    def _drafter() -> HuggingFaceDrafter:
+        return HuggingFaceDrafter("d", device="cpu", model=_perturbed(10, 0.003))
+
+    def test_one_model_drafter_runs_composite_g6_f2(self, caplog: pytest.LogCaptureFixture) -> None:
+        """Batch 1: the measured winner, lookup added, one INFO line, greedy exact."""
+        logging.getLogger("flashspec.engine.speculative").setLevel(logging.INFO)
+        target_model = _llama(3, 10)
+        with caplog.at_level(logging.INFO, logger="flashspec.engine.speculative"):
+            engine = self._engine([self._drafter()], target_model)
+        assert engine.drafter_strategy == "composite-g6-f2"
+        assert engine.arms == (ArmSpec(1, 6, "composite-g6-f2", fallback=0, fallback_gamma=2),)
+        assert "auto: one model drafter" in engine.drafter_strategy_reason
+        lines = [r.getMessage() for r in caplog.records if "Drafter strategy" in r.getMessage()]
+        assert lines == [f"Drafter strategy composite-g6-f2 ({engine.drafter_strategy_reason})."]
+        for prompt in _prompts():
+            result = engine.generate(prompt)
+            assert torch.equal(result.output_ids, _hf_greedy(target_model, prompt))
+            assert {step.drafter for step in result.arm_steps} <= {0, 1}
+
+    def test_batch_above_one_falls_back_with_one_info_line(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Batch 2 uses the model drafter at sampling.gamma, as an explicit bandit would."""
+        logging.getLogger("flashspec.engine.speculative").setLevel(logging.INFO)
+        target_model = _llama(3, 10)
+        auto = self._engine([self._drafter()], target_model)
+        bandit = self._engine(
+            [self._drafter()],
+            target_model,
+            drafter_strategy="bandit",
+            bandit=BanditConfig(n_arms=1),
+        )
+        prompt = torch.cat([_prompts()[0], _prompts()[0]], dim=0)
+        with caplog.at_level(logging.INFO, logger="flashspec.engine.speculative"):
+            first = auto.generate(prompt)
+            auto.generate(prompt)
+        assert torch.equal(first.output_ids, bandit.generate(prompt).output_ids)
+        assert {step.proposed for step in first.arm_steps} == {3}
+        lines = [r.getMessage() for r in caplog.records if "for this call" in r.getMessage()]
+        assert len(lines) == 1 and "batch size 2" in lines[0]
+        # The engine keeps its composite for later batch-1 calls.
+        assert auto.arms[0].fallback == 0
+        assert auto.generate(_prompts()[1]).arm_steps[0].arm == 0
+
+    def test_typical_falls_back_instead_of_raising(self) -> None:
+        """variant="typical" cannot use prompt lookup; auto runs what explicit bandit runs."""
+        auto = self._engine([self._drafter()], _llama(3, 10), temperature=0.8, variant="typical")
+        bandit = self._engine(
+            [self._drafter()],
+            _llama(3, 10),
+            temperature=0.8,
+            variant="typical",
+            drafter_strategy="bandit",
+            bandit=BanditConfig(n_arms=1),
+        )
+        got = auto.generate(_prompts()[1])
+        assert torch.equal(got.output_ids, bandit.generate(_prompts()[1]).output_ids)
+        assert {step.drafter for step in got.arm_steps} == {0}
+
+    def test_several_drafters_resolve_to_bandit(self) -> None:
+        """Two model drafters: the bandit path, one arm each, reason recorded."""
+        target = TargetModel("t", torch.device("cpu"), torch.float32, model=_llama(3, 10))
+        engine = SpeculativeEngine(
+            FlashSpecConfig(device="cpu", dtype="float32", max_new_tokens=_NEW),
+            [self._drafter(), self._drafter()],  # type: ignore[list-item]
+            target,
+            UCB1Selector(n_arms=2, window_size=0),
+        )
+        assert engine.drafter_strategy == "bandit"
+        assert engine.arms == (ArmSpec(0, 4), ArmSpec(1, 4))
+        assert "2 model and 0 lookup drafters" in engine.drafter_strategy_reason
+
+    def test_n_arms_is_checked_only_when_given(self) -> None:
+        """A default BanditConfig is not checked under auto; an explicit mismatch still is."""
+        engine = self._engine([self._drafter()], _llama(3, 10))  # BanditConfig() has n_arms=2
+        assert len(engine.arms) == 1
+        with pytest.raises(ValueError, match="must match config.bandit.n_arms"):
+            self._engine([self._drafter()], _llama(3, 10), bandit=BanditConfig(n_arms=2))
+
+    def test_explicit_composite_at_batch_two_raises(self) -> None:
+        """An explicit strategy is respected: a composite at batch 2 is an error."""
+        engine = self._engine([self._drafter()], _llama(3, 10), drafter_strategy="composite-g6-f2")
+        prompt = torch.cat([_prompts()[0], _prompts()[0]], dim=0)
+        with pytest.raises(ValueError, match="drafter_strategy='bandit'"):
+            engine.generate(prompt)
+
+    def test_explicit_bandit_is_the_0_2_0_behaviour(self) -> None:
+        """drafter_strategy="bandit" with one drafter: one arm at sampling.gamma, no lookup."""
+        engine = self._engine(
+            [self._drafter()],
+            _llama(3, 10),
+            drafter_strategy="bandit",
+            bandit=BanditConfig(n_arms=1),
+        )
+        assert engine.drafter_strategy == "bandit"
+        assert engine.arms == (ArmSpec(0, 3),)
+        result = engine.generate(_prompts()[2])
+        assert {step.drafter for step in result.arm_steps} == {0}
+
+    def test_fallback_gamma_above_six_sets_the_verify_width(self) -> None:
+        """gamma_max covers the fallback arm: sampling.gamma 8 at batch 2 runs."""
+        target_model = _llama(3, 10)
+        target = TargetModel("t", torch.device("cpu"), torch.float32, model=target_model)
+        engine = SpeculativeEngine(
+            FlashSpecConfig(
+                device="cpu",
+                dtype="float32",
+                max_new_tokens=_NEW,
+                sampling=SamplingConfig(gamma=8, temperature=0.0),
+            ),
+            [self._drafter()],  # type: ignore[list-item]
+            target,
+            UCB1Selector(n_arms=1),
+        )
+        assert engine._gamma_max == 8
+        prompt = torch.cat([_prompts()[0], _prompts()[0]], dim=0)
+        assert engine.generate(prompt).n_tokens_generated == 2 * _NEW

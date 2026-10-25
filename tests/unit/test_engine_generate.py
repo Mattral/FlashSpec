@@ -58,6 +58,7 @@ class _Peaked:
 def _engine(n_arms: int, peaks: list[int]) -> SpeculativeEngine:
     """Build an engine whose drafters and target share a vocabulary of 16."""
     config = FlashSpecConfig(
+        drafter_strategy="bandit",
         device="cpu",
         dtype="float32",
         max_new_tokens=6,
@@ -99,6 +100,7 @@ class TestGenerate:
     def test_arm_count_mismatch_raises(self) -> None:
         """The engine refuses a drafter list that does not match n_arms."""
         config = FlashSpecConfig(
+            drafter_strategy="bandit",
             device="cpu",
             dtype="float32",
             bandit=BanditConfig(n_arms=2),

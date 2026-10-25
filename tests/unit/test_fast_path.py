@@ -63,6 +63,7 @@ def _engine(
 ) -> SpeculativeEngine:
     drafter_model, target_model = models
     config = FlashSpecConfig(
+        drafter_strategy="bandit",
         device="cpu",
         dtype="float32",
         max_new_tokens=max_new,
