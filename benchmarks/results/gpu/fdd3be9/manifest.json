@@ -1,0 +1,261 @@
+{
+  "bundle_format": 1,
+  "git_commit": "fdd3be9",
+  "tracked_files_modified": false,
+  "started_utc": "2026-10-25T13:02:37.812064+00:00",
+  "finished_utc": "2026-10-25T13:27:37.074093+00:00",
+  "duration_s": 1499.262081673,
+  "configs": [
+    {
+      "path": "benchmarks/configs/qwen_t4_composite.yaml",
+      "sha256": "46840b498e293d9eb4168a9cf9bc6c2352ccad4d90083bec0279e838d37f1cff",
+      "status": "ok",
+      "files": [
+        "qwen_t4_composite_humaneval_greedy_arm_composite-g4_fdd3be9.json",
+        "qwen_t4_composite_humaneval_greedy_arm_composite-g6-f2_fdd3be9.json",
+        "qwen_t4_composite_humaneval_greedy_hf_greedy_fdd3be9.json",
+        "qwen_t4_composite_humaneval_greedy_hf_greedy_compiled_fdd3be9.json",
+        "qwen_t4_composite_humaneval_t0.7_arm_composite-g4_fdd3be9.json",
+        "qwen_t4_composite_humaneval_t0.7_arm_composite-g6-f2_fdd3be9.json",
+        "qwen_t4_composite_humaneval_t0.7_hf_sample_compiled_fdd3be9.json",
+        "qwen_t4_composite_mt_bench_greedy_arm_composite-g4_fdd3be9.json",
+        "qwen_t4_composite_mt_bench_greedy_arm_composite-g6-f2_fdd3be9.json",
+        "qwen_t4_composite_mt_bench_greedy_hf_greedy_fdd3be9.json",
+        "qwen_t4_composite_mt_bench_greedy_hf_greedy_compiled_fdd3be9.json",
+        "qwen_t4_composite_mt_bench_t0.7_arm_composite-g4_fdd3be9.json",
+        "qwen_t4_composite_mt_bench_t0.7_arm_composite-g6-f2_fdd3be9.json",
+        "qwen_t4_composite_mt_bench_t0.7_hf_sample_compiled_fdd3be9.json",
+        "qwen_t4_composite_humaneval_edit_greedy_arm_composite-g4_fdd3be9.json",
+        "qwen_t4_composite_humaneval_edit_greedy_arm_composite-g6-f2_fdd3be9.json",
+        "qwen_t4_composite_humaneval_edit_greedy_hf_greedy_fdd3be9.json",
+        "qwen_t4_composite_humaneval_edit_greedy_hf_greedy_compiled_fdd3be9.json",
+        "qwen_t4_composite_humaneval_edit_t0.7_arm_composite-g4_fdd3be9.json",
+        "qwen_t4_composite_humaneval_edit_t0.7_arm_composite-g6-f2_fdd3be9.json",
+        "qwen_t4_composite_humaneval_edit_t0.7_hf_sample_compiled_fdd3be9.json",
+        "qwen_t4_composite_mixed_greedy_arm_composite-g4_fdd3be9.json",
+        "qwen_t4_composite_mixed_greedy_arm_composite-g6-f2_fdd3be9.json",
+        "qwen_t4_composite_mixed_t0.7_arm_composite-g4_fdd3be9.json",
+        "qwen_t4_composite_mixed_t0.7_arm_composite-g6-f2_fdd3be9.json"
+      ],
+      "duration_s": 1496.6388660110001
+    }
+  ],
+  "session": "20261025T130222Z-62137c7f",
+  "blocks": [
+    {
+      "block": "humaneval_greedy",
+      "git_commit": "fdd3be9",
+      "config_sha256": "46840b498e293d9eb4168a9cf9bc6c2352ccad4d90083bec0279e838d37f1cff",
+      "session": "20261025T130222Z-62137c7f",
+      "started_utc": "2026-10-25T13:03:25.401995+00:00",
+      "finished_utc": "2026-10-25T13:15:59.119333+00:00",
+      "duration_s": 753.666578723,
+      "tracked_files_modified": false,
+      "files": {
+        "qwen_t4_composite_humaneval_greedy_arm_composite-g4_fdd3be9.json": "527fc624db0241d7f93909ac57fe59e80dacb09500ed49c6a982ec0aa80566d0",
+        "qwen_t4_composite_humaneval_greedy_arm_composite-g6-f2_fdd3be9.json": "942969ae2d32e812dc7c19fdd1faa87ab73e4b2255fa9301f6e650e5f0866178",
+        "qwen_t4_composite_humaneval_greedy_hf_greedy_fdd3be9.json": "0874052f27a1921192b554b1788de40e46924f90fda593d67ce78e8b1cb084b1",
+        "qwen_t4_composite_humaneval_greedy_hf_greedy_compiled_fdd3be9.json": "48585b6580a080bd852bd693bf5cd527260aba6e1878fd0452b5081422050d36"
+      },
+      "dataset": "humaneval",
+      "mode": "greedy",
+      "n_prompts": 10,
+      "planned_generations": 50
+    },
+    {
+      "block": "humaneval_t0.7",
+      "git_commit": "fdd3be9",
+      "config_sha256": "46840b498e293d9eb4168a9cf9bc6c2352ccad4d90083bec0279e838d37f1cff",
+      "session": "20261025T130222Z-62137c7f",
+      "started_utc": "2026-10-25T13:15:59.154691+00:00",
+      "finished_utc": "2026-10-25T13:17:15.061796+00:00",
+      "duration_s": 75.87766028100009,
+      "tracked_files_modified": false,
+      "files": {
+        "qwen_t4_composite_humaneval_t0.7_arm_composite-g4_fdd3be9.json": "a54a9da421c06dc5abf3f5c0fe4a31400ebed92de42527d27a35db9c8c5fcd13",
+        "qwen_t4_composite_humaneval_t0.7_arm_composite-g6-f2_fdd3be9.json": "987c53983dd7e0f0358cfb1bc378df3ec69c249994d39fe754b3a7bea555793f",
+        "qwen_t4_composite_humaneval_t0.7_hf_sample_compiled_fdd3be9.json": "c709bc757608042f6ae59b31577a3e7fda5a5fa5a7538aafc745f43c7cb2f129"
+      },
+      "dataset": "humaneval",
+      "mode": "t0.7",
+      "n_prompts": 10,
+      "planned_generations": 38
+    },
+    {
+      "block": "mt_bench_greedy",
+      "git_commit": "fdd3be9",
+      "config_sha256": "46840b498e293d9eb4168a9cf9bc6c2352ccad4d90083bec0279e838d37f1cff",
+      "session": "20261025T130222Z-62137c7f",
+      "started_utc": "2026-10-25T13:17:15.089661+00:00",
+      "finished_utc": "2026-10-25T13:19:48.123298+00:00",
+      "duration_s": 152.97508489300003,
+      "tracked_files_modified": false,
+      "files": {
+        "qwen_t4_composite_mt_bench_greedy_arm_composite-g4_fdd3be9.json": "f804f49dca3857d805665db224cd259cf36f977f94ebbd1451c9a38d8f06a353",
+        "qwen_t4_composite_mt_bench_greedy_arm_composite-g6-f2_fdd3be9.json": "15d0b532fb418435f2e7e8949b94c0156c5ec78bcae8621dc4bb5752b13bb72d",
+        "qwen_t4_composite_mt_bench_greedy_hf_greedy_fdd3be9.json": "d06eac7a8def55002deb9705ca5195b8a48eda6c92e5608964c377fd9e8c3d87",
+        "qwen_t4_composite_mt_bench_greedy_hf_greedy_compiled_fdd3be9.json": "669853a5be39dd9c953f9c669a8a4b377c4499ce13e9064a8a48c04dff577ea9"
+      },
+      "dataset": "mt_bench",
+      "mode": "greedy",
+      "n_prompts": 10,
+      "planned_generations": 50
+    },
+    {
+      "block": "mt_bench_t0.7",
+      "git_commit": "fdd3be9",
+      "config_sha256": "46840b498e293d9eb4168a9cf9bc6c2352ccad4d90083bec0279e838d37f1cff",
+      "session": "20261025T130222Z-62137c7f",
+      "started_utc": "2026-10-25T13:19:48.144328+00:00",
+      "finished_utc": "2026-10-25T13:21:12.829804+00:00",
+      "duration_s": 84.6573024280001,
+      "tracked_files_modified": false,
+      "files": {
+        "qwen_t4_composite_mt_bench_t0.7_arm_composite-g4_fdd3be9.json": "cb9f45026fdcd5ddf47c552b0b73b024a0a99f2438caa428af6741f3b99da8f9",
+        "qwen_t4_composite_mt_bench_t0.7_arm_composite-g6-f2_fdd3be9.json": "0b9a0bc0ba97b74472852bfd634cc5f4a05ddc7bb347700d4724fee03c28c8da",
+        "qwen_t4_composite_mt_bench_t0.7_hf_sample_compiled_fdd3be9.json": "a4c4ac7c0b5821797a7f95e209c721a90605f0bbf3cec3ea2fb4ec7eb157644f"
+      },
+      "dataset": "mt_bench",
+      "mode": "t0.7",
+      "n_prompts": 10,
+      "planned_generations": 38
+    },
+    {
+      "block": "humaneval_edit_greedy",
+      "git_commit": "fdd3be9",
+      "config_sha256": "46840b498e293d9eb4168a9cf9bc6c2352ccad4d90083bec0279e838d37f1cff",
+      "session": "20261025T130222Z-62137c7f",
+      "started_utc": "2026-10-25T13:21:12.851513+00:00",
+      "finished_utc": "2026-10-25T13:23:06.680439+00:00",
+      "duration_s": 113.79450582599998,
+      "tracked_files_modified": false,
+      "files": {
+        "qwen_t4_composite_humaneval_edit_greedy_arm_composite-g4_fdd3be9.json": "de3b074f4a2ea0f3bf7e8ba3858d9ca58db31a775f5fa9288d8ee67cca4ad116",
+        "qwen_t4_composite_humaneval_edit_greedy_arm_composite-g6-f2_fdd3be9.json": "90cd8573aae6158ef0b968f2a4881cde89bdf18bab8ad0680556fc0fee689fa9",
+        "qwen_t4_composite_humaneval_edit_greedy_hf_greedy_fdd3be9.json": "32dd5de51ab5e222cb6c5fedb7d10639c309bbc966d4e64772ea7b6effa0d857",
+        "qwen_t4_composite_humaneval_edit_greedy_hf_greedy_compiled_fdd3be9.json": "f0be7a5f8ee35c98aad4055736281204c19dbc16c9954ff8647c779ac24c4696"
+      },
+      "dataset": "humaneval_edit",
+      "mode": "greedy",
+      "n_prompts": 10,
+      "planned_generations": 50
+    },
+    {
+      "block": "humaneval_edit_t0.7",
+      "git_commit": "fdd3be9",
+      "config_sha256": "46840b498e293d9eb4168a9cf9bc6c2352ccad4d90083bec0279e838d37f1cff",
+      "session": "20261025T130222Z-62137c7f",
+      "started_utc": "2026-10-25T13:23:06.712612+00:00",
+      "finished_utc": "2026-10-25T13:23:59.303623+00:00",
+      "duration_s": 52.562058277000006,
+      "tracked_files_modified": false,
+      "files": {
+        "qwen_t4_composite_humaneval_edit_t0.7_arm_composite-g4_fdd3be9.json": "f370ccab9aaa01b4eddf1b565f29af8e7bd4684782a4e8320f1b817bb44585f4",
+        "qwen_t4_composite_humaneval_edit_t0.7_arm_composite-g6-f2_fdd3be9.json": "2ab70c4ac00d5a549a04354f8ce2d6a60dba43375f3f5f9e9fd4a4f7c65af473",
+        "qwen_t4_composite_humaneval_edit_t0.7_hf_sample_compiled_fdd3be9.json": "0b7f870e1b9720c738362a22366b79d2ef77a39d8d4b4afe0d74c874f68a90d8"
+      },
+      "dataset": "humaneval_edit",
+      "mode": "t0.7",
+      "n_prompts": 10,
+      "planned_generations": 38
+    },
+    {
+      "block": "mixed_greedy",
+      "git_commit": "fdd3be9",
+      "config_sha256": "46840b498e293d9eb4168a9cf9bc6c2352ccad4d90083bec0279e838d37f1cff",
+      "session": "20261025T130222Z-62137c7f",
+      "started_utc": "2026-10-25T13:23:59.324981+00:00",
+      "finished_utc": "2026-10-25T13:25:51.035332+00:00",
+      "duration_s": 111.68945320900002,
+      "tracked_files_modified": false,
+      "files": {
+        "qwen_t4_composite_mixed_greedy_arm_composite-g4_fdd3be9.json": "5bfffcb2c57709694b12e340c33b50c69467cdaaf51ac8e5910f35b9b1aa9a21",
+        "qwen_t4_composite_mixed_greedy_arm_composite-g6-f2_fdd3be9.json": "2fbc403368a3c60804b935c248ca0c7848ac8cb39c8b499255aa4487a261f013"
+      },
+      "dataset": "mixed",
+      "mode": "greedy",
+      "n_prompts": 30,
+      "planned_generations": 66
+    },
+    {
+      "block": "mixed_t0.7",
+      "git_commit": "fdd3be9",
+      "config_sha256": "46840b498e293d9eb4168a9cf9bc6c2352ccad4d90083bec0279e838d37f1cff",
+      "session": "20261025T130222Z-62137c7f",
+      "started_utc": "2026-10-25T13:25:51.056952+00:00",
+      "finished_utc": "2026-10-25T13:27:34.374067+00:00",
+      "duration_s": 103.29580933399984,
+      "tracked_files_modified": false,
+      "files": {
+        "qwen_t4_composite_mixed_t0.7_arm_composite-g4_fdd3be9.json": "95c511336f5ad0df5f2ba890d02b68df9546fa62db058dae6205519e975a82f5",
+        "qwen_t4_composite_mixed_t0.7_arm_composite-g6-f2_fdd3be9.json": "65b9dfab383550e1604c7f6e6f8390021294bd3d0cb19f19d67afe37046cc0d0"
+      },
+      "dataset": "mixed",
+      "mode": "t0.7",
+      "n_prompts": 30,
+      "planned_generations": 66
+    }
+  ],
+  "sessions": [
+    {
+      "id": "20261025T130222Z-62137c7f",
+      "blocks": [
+        "humaneval_greedy",
+        "humaneval_t0.7",
+        "mt_bench_greedy",
+        "mt_bench_t0.7",
+        "humaneval_edit_greedy",
+        "humaneval_edit_t0.7",
+        "mixed_greedy",
+        "mixed_t0.7"
+      ],
+      "log": "logs/20261025T130222Z-62137c7f.log"
+    }
+  ],
+  "hardware": {
+    "platform": "Linux",
+    "machine": "x86_64",
+    "python": "3.13.16",
+    "torch": "2.11.0+cu130",
+    "avx2": true,
+    "gpu": "Tesla T4",
+    "cuda": "13.0",
+    "gpu_count": 1
+  },
+  "versions": {
+    "python": "3.13.16",
+    "torch": "2.11.0+cu130",
+    "transformers": "5.20.2",
+    "flashspec": "0.2.0"
+  },
+  "files": {
+    "results/qwen_t4_composite_humaneval_edit_greedy_arm_composite-g4_fdd3be9.json": "de3b074f4a2ea0f3bf7e8ba3858d9ca58db31a775f5fa9288d8ee67cca4ad116",
+    "results/qwen_t4_composite_humaneval_edit_greedy_arm_composite-g6-f2_fdd3be9.json": "90cd8573aae6158ef0b968f2a4881cde89bdf18bab8ad0680556fc0fee689fa9",
+    "results/qwen_t4_composite_humaneval_edit_greedy_hf_greedy_compiled_fdd3be9.json": "f0be7a5f8ee35c98aad4055736281204c19dbc16c9954ff8647c779ac24c4696",
+    "results/qwen_t4_composite_humaneval_edit_greedy_hf_greedy_fdd3be9.json": "32dd5de51ab5e222cb6c5fedb7d10639c309bbc966d4e64772ea7b6effa0d857",
+    "results/qwen_t4_composite_humaneval_edit_t0.7_arm_composite-g4_fdd3be9.json": "f370ccab9aaa01b4eddf1b565f29af8e7bd4684782a4e8320f1b817bb44585f4",
+    "results/qwen_t4_composite_humaneval_edit_t0.7_arm_composite-g6-f2_fdd3be9.json": "2ab70c4ac00d5a549a04354f8ce2d6a60dba43375f3f5f9e9fd4a4f7c65af473",
+    "results/qwen_t4_composite_humaneval_edit_t0.7_hf_sample_compiled_fdd3be9.json": "0b7f870e1b9720c738362a22366b79d2ef77a39d8d4b4afe0d74c874f68a90d8",
+    "results/qwen_t4_composite_humaneval_greedy_arm_composite-g4_fdd3be9.json": "527fc624db0241d7f93909ac57fe59e80dacb09500ed49c6a982ec0aa80566d0",
+    "results/qwen_t4_composite_humaneval_greedy_arm_composite-g6-f2_fdd3be9.json": "942969ae2d32e812dc7c19fdd1faa87ab73e4b2255fa9301f6e650e5f0866178",
+    "results/qwen_t4_composite_humaneval_greedy_hf_greedy_compiled_fdd3be9.json": "48585b6580a080bd852bd693bf5cd527260aba6e1878fd0452b5081422050d36",
+    "results/qwen_t4_composite_humaneval_greedy_hf_greedy_fdd3be9.json": "0874052f27a1921192b554b1788de40e46924f90fda593d67ce78e8b1cb084b1",
+    "results/qwen_t4_composite_humaneval_t0.7_arm_composite-g4_fdd3be9.json": "a54a9da421c06dc5abf3f5c0fe4a31400ebed92de42527d27a35db9c8c5fcd13",
+    "results/qwen_t4_composite_humaneval_t0.7_arm_composite-g6-f2_fdd3be9.json": "987c53983dd7e0f0358cfb1bc378df3ec69c249994d39fe754b3a7bea555793f",
+    "results/qwen_t4_composite_humaneval_t0.7_hf_sample_compiled_fdd3be9.json": "c709bc757608042f6ae59b31577a3e7fda5a5fa5a7538aafc745f43c7cb2f129",
+    "results/qwen_t4_composite_mixed_greedy_arm_composite-g4_fdd3be9.json": "5bfffcb2c57709694b12e340c33b50c69467cdaaf51ac8e5910f35b9b1aa9a21",
+    "results/qwen_t4_composite_mixed_greedy_arm_composite-g6-f2_fdd3be9.json": "2fbc403368a3c60804b935c248ca0c7848ac8cb39c8b499255aa4487a261f013",
+    "results/qwen_t4_composite_mixed_t0.7_arm_composite-g4_fdd3be9.json": "95c511336f5ad0df5f2ba890d02b68df9546fa62db058dae6205519e975a82f5",
+    "results/qwen_t4_composite_mixed_t0.7_arm_composite-g6-f2_fdd3be9.json": "65b9dfab383550e1604c7f6e6f8390021294bd3d0cb19f19d67afe37046cc0d0",
+    "results/qwen_t4_composite_mt_bench_greedy_arm_composite-g4_fdd3be9.json": "f804f49dca3857d805665db224cd259cf36f977f94ebbd1451c9a38d8f06a353",
+    "results/qwen_t4_composite_mt_bench_greedy_arm_composite-g6-f2_fdd3be9.json": "15d0b532fb418435f2e7e8949b94c0156c5ec78bcae8621dc4bb5752b13bb72d",
+    "results/qwen_t4_composite_mt_bench_greedy_hf_greedy_compiled_fdd3be9.json": "669853a5be39dd9c953f9c669a8a4b377c4499ce13e9064a8a48c04dff577ea9",
+    "results/qwen_t4_composite_mt_bench_greedy_hf_greedy_fdd3be9.json": "d06eac7a8def55002deb9705ca5195b8a48eda6c92e5608964c377fd9e8c3d87",
+    "results/qwen_t4_composite_mt_bench_t0.7_arm_composite-g4_fdd3be9.json": "cb9f45026fdcd5ddf47c552b0b73b024a0a99f2438caa428af6741f3b99da8f9",
+    "results/qwen_t4_composite_mt_bench_t0.7_arm_composite-g6-f2_fdd3be9.json": "0b9a0bc0ba97b74472852bfd634cc5f4a05ddc7bb347700d4724fee03c28c8da",
+    "results/qwen_t4_composite_mt_bench_t0.7_hf_sample_compiled_fdd3be9.json": "a4c4ac7c0b5821797a7f95e209c721a90605f0bbf3cec3ea2fb4ec7eb157644f",
+    "logs/20261025T130222Z-62137c7f.log": "dda4de2c3a7df887ff66daa046b9626c804c486663dad550945d841c7b32b7e5",
+    "profile.txt": "e63c1220a80c367ec3102e3229fff573225340afb180d495baa88afccdd20b1e",
+    "run.log": "dda4de2c3a7df887ff66daa046b9626c804c486663dad550945d841c7b32b7e5"
+  }
+}
