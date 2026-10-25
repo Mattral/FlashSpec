@@ -7,7 +7,13 @@ arms. The engine keeps one cache per drafter, not per arm.
 
 A *composite* arm names a lookup drafter as ``drafter`` and a model
 drafter as ``fallback``: on each step it uses the lookup proposal when one
-exists and the fallback drafter otherwise.
+exists and the fallback drafter otherwise. The lookup proposes up to
+``gamma`` tokens; the fallback drafts ``fallback_gamma`` tokens (``gamma``
+when it is not set).
+
+:data:`DRAFTER_STRATEGIES` names the strategies
+:class:`flashspec.utils.config.FlashSpecConfig` can select with
+``drafter_strategy``, and :func:`strategy_arms` turns one into arms.
 """
 
 from __future__ import annotations
@@ -15,7 +21,31 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-__all__ = ["ArmSpec", "ArmStep", "arm_label", "default_arms", "validate_arms"]
+__all__ = [
+    "COMPOSITE_STRATEGIES",
+    "DRAFTER_STRATEGIES",
+    "ArmSpec",
+    "ArmStep",
+    "arm_label",
+    "default_arms",
+    "strategy_arms",
+    "validate_arms",
+]
+
+#: Composite strategies: name -> (lookup gamma, fallback gamma). These are
+#: the two candidates for the 0.3.0 default drafter strategy (HANDOFF
+#: proposal (a)): ``composite-g4`` is the Phase 6 composite arm, and
+#: ``composite-g6-f2`` proposes up to 6 lookup tokens and drafts 2 with the
+#: model when the lookup has no match.
+COMPOSITE_STRATEGIES: dict[str, tuple[int, int]] = {
+    "composite-g4": (4, 4),
+    "composite-g6-f2": (6, 2),
+}
+
+#: Every value of ``FlashSpecConfig.drafter_strategy``. ``"bandit"`` is one
+#: arm per drafter at ``sampling.gamma``, chosen online by the bandit
+#: (experimental: it lost to the best fixed arm in the Phase 6 run).
+DRAFTER_STRATEGIES: tuple[str, ...] = ("bandit", *COMPOSITE_STRATEGIES)
 
 
 @dataclass(frozen=True, slots=True)
@@ -33,14 +63,28 @@ class ArmSpec:
         Name used in logs and results. Empty uses ``"arm<k>"``.
     fallback : int or None
         Composite arm only: index of the model drafter used on steps where
-        the lookup drafter ``drafter`` has no proposal. The fallback drafts
-        ``gamma`` tokens too.
+        the lookup drafter ``drafter`` has no proposal.
+    fallback_gamma : int or None
+        Composite arm only: tokens the fallback drafts per step. ``None``
+        uses ``gamma``. Must be ``>= 1``.
     """
 
     drafter: int
     gamma: int
     label: str = ""
     fallback: int | None = None
+    fallback_gamma: int | None = None
+
+    def step_gamma(self, *, fallback: bool) -> int:
+        """Gamma of a step: the fallback's on a fallback step, else ``gamma``."""
+        if fallback and self.fallback_gamma is not None:
+            return self.fallback_gamma
+        return self.gamma
+
+    @property
+    def max_gamma(self) -> int:
+        """The longest draft any step of this arm proposes."""
+        return max(self.gamma, self.step_gamma(fallback=True))
 
 
 @dataclass(frozen=True, slots=True)
@@ -90,6 +134,54 @@ def default_arms(n_drafters: int, gamma: int) -> list[ArmSpec]:
     return [ArmSpec(drafter=index, gamma=gamma) for index in range(n_drafters)]
 
 
+def strategy_arms(strategy: str, lookup: Sequence[bool], gamma: int) -> list[ArmSpec]:
+    """Arms for a ``FlashSpecConfig.drafter_strategy``.
+
+    Parameters
+    ----------
+    strategy : str
+        One of :data:`DRAFTER_STRATEGIES`.
+    lookup : sequence of bool
+        Per drafter, whether it is a lookup drafter.
+    gamma : int
+        ``sampling.gamma``; used by ``"bandit"`` only.
+
+    Returns
+    -------
+    list of ArmSpec
+        ``"bandit"``: one arm per drafter at ``gamma``. A composite
+        strategy: one composite arm over the first lookup drafter and the
+        first model drafter, at the strategy's two gammas.
+
+    Raises
+    ------
+    ValueError
+        For an unknown strategy, or a composite strategy without one lookup
+        and one model drafter.
+    """
+    if strategy == "bandit":
+        return default_arms(len(lookup), gamma)
+    if strategy not in COMPOSITE_STRATEGIES:
+        raise ValueError(f"Unknown drafter strategy {strategy!r}; use one of {DRAFTER_STRATEGIES}.")
+    lookups = [index for index, flag in enumerate(lookup) if flag]
+    models = [index for index, flag in enumerate(lookup) if not flag]
+    if not lookups or not models:
+        raise ValueError(
+            f"drafter_strategy {strategy!r} needs a lookup drafter (NgramDrafter) and a model "
+            "drafter."
+        )
+    lookup_gamma, fallback_gamma = COMPOSITE_STRATEGIES[strategy]
+    return [
+        ArmSpec(
+            drafter=lookups[0],
+            gamma=lookup_gamma,
+            label=strategy,
+            fallback=models[0],
+            fallback_gamma=None if fallback_gamma == lookup_gamma else fallback_gamma,
+        )
+    ]
+
+
 def validate_arms(
     arms: Sequence[ArmSpec], n_drafters: int, lookup: Sequence[bool] | None = None
 ) -> None:
@@ -113,7 +205,11 @@ def validate_arms(
         if arm.gamma < 1:
             raise ValueError(f"arm {index} has gamma {arm.gamma}; must be >= 1.")
         if arm.fallback is None:
+            if arm.fallback_gamma is not None:
+                raise ValueError(f"arm {index} sets fallback_gamma but has no fallback.")
             continue
+        if arm.fallback_gamma is not None and arm.fallback_gamma < 1:
+            raise ValueError(f"arm {index} has fallback_gamma {arm.fallback_gamma}; must be >= 1.")
         if not 0 <= arm.fallback < n_drafters:
             raise ValueError(f"arm {index} names fallback {arm.fallback}; have {n_drafters}.")
         if lookup is None or not lookup[arm.drafter] or lookup[arm.fallback]:

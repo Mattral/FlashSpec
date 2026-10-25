@@ -369,3 +369,44 @@ def test_prompt_helper_rejects_non_string_content() -> None:
     """Multipart content is outside the server's supported subset."""
     with pytest.raises(ValueError, match="string"):
         messages_to_prompt([{"role": "user", "content": ["not", "a", "string"]}])  # type: ignore[list-item]
+
+
+def test_drafter_strategy_flag(monkeypatch: pytest.MonkeyPatch) -> None:
+    """--drafter-strategy: default bandit; composite adds prompt lookup and uses one arm."""
+    from flashspec.engine.arms import DRAFTER_STRATEGIES
+    from flashspec.engine.ngram import NgramDrafter
+    from flashspec.serve.__main__ import build_parser
+
+    args = build_parser().parse_args(["--target", "toy", "--drafter", "a"])
+    assert args.drafter_strategy == "bandit"
+    choices = next(a for a in build_parser()._actions if a.dest == "drafter_strategy").choices
+    assert tuple(choices) == DRAFTER_STRATEGIES  # type: ignore[arg-type]
+
+    cli = _patch_server_loaders(monkeypatch, n_drafters=1)
+    calls: list[tuple[object, ...]] = []
+
+    def _engine(config: object, *args: object, **kwargs: object) -> object:
+        calls.append((config, *args))
+        return object()
+
+    monkeypatch.setattr(cli, "SpeculativeEngine", _engine)
+    uvicorn = types.ModuleType("uvicorn")
+    uvicorn.run = lambda app, host, port: None  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "uvicorn", uvicorn)
+    cli.main(["--target", "toy", "--drafter", "a", "--drafter-strategy", "composite-g6-f2"])
+    ((config, drafters, _target, bandit),) = calls
+    assert config.drafter_strategy == "composite-g6-f2"  # type: ignore[attr-defined]
+    assert config.bandit.n_arms == 1  # type: ignore[attr-defined]
+    assert len(drafters) == 2 and isinstance(drafters[1], NgramDrafter)  # type: ignore[arg-type]
+    assert bandit.n_arms == 1  # type: ignore[attr-defined]
+
+    with pytest.raises(SystemExit, match="exactly one --drafter"):
+        cli.main(
+            ["--target", "toy", "--drafter", "a", "--drafter", "b"]
+            + ["--drafter-strategy", "composite-g4"]
+        )
+    with pytest.raises(SystemExit, match="batch 1 only"):
+        cli.main(
+            ["--target", "toy", "--drafter", "a", "--drafter-strategy", "composite-g4"]
+            + ["--batch-size", "2"]
+        )

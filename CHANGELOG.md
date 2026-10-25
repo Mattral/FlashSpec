@@ -11,6 +11,25 @@ Versioning follows [Semantic Versioning 2.0.0](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- Separate lookup and fallback gammas for a composite arm:
+  `ArmSpec(lookup, gamma, fallback=model, fallback_gamma=g)`. The model
+  drafter drafts `fallback_gamma` tokens on fallback steps (`gamma` when
+  unset); the verify width is `max gamma + 1`.
+- `FlashSpecConfig.drafter_strategy`: `"bandit"` (default, unchanged from
+  0.2.0), `"composite-g4"` (lookup 4 / fallback 4, the Phase 6 composite
+  arm) or `"composite-g6-f2"` (lookup 6 / fallback 2). Without `arms=`, the
+  engine builds the strategy's arms (`flashspec.engine.arms.strategy_arms`).
+  A composite strategy is one arm and defaults `bandit.n_arms` to 1. The
+  server takes `--drafter-strategy`; with a composite strategy it adds the
+  prompt-lookup drafter to the one `--drafter` and requires `--batch-size 1`.
+- Default-strategy comparison, pre-registered:
+  `benchmarks/configs/qwen_t4_composite.yaml` (notebook cell 3f) runs both
+  composite variants against compiled HuggingFace on the Phase 6 prompt
+  sets; `scripts/composite_report.py` applies the rule fixed in the config.
+  The runner's `greedy_tie_check: true` replays each greedy divergence from
+  compiled HuggingFace and classifies it with `benchmarks/tie_check.py`
+  (fp16 exact tie, as found in #47, or a mismatch). The default stays
+  `"bandit"` until that run is ingested.
 - Prompt-lookup (n-gram) drafter, `flashspec.engine.NgramDrafter` (PLAN
   Phase 6a). It proposes the continuation of the most recent earlier
   occurrence of the last 3, 2 or 1 context tokens, searched on the device

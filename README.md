@@ -59,8 +59,11 @@ is a design target.
   `generate(do_sample=False)`. On the GPU in fp16, kernels for different
   shapes can round differently, so each greedy GPU run reports how many
   prompts matched (last columns of the table).
-- **The bandit is experimental.** Every measured run used one drafter, so
-  the selector has never been measured choosing between drafters.
+- **The bandit is experimental.** In the Phase 6 run on one T4 (bundle
+  `3e38251`, see the CHANGELOG) it chose among seven arms and did not beat
+  the best fixed arm on the mixed workload. The composite drafter
+  strategies are the candidates for the 0.3.0 default; see
+  [Drafter strategies](#drafter-strategies).
 - **The Triton and assembly kernels are experimental** and not on the
   generation critical path; see [Experimental kernels](#experimental-kernels-not-on-the-critical-path).
 - `sampling.variant="typical"` is **lossy**; `"rejection"` and `"greedy"`
@@ -105,7 +108,8 @@ static KV caches and replays the fixed-shape drafter decode and target
 verify calls as CUDA graphs (`torch.compile(mode="reduce-overhead")`).
 
 Two parts are experimental. The UCB1/Thompson selector can choose between
-registered drafters, but it has only been measured with one. The Triton
+arms (a drafter and a gamma each), but in the one run where it did, it
+lost to the best fixed arm. The Triton
 verification kernels and the optional assembly residual are not called on
 the generation path (see
 [Experimental kernels](#experimental-kernels-not-on-the-critical-path)).
@@ -209,6 +213,54 @@ print(tokenizer.decode(new_ids, skip_special_tokens=True))
 ```
 
 Both checkpoints are public. `benchmarks/harness.py` refuses a drafter and a target whose vocabulary sizes differ and writes no result file. `SpeculativeEngine` itself does not apply that check. `notebooks/01_quickstart.py` is a separate CPU toy: the names are `"toy"`, the log-probs are random, and it does not download these checkpoints. With one drafter the bandit cannot adapt, and the loader says so.
+
+### Drafter strategies
+
+`FlashSpecConfig.drafter_strategy` chooses the arms the engine builds when
+it is not given `arms=`. The server takes the same names as
+`--drafter-strategy`.
+
+| strategy | what drafts each step | drafters to pass |
+|---|---|---|
+| `"bandit"` (default) | one arm per drafter at `sampling.gamma`, chosen online by UCB1 or Thompson (experimental) | one or more model drafters |
+| `"composite-g4"` | prompt lookup, up to 4 tokens, when the context has a match; otherwise the model drafter drafts 4 | one model drafter and an `NgramDrafter` |
+| `"composite-g6-f2"` | prompt lookup, up to 6 tokens, when the context has a match; otherwise the model drafter drafts 2 | one model drafter and an `NgramDrafter` |
+
+```python
+# Continuing the quickstart above: the same drafter and target, plus prompt lookup.
+from flashspec.engine import NgramDrafter
+
+composite = FlashSpecConfig(
+    device="cpu",
+    dtype="float32",
+    max_new_tokens=16,
+    drafter_strategy="composite-g4",  # one arm: bandit.n_arms defaults to 1
+    sampling=SamplingConfig(temperature=1.0),
+)
+engine = SpeculativeEngine(composite, [*drafters, NgramDrafter()], target, UCB1Selector(n_arms=1))
+```
+
+```bash
+python -m flashspec.serve --target Qwen/Qwen2.5-1.5B-Instruct \
+    --drafter Qwen/Qwen2.5-0.5B-Instruct --drafter-strategy composite-g4 --device cuda:0
+```
+
+A composite strategy is one fixed arm, so the bandit has nothing to choose.
+It runs at batch 1 with `variant` `"rejection"` or `"greedy"` (the server
+refuses `--batch-size` above 1 with it) and verifies at width
+`max gamma + 1`: 5 for `composite-g4`, 7 for `composite-g6-f2`. Lookup
+steps use Algorithm 1 with a one-hot draft distribution, so both are
+lossless; the chi-squared tests cover separate lookup and fallback gammas.
+
+**The default is still `"bandit"`, as in 0.2.0, until a measurement picks
+one.** `benchmarks/configs/qwen_t4_composite.yaml` runs both composite
+variants against compiled HuggingFace on the Phase 6 prompt sets (T4,
+notebook cell 3f). Its rule was fixed before the run: the variant with the
+higher mixed-workload greedy throughput is picked, and it becomes the
+default only if it beats compiled HuggingFace on every prompt set in greedy
+and T=0.7, and its greedy output matches compiled HuggingFace except at
+fp16 exact ties. `scripts/composite_report.py` applies the rule to the
+JSONs. No result of that run is in this README yet.
 
 ---
 
@@ -342,11 +394,14 @@ No H100 comparison exists, and Medusa and EAGLE are not implemented here, so no 
 
 ## Experimental components
 
-### Bandit (experimental, single-arm measured only)
+### Bandit (experimental)
 
-Every language-model run in this README used one drafter, so the
-selector has not been measured choosing between drafters. The regret
-numbers below come from a synthetic K=3 simulation.
+The tables in this README come from one-drafter runs. The selector was
+measured choosing among seven arms once, in the Phase 6 run (bundle
+`3e38251`; values in `benchmarks/results/gpu/3e38251/`, reported by
+`scripts/phase6_report.py`), where it did not beat the best fixed arm on
+the mixed workload. The regret numbers below come from a synthetic K=3
+simulation.
 
 #### Bandit regret — measured, synthetic (T=10,000, K=3 arms)
 
@@ -454,7 +509,8 @@ verify calls replay as CUDA graphs. The prompt prefill stays eager.
 `μ̂ₖ + c · √(2 log t / nₖ)`. Unpulled arms are selected first. The reward
 is emitted tokens per step second. In a synthetic K=3 simulation UCB1
 regret at T=10,000 is 100.2 (theory bound ≈ 526) and Thompson's is 18.9.
-No language-model run has used more than one drafter.
+On a language model it was measured once, over seven arms (Phase 6,
+bundle `3e38251`), and lost to the best fixed arm on the mixed workload.
 
 See [`docs/architecture.md`](docs/architecture.md) for the full component
 diagram and proof sketch.
@@ -539,6 +595,29 @@ critical value 15.086 at 5 degrees of freedom and α = 0.01). It is not a
 Kolmogorov–Smirnov test. The CPU test job runs it. Pytest fails under 83%
 line coverage, the measured unit-and-integration coverage rounded down.
 The CI lint job also runs `mypy --strict flashspec`.
+
+---
+
+## Future work
+
+Not scheduled and not implemented:
+
+- **A contextual bandit, run once.** The Phase 6 bandit had no context, and
+  the best fixed arm changed between consecutive prompts of the mixed
+  workload more often than not. A pre-registered design: the context is the
+  next lookup's match length bucket ({0, 1-2, 3-4, >= 5}), which the step's
+  single device read already carries; with no match the arms are Qwen at
+  gamma 2, 4 and 6, otherwise n-gram and Qwen at gamma 2, 4 and 6; the value
+  per (context, arm) is total emitted tokens / total seconds, not a mean of
+  per-step ratios; UCB1, normalised, verify width 7. Its exit criteria would
+  be fixed before the run (beat `composite-g4` and every fixed arm on the
+  mixed workload in both modes, within 5% of each set's best fixed arm,
+  faster than compiled HuggingFace everywhere, no new greedy mismatches),
+  and a miss would be recorded without tuning or a second attempt. The
+  oracle ceiling estimated from the Phase 6 bundle is small, so near parity
+  with the composite strategy is the expected outcome.
+- A larger target (Qwen2.5-3B-Instruct with the 0.5B drafter on the T4),
+  the batch > 1 path, and draft log-probs kept in the model dtype.
 
 ---
 

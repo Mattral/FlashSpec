@@ -16,7 +16,7 @@ from typing import Any
 import torch
 
 from flashspec.bandit.base import DraftSelector
-from flashspec.engine.arms import ArmSpec, ArmStep, default_arms, validate_arms
+from flashspec.engine.arms import ArmSpec, ArmStep, default_arms, strategy_arms, validate_arms
 from flashspec.engine.drafter import DraftModel
 from flashspec.engine.kv_cache import CacheUnavailableError, debug_cache_enabled
 from flashspec.engine.ngram import is_lookup_drafter
@@ -311,13 +311,19 @@ class SpeculativeEngine:
     arms : sequence of ArmSpec or None
         The bandit's arms: a drafter index and a gamma each, so arms can
         share a drafter (one model, one cache) at different gammas.
-        ``None`` makes one arm per drafter at ``config.sampling.gamma``.
+        ``None`` builds them from ``config.drafter_strategy``
+        (:func:`flashspec.engine.arms.strategy_arms`): for ``"bandit"``,
+        one arm per drafter at ``config.sampling.gamma``; for a composite
+        strategy, one composite arm over the first lookup drafter and the
+        first model drafter.
 
     Raises
     ------
     ValueError
-        If the number of arms (``len(drafters)`` when ``arms`` is ``None``)
-        does not match ``config.bandit.n_arms``, or an arm is invalid.
+        If the number of arms (``len(drafters)`` when ``arms`` is ``None``
+        and the strategy is ``"bandit"``) does not match
+        ``config.bandit.n_arms``, a composite strategy has no lookup or no
+        model drafter, or an arm is invalid.
 
     Notes
     -----
@@ -344,20 +350,23 @@ class SpeculativeEngine:
         bandit: DraftSelector,
         arms: Sequence[ArmSpec] | None = None,
     ) -> None:
-        if arms is None:
-            if len(drafters) != config.bandit.n_arms:
-                raise ValueError(
-                    f"len(drafters)={len(drafters)} must match "
-                    f"config.bandit.n_arms={config.bandit.n_arms}."
-                )
-            arms = default_arms(len(drafters), config.sampling.gamma)
         lookup = [is_lookup_drafter(drafter) for drafter in drafters]
+        if arms is None:
+            if config.drafter_strategy == "bandit":
+                if len(drafters) != config.bandit.n_arms:
+                    raise ValueError(
+                        f"len(drafters)={len(drafters)} must match "
+                        f"config.bandit.n_arms={config.bandit.n_arms}."
+                    )
+                arms = default_arms(len(drafters), config.sampling.gamma)
+            else:
+                arms = strategy_arms(config.drafter_strategy, lookup, config.sampling.gamma)
         validate_arms(arms, len(drafters), lookup)
         if len(arms) != config.bandit.n_arms:
             raise ValueError(
                 f"len(arms)={len(arms)} must match config.bandit.n_arms={config.bandit.n_arms}."
             )
-        if config.bandit.n_arms < 2:
+        if config.bandit.n_arms < 2 and config.drafter_strategy == "bandit":
             logger.warning(
                 "Bandit has a single arm and cannot adapt. Register two or "
                 "more drafters before expecting a throughput or acceptance "
@@ -376,7 +385,7 @@ class SpeculativeEngine:
         # variable number of tokens; they need the batch-1 fast path.
         self._lookup = lookup
         self._arms: list[ArmSpec] = list(arms)
-        self._gamma_max = max(arm.gamma for arm in self._arms)
+        self._gamma_max = max(arm.max_gamma for arm in self._arms)
         self._target = target
         self._bandit = bandit
         self._device = get_device(config.device)
@@ -903,8 +912,10 @@ class SpeculativeEngine:
             gamma = spec.gamma
             slot = spec.drafter
             if spec.fallback is not None and proposal_len.get(slot, 0) == 0:
-                # Composite arm, no lookup proposal this step: model drafter.
+                # Composite arm, no lookup proposal this step: model drafter,
+                # at the fallback's gamma.
                 slot = spec.fallback
+                gamma = spec.step_gamma(fallback=True)
             drafter = self._drafters[slot]
             n_valid: torch.Tensor | None = None
             pending_before = 0

@@ -15,7 +15,9 @@ import torch
 from flashspec.bandit.base import DraftSelector
 from flashspec.bandit.thompson import ThompsonSelector
 from flashspec.bandit.ucb import UCB1Selector
+from flashspec.engine.arms import DRAFTER_STRATEGIES
 from flashspec.engine.drafter import load_drafters
+from flashspec.engine.ngram import NgramDrafter
 from flashspec.engine.speculative import SpeculativeEngine
 from flashspec.engine.verifier import TargetModel
 from flashspec.serve.app import create_app
@@ -60,7 +62,22 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--gamma", type=int, default=4)
     parser.add_argument("--max-new-tokens", type=int, default=128)
     parser.add_argument("--temperature", type=float, default=1.0)
-    parser.add_argument("--strategy", choices=("ucb1", "thompson"), default="ucb1")
+    parser.add_argument(
+        "--drafter-strategy",
+        choices=DRAFTER_STRATEGIES,
+        default=FlashSpecConfig.model_fields["drafter_strategy"].default,
+        help=(
+            "bandit: one arm per --drafter, chosen online (experimental). composite-g4 / "
+            "composite-g6-f2: prompt lookup when the context has a match, else the single "
+            "--drafter (lookup 4 / drafter 4, or lookup 6 / drafter 2); needs --batch-size 1."
+        ),
+    )
+    parser.add_argument(
+        "--strategy",
+        choices=("ucb1", "thompson"),
+        default="ucb1",
+        help="Bandit selector for --drafter-strategy bandit.",
+    )
     parser.add_argument("--dtype", choices=("float32", "bfloat16", "float16"), default="float32")
     parser.add_argument(
         "--compile",
@@ -122,7 +139,17 @@ def main(argv: list[str] | None = None) -> None:
     }
     dtype = dtype_map[args.dtype]
     drafter_names: list[str] = list(args.drafter)
-    if len(drafter_names) < 2:
+    composite = args.drafter_strategy != "bandit"
+    if composite and len(drafter_names) != 1:
+        raise SystemExit(
+            f"--drafter-strategy {args.drafter_strategy} uses exactly one --drafter (the model "
+            "fallback); prompt lookup is added automatically."
+        )
+    if composite and args.batch_size != 1:
+        raise SystemExit(
+            f"--drafter-strategy {args.drafter_strategy} runs at batch 1 only; pass --batch-size 1."
+        )
+    if not composite and len(drafter_names) < 2:
         logger.warning(
             "Only one drafter was passed. The bandit will not adapt. "
             "Pass --drafter a second time with a different model if you "
@@ -134,6 +161,9 @@ def main(argv: list[str] | None = None) -> None:
         dtype=dtype,
         temperature=args.temperature,
     )
+    if composite:
+        drafters = [*drafters, NgramDrafter()]  # type: ignore[list-item]
+    n_arms = 1 if composite else len(drafters)
     target = TargetModel(args.target, device, dtype)
 
     from transformers import AutoTokenizer
@@ -152,14 +182,15 @@ def main(argv: list[str] | None = None) -> None:
         max_new_tokens=args.max_new_tokens,
         eos_token_ids=eos_ids,
         compile=_COMPILE_CHOICES[args.compile],
-        bandit=BanditConfig(n_arms=len(drafters), strategy=args.strategy, window_size=100),
+        drafter_strategy=args.drafter_strategy,
+        bandit=BanditConfig(n_arms=n_arms, strategy=args.strategy, window_size=100),
         sampling=SamplingConfig(gamma=args.gamma, temperature=args.temperature),
     )
     bandit: DraftSelector
-    if args.strategy == "thompson":
-        bandit = ThompsonSelector(n_arms=len(drafters), window_size=100)
+    if args.strategy == "thompson" and not composite:
+        bandit = ThompsonSelector(n_arms=n_arms, window_size=100)
     else:
-        bandit = UCB1Selector(n_arms=len(drafters), window_size=100)
+        bandit = UCB1Selector(n_arms=n_arms, window_size=100)
     engine = SpeculativeEngine(config, drafters, target, bandit)
 
     def encode(text: str) -> list[int]:

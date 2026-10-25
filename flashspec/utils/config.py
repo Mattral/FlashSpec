@@ -12,11 +12,17 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field, model_validator
 
 __all__ = [
+    "DrafterStrategy",
     "BanditConfig",
     "SamplingConfig",
     "MetricsConfig",
     "FlashSpecConfig",
 ]
+
+
+#: ``FlashSpecConfig.drafter_strategy`` values; the same names as
+#: :data:`flashspec.engine.arms.DRAFTER_STRATEGIES`.
+DrafterStrategy = Literal["bandit", "composite-g4", "composite-g6-f2"]
 
 
 class BanditConfig(BaseModel):
@@ -185,6 +191,19 @@ class FlashSpecConfig(BaseModel):
         accepted. Variable gammas, short lookup proposals and catch-ups then
         replay a few CUDA graphs instead of recording one per length.
         ``False`` keeps the unpadded shapes of 0.2.0.
+    drafter_strategy : {"bandit", "composite-g4", "composite-g6-f2"}
+        Which arms the engine builds when it is not given ``arms``.
+        ``"bandit"`` (the default, as in 0.2.0) is one arm per drafter at
+        ``sampling.gamma``, chosen online by the bandit; it is
+        experimental, since it lost to the best fixed arm in the Phase 6
+        run. A composite strategy is one fixed arm: prompt lookup (an
+        :class:`flashspec.engine.ngram.NgramDrafter` among the drafters)
+        when the context has a match, else the model drafter.
+        ``"composite-g4"`` looks up and drafts 4 tokens;
+        ``"composite-g6-f2"`` looks up 6 and drafts 2. Both ignore
+        ``sampling.gamma``, need batch 1 and ``variant`` ``"rejection"`` or
+        ``"greedy"``, and use one bandit arm: an omitted ``bandit`` gets
+        ``n_arms=1``, and any other ``n_arms`` is an error.
     eos_token_ids : tuple[int, ...]
         Token ids that end a sequence. Generation of a row stops right
         after it emits one of them; the stop token is kept. Empty (the
@@ -208,6 +227,7 @@ class FlashSpecConfig(BaseModel):
     dtype: Literal["float32", "bfloat16", "float16"] = "bfloat16"
     max_new_tokens: int = Field(default=512, ge=1)
     eos_token_ids: tuple[int, ...] = ()
+    drafter_strategy: DrafterStrategy = "bandit"
     compile: bool | Literal["auto"] = "auto"
     compile_max_cache_len: int = Field(default=1024, ge=16)
     compile_fixed_shapes: bool = True
@@ -216,6 +236,28 @@ class FlashSpecConfig(BaseModel):
     metrics: MetricsConfig = Field(default_factory=MetricsConfig)
 
     model_config = {"frozen": True}
+
+    @model_validator(mode="before")
+    @classmethod
+    def _one_arm_for_composite(cls, data: Any) -> Any:  # noqa: ANN401
+        """Default ``bandit.n_arms`` to 1 for a composite strategy (one arm)."""
+        if (
+            isinstance(data, dict)
+            and str(data.get("drafter_strategy", "bandit")).startswith("composite")
+            and "bandit" not in data
+        ):
+            return {**data, "bandit": BanditConfig(n_arms=1)}
+        return data
+
+    @model_validator(mode="after")
+    def _composite_is_one_arm(self) -> FlashSpecConfig:
+        """Reject a composite strategy with ``bandit.n_arms != 1``."""
+        if self.drafter_strategy != "bandit" and self.bandit.n_arms != 1:
+            raise ValueError(
+                f"drafter_strategy={self.drafter_strategy!r} is one fixed arm; "
+                f"bandit.n_arms must be 1, got {self.bandit.n_arms}."
+            )
+        return self
 
     @model_validator(mode="after")
     def _validate_device_format(self) -> FlashSpecConfig:

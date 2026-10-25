@@ -9,11 +9,12 @@ code-generation task may favour a 1B-parameter LLM drafter.
 FlashSpec treats draft-model selection as a K-armed bandit problem and can
 adapt the choice online.
 
-> **Experimental.** Every measured language-model run so far used one
-> drafter, so the selector has not been measured choosing between
-> drafters. Phase 6 adds a prompt-lookup drafter, per-arm gamma and a
-> mixed-workload benchmark for that; until its GPU bundle is ingested there
-> is no measured number. The regret results below are synthetic simulations.
+> **Experimental.** The selector was measured choosing among seven arms
+> once, in the Phase 6 run on a Tesla T4 (bundle `3e38251`, values in
+> `benchmarks/results/gpu/3e38251/`). On the mixed workload neither UCB1
+> nor Thompson beat the best fixed arm, so the bandit is not a candidate
+> for the default; the composite strategies below are. The regret results
+> further down are synthetic simulations.
 
 ---
 
@@ -27,7 +28,31 @@ cache and three arms. A *composite* arm (`ArmSpec(lookup, gamma,
 fallback=model)`) uses the prompt-lookup proposal on a step where one
 exists and the model drafter otherwise. The choice needs no extra device
 read: the next step's lookup is computed on the device before the step's
-one read, which then carries its length.
+one read, which then carries its length. `fallback_gamma` sets how many
+tokens the model drafter drafts on a fallback step (`gamma` when unset):
+`ArmSpec(lookup, 6, fallback=model, fallback_gamma=2)` looks up 6 tokens and
+drafts 2. The target verifies every step at `max(gamma, fallback_gamma) + 1`
+on the compiled path.
+
+### Drafter strategies
+
+`FlashSpecConfig.drafter_strategy` (server: `--drafter-strategy`) builds the
+arms when the engine is not given `arms=`:
+
+- `"bandit"` (default, as in 0.2.0): one arm per drafter at
+  `sampling.gamma`, chosen by the selector.
+- `"composite-g4"`: one composite arm, lookup 4 / fallback 4 (the Phase 6
+  composite arm).
+- `"composite-g6-f2"`: one composite arm, lookup 6 / fallback 2.
+
+A composite strategy needs one model drafter and an `NgramDrafter`, uses a
+single bandit arm (`bandit.n_arms` defaults to 1), and runs at batch 1.
+Which of the two becomes the 0.3.0 default is decided by the pre-registered
+comparison in `benchmarks/configs/qwen_t4_composite.yaml`; until that run
+is ingested the default stays `"bandit"`.
+
+A contextual bandit (context: the next lookup's match length) is recorded as
+future work in the README; it is not implemented.
 
 The reward of a step is its emitted tokens (accepted drafts plus the
 residual or bonus) divided by its wall time, including any catch-up
