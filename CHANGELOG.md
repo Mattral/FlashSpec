@@ -10,6 +10,92 @@ Versioning follows [Semantic Versioning 2.0.0](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-10-26 — Composite drafter by default, prompt lookup, separate gammas
+
+Development status stays Alpha. The measured scope is still one model pair
+on one GPU at batch 1; read the README tables, which are generated from the
+result JSONs, for the numbers.
+
+### Highlights
+- **New default drafter strategy, chosen by a pre-registered rule.**
+  `FlashSpecConfig.drafter_strategy="auto"` runs `composite-g6-f2` when you
+  give the engine one model drafter: prompt lookup (up to 6 tokens) when the
+  context has a match, else the model drafter drafts 2. The rule was fixed
+  in `benchmarks/configs/qwen_t4_composite.yaml` before the run, and
+  composite-g6-f2 passed it (bundle `fdd3be9`).
+  `drafter_strategy="bandit"` restores 0.2.0.
+- **Prompt-lookup drafter** (`NgramDrafter`). It needs no second model and
+  uses exact Algorithm 1 with a one-hot draft distribution, so it is
+  lossless. Composite arms use it with separate lookup and fallback gammas.
+- **Fixes:** `variant="typical"` (lossy) produced zero tokens at batch 1;
+  the `serve` extra now installs `accelerate`, which the server needs.
+- **README restructured** for a 30-second decision, a 5-minute trial and AI
+  agents: a tested quickstart, recipes, an API table generated from the
+  code, `llms.txt`, and a throughput chart drawn from the result JSONs by
+  `scripts/readme_chart.py` (its values are the table's). Stale statements in
+  `docs/postponed.md`, `docs/architecture.md`, `PUBLISHING.md`,
+  `CITATION.cff` and `.zenodo.json` were brought up to date.
+
+### Measured (bundle `3c43e08`, run from `main`)
+- `Qwen/Qwen2.5-1.5B-Instruct` verified by `Qwen/Qwen2.5-0.5B-Instruct`,
+  one Tesla T4, fp16, batch 1, 10 MT-Bench and 10 HumanEval prompts through
+  the chat template, greedy and T = 0.7, 128 new tokens, with the defaults
+  `compile="auto"` (resolved on, no eager fallback) and
+  `drafter_strategy="auto"` (resolved to `composite-g6-f2` in every
+  FlashSpec result). The config is the 0.2.0 release config plus
+  `drafter_strategy: auto`.
+- Compiled FlashSpec was faster than HuggingFace `generate` compiled the
+  same way in all four dataset and mode cells: by at least 1.5x on both
+  HumanEval cells and by less on MT-Bench. It was also faster than eager
+  `generate` and HuggingFace assisted generation in all four.
+- The eager path (`compile=False`) was faster than plain `generate` in all
+  four cells (0.2.0: slower in 3 of 4) and slower than compiled `generate`
+  in all four.
+- Greedy compiled FlashSpec matched `hf_greedy_compiled` on 9/10 HumanEval
+  and 8/10 MT-Bench prompts. On all 20 prompts both sides' outputs are
+  token-for-token those of the tie-checked comparison run (bundle
+  `fdd3be9`), so the three divergences (HumanEval/53 at token 94, MT-Bench
+  81 at 74 and 101 at 44) are the fp16 exact ties found there and in #47.
+- The README GPU tables are generated from this bundle only
+  (`scripts/ingest_gpu_bundle.py --readme-commit 3c43e08`). The 0.2.0
+  bundle `8d036d7` stays under `benchmarks/results/gpu/`.
+
+### Upgrade notes
+- **Default behaviour changed** (see "Changed (behaviour)" below). One model
+  drafter at batch 1 now runs the composite strategy, and the engine adds
+  the lookup drafter itself. For the 0.2.0 behaviour pass
+  `FlashSpecConfig(drafter_strategy="bandit")`, or
+  `--drafter-strategy bandit` to the server.
+- The `acceptance` column now counts lookup proposals too (accepted /
+  proposed over every step). It is lower than 0.2.0's model-drafter value
+  while throughput is higher, so do not compare the two columns directly.
+- `pip install "flashspec[serve]"` now installs `accelerate`.
+
+### Known issues
+- **The first call compiles.** With `compile="auto"` on CUDA the first
+  `generate` compiles and captures CUDA graphs. In the release run the
+  first compiled call took 223225.92456299992 ms (the stored `cold_start`
+  value), over three minutes. Later calls reuse the graphs. Use
+  `compile=False` to skip it; the eager path is slower than compiled
+  `generate`.
+- **fp16 greedy ties.** In fp16, kernels of different shapes can resolve an
+  exact top-2 tie differently, so greedy FlashSpec can differ from
+  HuggingFace at such a tie (the three cases above). fp32 is token-exact on
+  every path (T4 width diagnostic, #47).
+- Eager greedy FlashSpec differed from eager `hf_greedy` on MT-Bench prompt
+  82 at token 97. That is the same prompt and position recorded in Phase 4
+  and in the Phase 6 legacy bandit, and that prompt is fp32-exact. This run
+  did not tie-check it.
+- **Batch > 1** uses the generic loop. Under `"auto"` such calls use the
+  model drafter at `sampling.gamma`. Batch > 1 has not been measured.
+- **The bandit is experimental.** Measured once over seven arms (Phase 6,
+  bundle `3e38251`), it did not beat the best fixed arm.
+- One model pair and one GPU (Tesla T4) were measured; no other GPU, pair
+  or batch size.
+- PyTorch's "CUDAGraph supports dynamic shapes by recording a new graph for
+  each distinct input size" warning still appeared once in the release
+  run's log. Its source compiled function is not identified yet.
+
 ### Changed (behaviour)
 - **The default drafter strategy is now `drafter_strategy="auto"`.** Like
   `compile="auto"`, it picks per engine and logs one INFO line with the

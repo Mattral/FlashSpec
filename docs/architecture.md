@@ -2,17 +2,24 @@
 
 ## Overview
 
-FlashSpec is an adaptive speculative-decoding inference engine with three
-orthogonal innovations over prior work:
+FlashSpec is a speculative-decoding engine for HuggingFace causal LMs.
+What it relies on, in order of importance:
 
-1. **Triton-optimised verification** — batched token acceptance in a single
-   kernel call; O(SRAM) independent of vocabulary size.
-2. **Online bandit draft selection** — UCB1 or Thompson sampling continuously
-   adapts which draft model is used, maximising acceptance rate without human tuning.
-3. **Exact output distribution** — Algorithm 1 (Leviathan et al., 2023) with the
-   correct residual distribution. The check is the chi-squared test in
+1. **Exact output distribution** — Algorithm 1 (Leviathan et al., 2023) with the
+   correct residual distribution (a one-hot draft distribution for prompt
+   lookup), and exact greedy. The check is the chi-squared test in
    `tests/integration/test_output_distribution.py`. The CPU test job runs
    that check.
+2. **A lean batch-1 step** — one target forward and one device-to-host read
+   per step, on static KV caches with CUDA-graph replay when `compile` is on.
+3. **Drafter strategies** — the default `"auto"` runs the composite
+   `composite-g6-f2` (prompt lookup when the context has a match, else the
+   model drafter), chosen by a pre-registered T4 comparison. The online
+   UCB1/Thompson bandit over arms is experimental: in its one measurement it
+   did not beat the best fixed arm.
+
+The Triton verification kernels (`verify_tokens`, `gather_accepted`) are
+experimental and not called on the generation path; see [Kernels](kernels.md).
 
 ---
 

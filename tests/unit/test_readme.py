@@ -360,3 +360,24 @@ def test_serve_extra_covers_the_server_install_line() -> None:
     assert {"fastapi", "uvicorn", "accelerate"} <= names
     installs = [c for c in _commands(README) if c[:2] == ["pip", "install"]]
     assert ["pip", "install", "flashspec[serve]"] in installs
+
+
+def test_throughput_chart_matches_the_status_table() -> None:
+    """The README chart's image exists, and every value it plots is a cell of the status table."""
+    from scripts.readme_chart import chart_rows
+
+    text = README.read_text(encoding="utf-8")
+    images = re.findall(
+        r"!\[[^\]]*\]\((https://raw[^)]+/docs/images/throughput_(\w+)\.png)\)", text
+    )
+    assert len(images) == 1
+    _url, commit = images[0]
+    assert (ROOT / "docs" / "images" / f"throughput_{commit}.png").exists()
+    status = text[text.index(STATUS_BEGIN) : text.index(STATUS_END)]
+    assert f"git `{commit}`" in status
+    rows = chart_rows(ROOT / "benchmarks" / "results" / "gpu" / commit / "results")
+    assert len(rows) == 4
+    for _label, values in rows:
+        flashspec, compiled_hf, eager_hf = values
+        for value in (flashspec, compiled_hf, eager_hf):
+            assert f"| {value} |" in status or f" {value} |" in status, value
