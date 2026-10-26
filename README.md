@@ -56,7 +56,7 @@ This loads the measured model pair, decodes greedily, and prints the text and th
 ```python
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from flashspec import BanditConfig, FlashSpecConfig, SamplingConfig, SpeculativeEngine
+from flashspec import FlashSpecConfig, SamplingConfig, SpeculativeEngine
 from flashspec.bandit import UCB1Selector
 from flashspec.engine import HuggingFaceDrafter, TargetModel
 target_id, drafter_id = "Qwen/Qwen2.5-1.5B-Instruct", "Qwen/Qwen2.5-0.5B-Instruct"  # same tokenizer
@@ -65,8 +65,7 @@ dtype = torch.float16 if device.type == "cuda" else torch.float32
 load = lambda name: AutoModelForCausalLM.from_pretrained(name, torch_dtype=dtype).to(device)
 target = TargetModel(target_id, device, dtype, model=load(target_id))
 drafter = HuggingFaceDrafter(drafter_id, device, dtype, model=load(drafter_id))
-config = FlashSpecConfig(device=str(device), bandit=BanditConfig(n_arms=1),
-                         sampling=SamplingConfig(temperature=0.0))  # greedy
+config = FlashSpecConfig(device=str(device), sampling=SamplingConfig(temperature=0.0))  # greedy
 engine = SpeculativeEngine(config, [drafter], target, UCB1Selector(n_arms=1))
 tokenizer = AutoTokenizer.from_pretrained(target_id)
 prompt = tokenizer("def fibonacci(n):", return_tensors="pt").input_ids.to(device)
@@ -74,6 +73,7 @@ engine.generate(prompt, max_new_tokens=128)  # the first call on CUDA compiles (
 result = engine.generate(prompt, max_new_tokens=128)
 print(tokenizer.decode(result.output_ids[0, : result.n_tokens_generated], skip_special_tokens=True))
 print(f"{result.tokens_per_second:.1f} tok/s, acceptance {result.acceptance_rate:.2f}")
+print("drafter strategy:", engine.drafter_strategy)  # composite-g6-f2 with one model drafter
 ```
 
 `output_ids` has shape `(batch, max_new_tokens)` and pads a row that stopped early with `-1`; `n_tokens_generated` counts the real tokens. `TargetModel` and `HuggingFaceDrafter` take the loaded modules through `model=`; without it, `TargetModel` loads with `device_map`, which needs `accelerate`.
@@ -104,6 +104,7 @@ A composite strategy is one fixed arm (`bandit.n_arms` defaults to 1), runs at b
 The default was chosen by a rule fixed before the run (`benchmarks/configs/qwen_t4_composite.yaml`, applied by `scripts/composite_report.py`). In that T4 run (bundle `fdd3be9`), composite-g6-f2 had the higher mixed-workload greedy throughput, was faster than compiled HuggingFace on HumanEval, MT-Bench and HumanEval-edit in greedy and at T=0.7, and matched compiled HuggingFace greedy output except at three fp16 exact ties (HumanEval/53, MT-Bench 81 and 101, the ties the #47 diagnostic found) ([values](https://github.com/Mattral/FlashSpec/tree/main/benchmarks/results/gpu/fdd3be9)). The README tables below are the 0.3.0 release run with this default (bundle `3c43e08`).
 
 ```python
+from flashspec import BanditConfig
 from flashspec.engine import NgramDrafter
 
 greedy = SamplingConfig(temperature=0.0)
@@ -125,7 +126,7 @@ Which is fastest depends on the prompts. In the Phase 6 T4 run (greedy, bundle `
 greedy = SamplingConfig(temperature=0.0)            # same tokens as model.generate(do_sample=False)
 sampled = SamplingConfig(temperature=0.7, seed=0)   # Algorithm 1: same distribution as the target
 drafter.set_temperature(0.7)                        # draft at the target's temperature
-config = FlashSpecConfig(device=str(device), bandit=BanditConfig(n_arms=1), sampling=sampled)
+config = FlashSpecConfig(device=str(device), sampling=sampled)
 engine = SpeculativeEngine(config, [drafter], target, UCB1Selector(n_arms=1))
 result = engine.generate(prompt, max_new_tokens=64)
 ```
@@ -135,8 +136,7 @@ The default is `temperature=1.0`, which samples. `temperature=0.0` selects greed
 ### Turn compile off
 
 ```python
-config = FlashSpecConfig(device=str(device), compile=False, bandit=BanditConfig(n_arms=1),
-                         sampling=SamplingConfig(temperature=0.0))
+config = FlashSpecConfig(device=str(device), compile=False, sampling=SamplingConfig(temperature=0.0))
 engine = SpeculativeEngine(config, [drafter], target, UCB1Selector(n_arms=1))
 print(engine.compiled, "|", engine.compile_decision.reason)
 ```

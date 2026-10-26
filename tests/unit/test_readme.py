@@ -413,3 +413,32 @@ def test_container_commands_name_this_version_and_parse() -> None:
         if args:
             parsed = build_parser().parse_args(args)
             assert parsed.host == "0.0.0.0", command
+
+
+def test_quickstart_auto_runs_composite_and_matches_hf_greedy(tiny_hub: list[str]) -> None:
+    """No BanditConfig: the arm count follows the drafters (composite-g6-f2, HF-exact greedy)."""
+    quickstart = _blocks(README, "python")[0]
+    assert "BanditConfig" not in quickstart
+    namespace: dict[str, Any] = {"__name__": "readme"}
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        exec(compile(quickstart, "README quickstart", "exec"), namespace)  # noqa: S102
+    engine, result = namespace["engine"], namespace["result"]
+    assert engine.drafter_strategy == "composite-g6-f2"
+    assert "auto: one model drafter" in engine.drafter_strategy_reason
+    assert engine.arms[0].gamma == 6 and engine.arms[0].fallback_gamma == 2
+    assert "drafter strategy: composite-g6-f2" in out.getvalue()
+    target_module = namespace["target"]._model
+    prompt = namespace["prompt"]
+    with torch.no_grad():
+        reference = target_module.generate(
+            prompt,
+            attention_mask=torch.ones_like(prompt),
+            do_sample=False,
+            max_new_tokens=128,
+            min_new_tokens=128,
+            eos_token_id=None,
+            pad_token_id=0,
+        )[:, prompt.shape[1] :]
+    assert result.n_tokens_generated == 128
+    assert torch.equal(result.output_ids[:, :128], reference)

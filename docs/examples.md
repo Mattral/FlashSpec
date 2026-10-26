@@ -9,12 +9,13 @@ The notebooks are in
 
 This was the quickstart before 0.3.0. It loads the drafter through
 `load_drafters` (the registry path) instead of `HuggingFaceDrafter`, and
-samples at temperature 1.0 on CPU in float32.
+samples at temperature 1.0 on CPU in float32. With one model drafter and no
+`BanditConfig`, the default `drafter_strategy="auto"` runs `composite-g6-f2`.
 
 ```python
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from flashspec import FlashSpecConfig, BanditConfig, SamplingConfig, TRITON_AVAILABLE
+from flashspec import FlashSpecConfig, SamplingConfig, TRITON_AVAILABLE
 from flashspec.bandit import UCB1Selector
 from flashspec.engine import SpeculativeEngine, TargetModel, load_drafters
 
@@ -30,7 +31,6 @@ config = FlashSpecConfig(
     dtype="float32",
     drafter_name=drafter_id,
     target_name=target_id,
-    bandit=BanditConfig(n_arms=1, strategy="ucb1"),
     sampling=SamplingConfig(gamma=4, temperature=1.0),
     max_new_tokens=16,
 )
