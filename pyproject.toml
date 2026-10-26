@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "flashspec"
-version = "0.3.0"
+version = "0.3.1"
 description = "Lossless speculative decoding for HuggingFace causal LMs, with a static-cache CUDA-graph fast path; bandit draft selection and Triton kernels are experimental"
 readme = {file = "README.md", content-type = "text/markdown"}
 license = { file = "LICENSE" }
