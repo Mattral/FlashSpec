@@ -71,6 +71,7 @@ nav:
   - Bandit: bandit.md
   - Benchmarks: benchmarks.md
   - Development: development.md
+  - Engineering notes: lessons.md
   - Postponed: postponed.md
   - API Reference:
       - flashspec: api/index.md
