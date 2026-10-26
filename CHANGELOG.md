@@ -11,6 +11,11 @@ Versioning follows [Semantic Versioning 2.0.0](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- `SpeculativeEngine`'s `bandit` argument is optional (default `None`). When the resolved strategy has one arm (the default
+  `drafter_strategy="auto"` with one model drafter, an explicit `"bandit"` strategy with one drafter, or a single explicit
+  arm), the engine uses a one-arm `UCB1Selector`, which always picks that arm. With several arms, omitting it raises a
+  `ValueError` that names `UCB1Selector(n_arms=k)` and `ThompsonSelector(n_arms=k)`. Every existing call, positional or
+  keyword, works unchanged.
 - Container image on GitHub Container Registry, `ghcr.io/mattral/flashspec:<version>` and
   `:latest`, built by `.github/workflows/container.yml`. It builds when a release is published
   or by hand with a version input, uses only `GITHUB_TOKEN`, and its actions are SHA-pinned. It
@@ -18,6 +23,9 @@ Versioning follows [Semantic Versioning 2.0.0](https://semver.org/).
   pushing, and the OCI source label links the package to this repository.
 
 ### Changed
+- Simpler quickstart: no `BanditConfig` and no selector with one model drafter
+  (`SpeculativeEngine(config, [drafter], target)`), and it prints `engine.drafter_strategy`. A test runs it as written and
+  checks composite-g6-f2 and token-for-token equality with HuggingFace greedy.
 - `deploy/Dockerfile` installs the released `flashspec[serve]==<version>` from PyPI instead of
   the source tree. It uses `nvidia/cuda:13.0.0-base-ubuntu24.04` (pinned by digest) with torch
   `2.11.0+cu130` and transformers `5.20.2`, runs as a non-root user, and serves by default.

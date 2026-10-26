@@ -57,7 +57,6 @@ This loads the measured model pair, decodes greedily, and prints the text and th
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from flashspec import FlashSpecConfig, SamplingConfig, SpeculativeEngine
-from flashspec.bandit import UCB1Selector
 from flashspec.engine import HuggingFaceDrafter, TargetModel
 target_id, drafter_id = "Qwen/Qwen2.5-1.5B-Instruct", "Qwen/Qwen2.5-0.5B-Instruct"  # same tokenizer
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -66,7 +65,7 @@ load = lambda name: AutoModelForCausalLM.from_pretrained(name, torch_dtype=dtype
 target = TargetModel(target_id, device, dtype, model=load(target_id))
 drafter = HuggingFaceDrafter(drafter_id, device, dtype, model=load(drafter_id))
 config = FlashSpecConfig(device=str(device), sampling=SamplingConfig(temperature=0.0))  # greedy
-engine = SpeculativeEngine(config, [drafter], target, UCB1Selector(n_arms=1))
+engine = SpeculativeEngine(config, [drafter], target)
 tokenizer = AutoTokenizer.from_pretrained(target_id)
 prompt = tokenizer("def fibonacci(n):", return_tensors="pt").input_ids.to(device)
 engine.generate(prompt, max_new_tokens=128)  # the first call on CUDA compiles (can take minutes)
@@ -109,16 +108,16 @@ from flashspec.engine import NgramDrafter
 
 greedy = SamplingConfig(temperature=0.0)
 composite = FlashSpecConfig(device=str(device), drafter_strategy="composite-g6-f2", sampling=greedy)
-engine = SpeculativeEngine(composite, [drafter, NgramDrafter()], target, UCB1Selector(n_arms=1))
+engine = SpeculativeEngine(composite, [drafter, NgramDrafter()], target)
 result = engine.generate(prompt, max_new_tokens=64)
 print(engine.arms, [step.drafter for step in result.arm_steps])  # drafter used at each step
 
 lookup_only = FlashSpecConfig(device=str(device), drafter_strategy="bandit",  # one arm per drafter
                               bandit=BanditConfig(n_arms=1), sampling=greedy)
-lookup = SpeculativeEngine(lookup_only, [NgramDrafter()], target, UCB1Selector(n_arms=1))
+lookup = SpeculativeEngine(lookup_only, [NgramDrafter()], target)
 ```
 
-Which is fastest depends on the prompts. In the Phase 6 T4 run (greedy, bundle `3e38251`), the fastest fixed choice was the composite at gamma 4 on HumanEval and on the mixed workload, the model drafter at gamma 2 on MT-Bench, and prompt lookup at gamma 6 on code edits ([values](https://github.com/Mattral/FlashSpec/tree/main/benchmarks/results/gpu/3e38251)). Several arms plus a UCB1 or Thompson selector let a bandit choose online; that is experimental, and in the same run it did not beat the best fixed arm ([bandit](https://github.com/Mattral/FlashSpec/blob/main/docs/bandit.md)).
+Which is fastest depends on the prompts. In the Phase 6 T4 run (greedy, bundle `3e38251`), the fastest fixed choice was the composite at gamma 4 on HumanEval and on the mixed workload, the model drafter at gamma 2 on MT-Bench, and prompt lookup at gamma 6 on code edits ([values](https://github.com/Mattral/FlashSpec/tree/main/benchmarks/results/gpu/3e38251)). Several arms plus a selector (`UCB1Selector(n_arms=k)` or `ThompsonSelector(n_arms=k)` from `flashspec.bandit`, passed as `SpeculativeEngine`'s fourth argument) let a bandit choose online; with one arm the engine needs no selector; that is experimental, and in the same run it did not beat the best fixed arm ([bandit](https://github.com/Mattral/FlashSpec/blob/main/docs/bandit.md)).
 
 ### Greedy or sampling
 
@@ -127,7 +126,7 @@ greedy = SamplingConfig(temperature=0.0)            # same tokens as model.gener
 sampled = SamplingConfig(temperature=0.7, seed=0)   # Algorithm 1: same distribution as the target
 drafter.set_temperature(0.7)                        # draft at the target's temperature
 config = FlashSpecConfig(device=str(device), sampling=sampled)
-engine = SpeculativeEngine(config, [drafter], target, UCB1Selector(n_arms=1))
+engine = SpeculativeEngine(config, [drafter], target)
 result = engine.generate(prompt, max_new_tokens=64)
 ```
 
@@ -137,7 +136,7 @@ The default is `temperature=1.0`, which samples. `temperature=0.0` selects greed
 
 ```python
 config = FlashSpecConfig(device=str(device), compile=False, sampling=SamplingConfig(temperature=0.0))
-engine = SpeculativeEngine(config, [drafter], target, UCB1Selector(n_arms=1))
+engine = SpeculativeEngine(config, [drafter], target)
 print(engine.compiled, "|", engine.compile_decision.reason)
 ```
 
@@ -184,7 +183,7 @@ class RepeatLast:
     def compute_logprobs(self, input_ids: torch.Tensor, draft_token_ids: torch.Tensor) -> torch.Tensor:
         return torch.nn.functional.one_hot(draft_token_ids, self.vocab_size).float().log()
 
-own = SpeculativeEngine(config, [RepeatLast(target.vocab_size)], target, UCB1Selector(n_arms=1))
+own = SpeculativeEngine(config, [RepeatLast(target.vocab_size)], target)
 result = own.generate(prompt, max_new_tokens=32)
 ```
 
@@ -202,7 +201,7 @@ Generated from the code by `scripts/readme_api.py`; a test fails when it is stal
 | `flashspec.FlashSpecConfig` | Top-level FlashSpec runtime configuration. | fields: `drafter_name: str = "llama3-1b"`, `target_name: str = "meta-llama/Llama-3-8B-Instruct"`, `device: str = "cuda:0"`, `dtype: "float32" \| "bfloat16" \| "float16" = "bfloat16"`, `max_new_tokens: int = 512`, `eos_token_ids: tuple[int, ...] = ()`, `drafter_strategy: "auto" \| "bandit" \| "composite-g4" \| "composite-g6-f2" = "auto"`, `compile: bool \| "auto" = "auto"`, `compile_max_cache_len: int = 1024`, `compile_fixed_shapes: bool = True`, `bandit: BanditConfig = BanditConfig()`, `sampling: SamplingConfig = SamplingConfig()`, `metrics: MetricsConfig = MetricsConfig()` |
 | `flashspec.SamplingConfig` | Configuration for speculative sampling. | fields: `gamma: int = 4`, `temperature: float = 1.0`, `top_p: float = 1.0`, `seed: int \| None = None`, `variant: "rejection" \| "typical" \| "greedy" = "rejection"` |
 | `flashspec.BanditConfig` | Configuration for the online bandit draft selector. | fields: `strategy: "ucb1" \| "thompson" \| "oracle" = "ucb1"`, `window_size: int = 500`, `n_arms: int = 2`, `ucb_exploration_constant: float = 1.0`, `thompson_prior_alpha: float = 1.0`, `thompson_prior_beta: float = 1.0` |
-| `flashspec.SpeculativeEngine` | Adaptive speculative-decoding inference engine. | arguments: `config: FlashSpecConfig`, `drafters: list[DraftModel]`, `target: TargetModel`, `bandit: DraftSelector`, `arms: Sequence[ArmSpec] \| None = None` |
+| `flashspec.SpeculativeEngine` | Adaptive speculative-decoding inference engine. | arguments: `config: FlashSpecConfig`, `drafters: list[DraftModel]`, `target: TargetModel`, `bandit: DraftSelector \| None = None`, `arms: Sequence[ArmSpec] \| None = None` |
 | `flashspec.SpeculativeEngine.generate` | Run the speculative decoding generation loop. | arguments: `input_ids: torch.Tensor`, `max_new_tokens: int \| None = None`, `eos_token_ids: Sequence[int] \| None = None` |
 | `flashspec.GenerationResult` | Result of a single `SpeculativeEngine.generate` call. | fields: `output_ids: torch.Tensor`, `n_tokens_generated: int`, `acceptance_rate: float`, `tokens_per_second: float`, `step_profile: tuple[StepRecord, ...] \| None = None`, `arm_steps: tuple[ArmStep, ...] = ()` |
 | `flashspec.engine.TargetModel` | Wrapper around a HuggingFace CausalLM used as the speculative verifier. | arguments: `model_name_or_path: str`, `device: torch.device`, `dtype: torch.dtype = torch.bfloat16`, `model: Any \| None = None` |

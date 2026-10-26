@@ -16,7 +16,6 @@ samples at temperature 1.0 on CPU in float32. With one model drafter and no
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from flashspec import FlashSpecConfig, SamplingConfig, TRITON_AVAILABLE
-from flashspec.bandit import UCB1Selector
 from flashspec.engine import SpeculativeEngine, TargetModel, load_drafters
 
 print(f"Triton kernels available: {TRITON_AVAILABLE}")
@@ -58,12 +57,7 @@ target = TargetModel(
     torch.float32,
     model=target_module,
 )
-engine = SpeculativeEngine(
-    config,
-    drafters,
-    target,
-    UCB1Selector(n_arms=1, window_size=config.bandit.window_size),
-)
+engine = SpeculativeEngine(config, drafters, target)
 tokenizer = AutoTokenizer.from_pretrained(target_id)
 prompt = tokenizer("The capital of France is", return_tensors="pt").input_ids
 result = engine.generate(prompt, max_new_tokens=16)

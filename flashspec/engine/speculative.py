@@ -16,6 +16,7 @@ from typing import Any
 import torch
 
 from flashspec.bandit.base import DraftSelector
+from flashspec.bandit.ucb import UCB1Selector
 from flashspec.engine.arms import (
     COMPOSITE_STRATEGIES,
     ArmSpec,
@@ -317,8 +318,14 @@ class SpeculativeEngine:
         with model drafters.
     target : TargetModel
         The target (verifier) model instance.
-    bandit : DraftSelector
-        Online bandit selector for adaptive arm selection.
+    bandit : DraftSelector or None
+        Selector that picks an arm each step. Optional when the resolved
+        strategy has one arm (the default ``drafter_strategy="auto"`` with one
+        model drafter, or any single arm): the engine then uses a one-arm
+        :class:`flashspec.bandit.UCB1Selector`, which always picks that arm.
+        With several arms it is required (``UCB1Selector(n_arms=k)`` or
+        ``ThompsonSelector(n_arms=k)``), and omitting it raises
+        ``ValueError``.
     arms : sequence of ArmSpec or None
         The bandit's arms: a drafter index and a gamma each, so arms can
         share a drafter (one model, one cache) at different gammas.
@@ -365,7 +372,7 @@ class SpeculativeEngine:
         config: FlashSpecConfig,
         drafters: list[DraftModel],
         target: TargetModel,
-        bandit: DraftSelector,
+        bandit: DraftSelector | None = None,
         arms: Sequence[ArmSpec] | None = None,
     ) -> None:
         drafters = list(drafters)
@@ -419,6 +426,17 @@ class SpeculativeEngine:
             raise ValueError(
                 f"len(arms)={len(arms)} must match config.bandit.n_arms={config.bandit.n_arms}."
             )
+        if bandit is None:
+            if len(arms) != 1:
+                raise ValueError(
+                    f"{len(arms)} arms need a bandit selector to choose between them "
+                    f"(drafter strategy {strategy!r}). Pass one, for example "
+                    f"flashspec.bandit.UCB1Selector(n_arms={len(arms)}) or "
+                    f"flashspec.bandit.ThompsonSelector(n_arms={len(arms)}). It is optional "
+                    "only when there is one arm."
+                )
+            # One arm: nothing to choose. A one-arm UCB1 always selects arm 0.
+            bandit = UCB1Selector(n_arms=1, window_size=config.bandit.window_size)
         self._strategy = strategy
         self._strategy_reason = reason
         self._fallback_logged: set[str] = set()
