@@ -21,7 +21,12 @@ ARG TORCH_VERSION=2.11.0
 ARG TORCH_INDEX_URL=https://download.pytorch.org/whl/cu130
 ARG TRANSFORMERS_VERSION=5.20.2
 
-LABEL org.opencontainers.image.source="https://github.com/Mattral/FlashSpec" \
+# Our own labels (they also replace the base image's maintainer and ref.name).
+LABEL maintainer="Min Htet Myet (Mattral)" \
+      org.opencontainers.image.authors="Min Htet Myet (Mattral)" \
+      org.opencontainers.image.ref.name="flashspec" \
+      org.opencontainers.image.base.name="docker.io/nvidia/cuda:13.0.0-base-ubuntu24.04" \
+      org.opencontainers.image.source="https://github.com/Mattral/FlashSpec" \
       org.opencontainers.image.title="flashspec" \
       org.opencontainers.image.description="FlashSpec: lossless speculative decoding for HuggingFace causal LMs, served over an OpenAI-compatible HTTP API (GPU-oriented, CUDA 13.0)" \
       org.opencontainers.image.licenses="Apache-2.0" \

@@ -138,6 +138,7 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
           docker image inspect --format '{{json .Config.Labels}}' "${IMAGE}:${VERSION}"
+          docker history --format '{{.Size}}\t{{.CreatedBy}}' "${IMAGE}:${VERSION}" | cut -c1-120
 
       - name: Smoke test (CPU runner; fails the job before any push)
         env:
