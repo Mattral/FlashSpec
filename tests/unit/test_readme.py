@@ -419,6 +419,8 @@ def test_quickstart_auto_runs_composite_and_matches_hf_greedy(tiny_hub: list[str
     """No BanditConfig: the arm count follows the drafters (composite-g6-f2, HF-exact greedy)."""
     quickstart = _blocks(README, "python")[0]
     assert "BanditConfig" not in quickstart
+    # 0.3.1: the selector is optional with one arm, so the quickstart passes none.
+    assert "UCB1Selector" not in quickstart and "flashspec.bandit" not in quickstart
     namespace: dict[str, Any] = {"__name__": "readme"}
     out = io.StringIO()
     with contextlib.redirect_stdout(out):
