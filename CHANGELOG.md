@@ -10,6 +10,33 @@ Versioning follows [Semantic Versioning 2.0.0](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.1] — 2026-10-26 — Optional selector, simpler quickstart, container image
+
+Development status stays Alpha. No measurement in this release: 0.3.1 does
+not change the decoding path (an omitted selector is the same one-arm UCB1
+that one-drafter users already passed), so the README tables remain the
+0.3.0 release run (bundle `3c43e08`).
+
+### Highlights
+- `SpeculativeEngine(config, [drafter], target)`: with one arm, the bandit
+  selector argument is optional. The README quickstart no longer needs
+  `BanditConfig` or a selector, and it prints which drafter strategy ran.
+- A GPU-oriented server image on GitHub Container Registry,
+  `ghcr.io/mattral/flashspec:<version>`, built from the PyPI release and
+  smoke-tested on every publish (first published for 0.3.0).
+- Engineering notes in the docs (`docs/lessons.md`), with figures drawn from
+  the result JSONs by `scripts/article/`.
+
+### Upgrade notes
+- Nothing to change: every 0.3.0 call works as before. Passing a selector
+  with one arm is still allowed; omitting it with several arms raises a
+  `ValueError` that says which selector to pass.
+
+### Known issues
+- Unchanged from 0.3.0 (first call compiles; fp16 greedy exact ties; batch
+  > 1 and other GPUs or model pairs not measured; bandit experimental; the
+  CUDA-graph "distinct sizes" warning).
+
 ### Added
 - `SpeculativeEngine`'s `bandit` argument is optional (default `None`). When the resolved strategy has one arm (the default
   `drafter_strategy="auto"` with one model drafter, an explicit `"bandit"` strategy with one drafter, or a single explicit
