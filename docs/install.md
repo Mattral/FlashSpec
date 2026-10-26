@@ -25,9 +25,30 @@ pip install flashspec[serve]
 git clone https://github.com/Mattral/FlashSpec && cd FlashSpec
 pip install -e ".[dev,gpu]"   # omit ",gpu" on Windows/macOS
 
-# Docker (Linux + CUDA). No image is published; build it locally:
-docker build -f deploy/Dockerfile -t flashspec .
-docker run --gpus all flashspec make test
+# Container image (Linux + NVIDIA GPU), published for each release:
+docker pull ghcr.io/mattral/flashspec:0.3.0
+docker run --gpus all -p 8000:8000 ghcr.io/mattral/flashspec:0.3.0
+```
+
+**The container image** (`ghcr.io/mattral/flashspec:<version>` and `:latest`) is
+built by `.github/workflows/container.yml` when a release is published:
+
+- It installs `flashspec[serve]==<version>` from PyPI on `nvidia/cuda:13.0.0-base-ubuntu24.04`,
+  with torch `2.11.0+cu130` and transformers `5.20.2`, the build the GPU results were measured
+  with.
+- It runs as the non-root user `flashspec`; downloaded checkpoints go to
+  `/home/flashspec/.cache/huggingface`, so mount a volume there to keep them.
+- Its entrypoint is `python -m flashspec.serve`. The default arguments serve
+  Qwen2.5-1.5B-Instruct verified by Qwen2.5-0.5B-Instruct in fp16 on port 8000. Arguments you
+  pass replace them, so include `--host 0.0.0.0`.
+- The workflow smoke-tests every image on a CPU runner (import, then the server with a tiny
+  model) before it pushes. `deploy/docker-compose.yml` and
+  `deploy/k8s/flashspec-deployment.yaml` use the published image.
+
+To build it yourself from a released version:
+
+```bash
+docker build -f deploy/Dockerfile --build-arg FLASHSPEC_VERSION=0.3.0 -t flashspec deploy/
 ```
 
 A development checkout, by platform:

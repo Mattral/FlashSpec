@@ -4,7 +4,7 @@ metadata:
   name: flashspec
   labels:
     app: flashspec
-    version: "0.1.0"
+    version: "0.3.0"
 spec:
   replicas: 1
   selector:
@@ -17,8 +17,20 @@ spec:
     spec:
       containers:
         - name: flashspec
-          image: flashspec:latest
+          # GPU-oriented image; the default command serves Qwen2.5-1.5B-Instruct
+          # verified by Qwen2.5-0.5B-Instruct in fp16 on port 8000.
+          image: ghcr.io/mattral/flashspec:0.3.0
           imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            # The first start downloads both checkpoints and compiles CUDA graphs.
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            failureThreshold: 40
           resources:
             limits:
               nvidia.com/gpu: "1"
@@ -26,20 +38,11 @@ spec:
             requests:
               nvidia.com/gpu: "1"
               memory: "32Gi"
-          env:
-            - name: NVIDIA_VISIBLE_DEVICES
-              value: "all"
-            - name: TRITON_CACHE_DIR
-              value: /tmp/triton_cache
           volumeMounts:
             - name: hf-cache
-              mountPath: /workspace/hf_cache
-            - name: triton-cache
-              mountPath: /tmp/triton_cache
+              mountPath: /home/flashspec/.cache/huggingface
       volumes:
         - name: hf-cache
-          emptyDir: {}
-        - name: triton-cache
           emptyDir: {}
       tolerations:
         - key: "nvidia.com/gpu"

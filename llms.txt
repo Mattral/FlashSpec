@@ -10,6 +10,7 @@ Key facts for calling it correctly:
 - `engine.generate(input_ids, max_new_tokens=...)` returns `GenerationResult` with `output_ids` of shape `(batch, max_new_tokens)`, padded with -1 after `n_tokens_generated`, plus `tokens_per_second` and `acceptance_rate`.
 - The drafter must share the target's tokenizer; the engine does not check it.
 - The first `generate` on CUDA compiles and captures CUDA graphs (minutes). `FlashSpecConfig(compile=False)` skips that.
+- A GPU-oriented server image is published per release: `docker run --gpus all -p 8000:8000 ghcr.io/mattral/flashspec:<version>` (entrypoint `python -m flashspec.serve`; arguments replace the default, so pass `--host 0.0.0.0`).
 - The UCB1/Thompson bandit and the Triton/assembly kernels are experimental.
 
 ## Docs

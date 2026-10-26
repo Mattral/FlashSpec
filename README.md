@@ -40,7 +40,14 @@ pip install flashspec
 | `flashspec[serve]` | FastAPI, uvicorn, httpx, accelerate | The OpenAI-compatible server (it loads checkpoints with `device_map`, which needs `accelerate`). |
 | `flashspec[asm]` | `flashspec-asm-kernel` (Linux x86-64) | An experimental CPU residual kernel. It does not change end-to-end speed. |
 
-You need Python 3.11 or later, PyTorch 2.2 or later and transformers 4.40 or later. Installing from source, Docker, Windows and macOS notes, and the full requirements table are in [docs/install.md](https://github.com/Mattral/FlashSpec/blob/main/docs/install.md).
+You need Python 3.11 or later, PyTorch 2.2 or later and transformers 4.40 or later. Installing from source, Windows and macOS notes, and the full requirements table are in [docs/install.md](https://github.com/Mattral/FlashSpec/blob/main/docs/install.md).
+
+**Container image (GPU-oriented).** Each release is also published as a server image on GitHub Container Registry. It is built from the PyPI release on CUDA 13.0, with the torch build the GPU results were measured with, and it runs as a non-root user. It needs an NVIDIA GPU and the NVIDIA Container Toolkit; it starts on CPU too, but CPU is not where FlashSpec is faster. The default command serves the measured pair in fp16 on port 8000.
+
+```bash
+docker pull ghcr.io/mattral/flashspec:0.3.0
+docker run --gpus all -p 8000:8000 ghcr.io/mattral/flashspec:0.3.0
+```
 
 ## Quickstart
 
@@ -142,6 +149,14 @@ The default `compile="auto"` turns the compiled path on when the device is CUDA 
 pip install "flashspec[serve]"
 python -m flashspec.serve --target Qwen/Qwen2.5-1.5B-Instruct --drafter Qwen/Qwen2.5-0.5B-Instruct \
     --device cuda:0 --dtype float16 --temperature 0
+```
+
+Or with the container image. Arguments replace its default command, so pass `--host 0.0.0.0`. The volume keeps downloaded checkpoints between runs:
+
+```bash
+docker run --gpus all -p 8000:8000 -v flashspec-hf:/home/flashspec/.cache/huggingface ghcr.io/mattral/flashspec:0.3.0 \
+    --target Qwen/Qwen2.5-1.5B-Instruct --drafter Qwen/Qwen2.5-0.5B-Instruct \
+    --device cuda:0 --dtype float16 --temperature 0 --host 0.0.0.0
 ```
 
 ```bash
