@@ -9,7 +9,8 @@ name: Container
 #   a prerelease is not tagged :latest.
 # - Actions -> Container -> Run workflow builds and pushes any released version.
 # - A pull request that changes the Dockerfile or this workflow builds and
-#   smoke-tests the current pyproject version, and never pushes.
+#   smoke-tests the newest version already on PyPI (a version-bump PR's own
+#   version is not released yet), and never pushes.
 #
 # The image's org.opencontainers.image.source label links the package to this
 # repository. Only GITHUB_TOKEN is used (no PAT, no stored secret). Every action
@@ -73,7 +74,10 @@ jobs:
               latest="$INPUT_LATEST"
               push=true ;;
             *)
-              version=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+              # Test the Dockerfile and workflow against the newest release on PyPI;
+              # the PR's own pyproject version may not be published yet.
+              version=$(curl --silent --fail https://pypi.org/pypi/flashspec/json \
+                | python3 -c "import json, sys; print(json.load(sys.stdin)['info']['version'])")
               latest=false
               push=false ;;
           esac
