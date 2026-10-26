@@ -27,6 +27,7 @@ Key facts for calling it correctly:
 - [Benchmarks](https://github.com/Mattral/FlashSpec/blob/main/docs/benchmarks.md): provenance, methodology, historical and microbenchmark results
 - [Bandit](https://github.com/Mattral/FlashSpec/blob/main/docs/bandit.md): arms, selectors, regret, the Phase 6 result
 - [Kernels](https://github.com/Mattral/FlashSpec/blob/main/docs/kernels.md): the experimental Triton and assembly kernels and their measurements
+- [Engineering notes](https://github.com/Mattral/FlashSpec/blob/main/docs/lessons.md): eleven lessons from making FlashSpec faster than compiled HuggingFace, with figures drawn from the result JSONs
 - [API reference](https://flashspec.readthedocs.io/en/latest/api/): generated from the docstrings
 - [Changelog](https://github.com/Mattral/FlashSpec/blob/main/CHANGELOG.md)
 
