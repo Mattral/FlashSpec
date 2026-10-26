@@ -1,0 +1,64 @@
+FlashSpec GPU bundle: commit 3c43e08, 1 config(s)
+
+=== benchmarks/configs/qwen_t4_release_030.yaml ===
+Running qwen_t4_release_030: dataset=mt_bench mode=greedy
+2026-10-26 03:59:19,272 WARNING flashspec.engine.drafter: Loading a single drafter. The bandit cannot adapt and will not beat a fixed drafter, because there is only one arm.
+2026-10-26 03:59:19,335 INFO flashspec.engine.speculative: Drafter strategy composite-g6-f2 (auto: one model drafter; batch-1 calls only, others use the model drafter; prompt lookup (NgramDrafter) added).
+2026-10-26 03:59:19,336 INFO flashspec.engine.speculative: Compiled fast path off (compile=False).
+2026-10-26 03:59:19,361 WARNING flashspec.engine.drafter: Loading a single drafter. The bandit cannot adapt and will not beat a fixed drafter, because there is only one arm.
+2026-10-26 03:59:19,418 INFO flashspec.engine.speculative: Drafter strategy composite-g6-f2 (auto: one model drafter; batch-1 calls only, others use the model drafter; prompt lookup (NgramDrafter) added).
+2026-10-26 03:59:19,424 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+Skipping hf_sample: temperature is 0, so it would be hf_greedy. No numbers were written for it.
+Skipping hf_sample_compiled: temperature is 0, so it would be hf_greedy. No numbers were written for it.
+2026-10-26 03:59:57,219 WARNING torch._inductor.utils: Not enough SMs to use max_autotune_gemm mode
+2026-10-26 04:08:06,085 WARNING torch._inductor.cudagraph_utils.__cudagraphs: CUDAGraph supports dynamic shapes by recording a new graph for each distinct input size. Recording too many CUDAGraphs may lead to extra overhead. We have observed 9 distinct sizes. Please consider the following options for better performance: a) padding inputs to a few fixed number of shapes; or b) set torch._inductor.config.triton.cudagraph_skip_dynamic_graphs=True. Set torch._inductor.config.triton.cudagraph_dynamic_shape_warn_limit=None to silence this warning.
+flashspec_ucb: 24.83938465726492 tok/s (median) on {'platform': 'Linux', 'machine': 'x86_64', 'python': '3.13.16', 'torch': '2.11.0+cu130', 'avx2': True, 'gpu': 'Tesla T4', 'cuda': '13.0', 'gpu_count': 1}
+flashspec_compiled: 65.5665446517103 tok/s (median) on {'platform': 'Linux', 'machine': 'x86_64', 'python': '3.13.16', 'torch': '2.11.0+cu130', 'avx2': True, 'gpu': 'Tesla T4', 'cuda': '13.0', 'gpu_count': 1}
+hf_greedy: 24.358718936743088 tok/s (median) on {'platform': 'Linux', 'machine': 'x86_64', 'python': '3.13.16', 'torch': '2.11.0+cu130', 'avx2': True, 'gpu': 'Tesla T4', 'cuda': '13.0', 'gpu_count': 1}
+hf_greedy_compiled: 51.56689852526201 tok/s (median) on {'platform': 'Linux', 'machine': 'x86_64', 'python': '3.13.16', 'torch': '2.11.0+cu130', 'avx2': True, 'gpu': 'Tesla T4', 'cuda': '13.0', 'gpu_count': 1}
+hf_assisted: 18.834736736908617 tok/s (median) on {'platform': 'Linux', 'machine': 'x86_64', 'python': '3.13.16', 'torch': '2.11.0+cu130', 'avx2': True, 'gpu': 'Tesla T4', 'cuda': '13.0', 'gpu_count': 1}
+Running qwen_t4_release_030: dataset=mt_bench mode=t0.7
+2026-10-26 04:08:48,200 WARNING flashspec.engine.drafter: Loading a single drafter. The bandit cannot adapt and will not beat a fixed drafter, because there is only one arm.
+2026-10-26 04:08:48,263 INFO flashspec.engine.speculative: Drafter strategy composite-g6-f2 (auto: one model drafter; batch-1 calls only, others use the model drafter; prompt lookup (NgramDrafter) added).
+2026-10-26 04:08:48,265 INFO flashspec.engine.speculative: Compiled fast path off (compile=False).
+2026-10-26 04:08:48,273 WARNING flashspec.engine.drafter: Loading a single drafter. The bandit cannot adapt and will not beat a fixed drafter, because there is only one arm.
+2026-10-26 04:08:48,343 INFO flashspec.engine.speculative: Drafter strategy composite-g6-f2 (auto: one model drafter; batch-1 calls only, others use the model drafter; prompt lookup (NgramDrafter) added).
+2026-10-26 04:08:48,345 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+Skipping hf_greedy: this run samples at temperature 0.7; hf_sample is the matching baseline. No numbers were written for it.
+Skipping hf_greedy_compiled: this run samples at temperature 0.7; hf_sample is the matching baseline. No numbers were written for it.
+flashspec_ucb: 25.26133407738635 tok/s (median) on {'platform': 'Linux', 'machine': 'x86_64', 'python': '3.13.16', 'torch': '2.11.0+cu130', 'avx2': True, 'gpu': 'Tesla T4', 'cuda': '13.0', 'gpu_count': 1}
+flashspec_compiled: 63.11715269934044 tok/s (median) on {'platform': 'Linux', 'machine': 'x86_64', 'python': '3.13.16', 'torch': '2.11.0+cu130', 'avx2': True, 'gpu': 'Tesla T4', 'cuda': '13.0', 'gpu_count': 1}
+hf_sample: 24.371632087092596 tok/s (median) on {'platform': 'Linux', 'machine': 'x86_64', 'python': '3.13.16', 'torch': '2.11.0+cu130', 'avx2': True, 'gpu': 'Tesla T4', 'cuda': '13.0', 'gpu_count': 1}
+hf_sample_compiled: 50.24734945285092 tok/s (median) on {'platform': 'Linux', 'machine': 'x86_64', 'python': '3.13.16', 'torch': '2.11.0+cu130', 'avx2': True, 'gpu': 'Tesla T4', 'cuda': '13.0', 'gpu_count': 1}
+hf_assisted: 14.341218875882541 tok/s (median) on {'platform': 'Linux', 'machine': 'x86_64', 'python': '3.13.16', 'torch': '2.11.0+cu130', 'avx2': True, 'gpu': 'Tesla T4', 'cuda': '13.0', 'gpu_count': 1}
+Running qwen_t4_release_030: dataset=humaneval mode=greedy
+2026-10-26 04:14:32,034 WARNING flashspec.engine.drafter: Loading a single drafter. The bandit cannot adapt and will not beat a fixed drafter, because there is only one arm.
+2026-10-26 04:14:32,093 INFO flashspec.engine.speculative: Drafter strategy composite-g6-f2 (auto: one model drafter; batch-1 calls only, others use the model drafter; prompt lookup (NgramDrafter) added).
+2026-10-26 04:14:32,094 INFO flashspec.engine.speculative: Compiled fast path off (compile=False).
+2026-10-26 04:14:32,102 WARNING flashspec.engine.drafter: Loading a single drafter. The bandit cannot adapt and will not beat a fixed drafter, because there is only one arm.
+2026-10-26 04:14:32,162 INFO flashspec.engine.speculative: Drafter strategy composite-g6-f2 (auto: one model drafter; batch-1 calls only, others use the model drafter; prompt lookup (NgramDrafter) added).
+2026-10-26 04:14:32,164 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+Skipping hf_sample: temperature is 0, so it would be hf_greedy. No numbers were written for it.
+Skipping hf_sample_compiled: temperature is 0, so it would be hf_greedy. No numbers were written for it.
+flashspec_ucb: 35.695688670935155 tok/s (median) on {'platform': 'Linux', 'machine': 'x86_64', 'python': '3.13.16', 'torch': '2.11.0+cu130', 'avx2': True, 'gpu': 'Tesla T4', 'cuda': '13.0', 'gpu_count': 1}
+flashspec_compiled: 84.15121158912345 tok/s (median) on {'platform': 'Linux', 'machine': 'x86_64', 'python': '3.13.16', 'torch': '2.11.0+cu130', 'avx2': True, 'gpu': 'Tesla T4', 'cuda': '13.0', 'gpu_count': 1}
+hf_greedy: 24.429024644223723 tok/s (median) on {'platform': 'Linux', 'machine': 'x86_64', 'python': '3.13.16', 'torch': '2.11.0+cu130', 'avx2': True, 'gpu': 'Tesla T4', 'cuda': '13.0', 'gpu_count': 1}
+hf_greedy_compiled: 50.84919550812026 tok/s (median) on {'platform': 'Linux', 'machine': 'x86_64', 'python': '3.13.16', 'torch': '2.11.0+cu130', 'avx2': True, 'gpu': 'Tesla T4', 'cuda': '13.0', 'gpu_count': 1}
+hf_assisted: 23.302891492129334 tok/s (median) on {'platform': 'Linux', 'machine': 'x86_64', 'python': '3.13.16', 'torch': '2.11.0+cu130', 'avx2': True, 'gpu': 'Tesla T4', 'cuda': '13.0', 'gpu_count': 1}
+Running qwen_t4_release_030: dataset=humaneval mode=t0.7
+2026-10-26 04:18:40,680 WARNING flashspec.engine.drafter: Loading a single drafter. The bandit cannot adapt and will not beat a fixed drafter, because there is only one arm.
+2026-10-26 04:18:40,737 INFO flashspec.engine.speculative: Drafter strategy composite-g6-f2 (auto: one model drafter; batch-1 calls only, others use the model drafter; prompt lookup (NgramDrafter) added).
+2026-10-26 04:18:40,738 INFO flashspec.engine.speculative: Compiled fast path off (compile=False).
+2026-10-26 04:18:40,746 WARNING flashspec.engine.drafter: Loading a single drafter. The bandit cannot adapt and will not beat a fixed drafter, because there is only one arm.
+2026-10-26 04:18:40,805 INFO flashspec.engine.speculative: Drafter strategy composite-g6-f2 (auto: one model drafter; batch-1 calls only, others use the model drafter; prompt lookup (NgramDrafter) added).
+2026-10-26 04:18:40,807 INFO flashspec.engine.speculative: Compiled fast path on (compile=auto: CUDA device cuda:0 and Triton 3.6.0 are available).
+Skipping hf_greedy: this run samples at temperature 0.7; hf_sample is the matching baseline. No numbers were written for it.
+Skipping hf_greedy_compiled: this run samples at temperature 0.7; hf_sample is the matching baseline. No numbers were written for it.
+flashspec_ucb: 28.096687974443004 tok/s (median) on {'platform': 'Linux', 'machine': 'x86_64', 'python': '3.13.16', 'torch': '2.11.0+cu130', 'avx2': True, 'gpu': 'Tesla T4', 'cuda': '13.0', 'gpu_count': 1}
+flashspec_compiled: 75.73985864164916 tok/s (median) on {'platform': 'Linux', 'machine': 'x86_64', 'python': '3.13.16', 'torch': '2.11.0+cu130', 'avx2': True, 'gpu': 'Tesla T4', 'cuda': '13.0', 'gpu_count': 1}
+hf_sample: 24.497491036510233 tok/s (median) on {'platform': 'Linux', 'machine': 'x86_64', 'python': '3.13.16', 'torch': '2.11.0+cu130', 'avx2': True, 'gpu': 'Tesla T4', 'cuda': '13.0', 'gpu_count': 1}
+hf_sample_compiled: 50.42612714053795 tok/s (median) on {'platform': 'Linux', 'machine': 'x86_64', 'python': '3.13.16', 'torch': '2.11.0+cu130', 'avx2': True, 'gpu': 'Tesla T4', 'cuda': '13.0', 'gpu_count': 1}
+hf_assisted: 18.844078044479534 tok/s (median) on {'platform': 'Linux', 'machine': 'x86_64', 'python': '3.13.16', 'torch': '2.11.0+cu130', 'avx2': True, 'gpu': 'Tesla T4', 'cuda': '13.0', 'gpu_count': 1}
+=== benchmarks/configs/qwen_t4_release_030.yaml: ok in 1482.7283909829998 s ===
+
+Total: 1484.392859405 s

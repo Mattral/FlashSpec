@@ -54,14 +54,15 @@ The PyPI side has to name the same workflow and environment. On
 pypi.org → `flashspec` → Manage → Publishing, the trusted publisher must
 read: owner `Mattral`, repository `FlashSpec`, workflow `publish.yml`,
 environment `pypi`. PyPI does not check the job name, so the
-`verify`/`publish` split needs no change there. As of 2026-10-25
-`publish.yml` has never run, and the 0.1.5 files on PyPI carry no
-provenance attestation, so that entry has not been exercised yet.
+`verify`/`publish` split needs no change there. `publish.yml` published
+0.2.0 from the `v0.2.0` tag (run 40159762110, 2026-10-25), and PyPI serves
+a trusted-publishing provenance attestation for both 0.2.0 files. The 0.1.5
+files predate the workflow and carry none.
 
 ## Not this release
 
-- No H100 run is scheduled. 0.2.0 was measured on one Tesla T4, one
-  model pair, batch 1.
+- No H100 run is scheduled. 0.3.0 (like 0.2.0) was measured on one Tesla
+  T4, one model pair, batch 1.
 - No H100 generation result is committed. Medusa and EAGLE are not
   implemented.
 - `mypy --strict flashspec` passes and runs in the CI lint job.

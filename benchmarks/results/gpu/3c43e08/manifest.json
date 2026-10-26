@@ -1,0 +1,78 @@
+{
+  "bundle_format": 1,
+  "git_commit": "3c43e08",
+  "tracked_files_modified": false,
+  "started_utc": "2026-10-26T03:58:31.417939+00:00",
+  "finished_utc": "2026-10-26T04:23:15.833682+00:00",
+  "duration_s": 1484.415763898,
+  "configs": [
+    {
+      "path": "benchmarks/configs/qwen_t4_release_030.yaml",
+      "sha256": "1c7477356dff42ac88b5a7aa00a275bb585282cabfaef6387021e5e6e1baef53",
+      "status": "ok",
+      "files": [
+        "qwen_t4_release_030_mt_bench_greedy_flashspec_ucb_3c43e08.json",
+        "qwen_t4_release_030_mt_bench_greedy_flashspec_compiled_3c43e08.json",
+        "qwen_t4_release_030_mt_bench_greedy_hf_greedy_3c43e08.json",
+        "qwen_t4_release_030_mt_bench_greedy_hf_greedy_compiled_3c43e08.json",
+        "qwen_t4_release_030_mt_bench_greedy_hf_assisted_3c43e08.json",
+        "qwen_t4_release_030_mt_bench_t0.7_flashspec_ucb_3c43e08.json",
+        "qwen_t4_release_030_mt_bench_t0.7_flashspec_compiled_3c43e08.json",
+        "qwen_t4_release_030_mt_bench_t0.7_hf_sample_3c43e08.json",
+        "qwen_t4_release_030_mt_bench_t0.7_hf_sample_compiled_3c43e08.json",
+        "qwen_t4_release_030_mt_bench_t0.7_hf_assisted_3c43e08.json",
+        "qwen_t4_release_030_humaneval_greedy_flashspec_ucb_3c43e08.json",
+        "qwen_t4_release_030_humaneval_greedy_flashspec_compiled_3c43e08.json",
+        "qwen_t4_release_030_humaneval_greedy_hf_greedy_3c43e08.json",
+        "qwen_t4_release_030_humaneval_greedy_hf_greedy_compiled_3c43e08.json",
+        "qwen_t4_release_030_humaneval_greedy_hf_assisted_3c43e08.json",
+        "qwen_t4_release_030_humaneval_t0.7_flashspec_ucb_3c43e08.json",
+        "qwen_t4_release_030_humaneval_t0.7_flashspec_compiled_3c43e08.json",
+        "qwen_t4_release_030_humaneval_t0.7_hf_sample_3c43e08.json",
+        "qwen_t4_release_030_humaneval_t0.7_hf_sample_compiled_3c43e08.json",
+        "qwen_t4_release_030_humaneval_t0.7_hf_assisted_3c43e08.json"
+      ],
+      "duration_s": 1482.7283909829998
+    }
+  ],
+  "hardware": {
+    "platform": "Linux",
+    "machine": "x86_64",
+    "python": "3.13.16",
+    "torch": "2.11.0+cu130",
+    "avx2": true,
+    "gpu": "Tesla T4",
+    "cuda": "13.0",
+    "gpu_count": 1
+  },
+  "versions": {
+    "python": "3.13.16",
+    "torch": "2.11.0+cu130",
+    "transformers": "5.20.2",
+    "flashspec": "0.2.0"
+  },
+  "files": {
+    "results/qwen_t4_release_030_humaneval_greedy_flashspec_compiled_3c43e08.json": "3c7dce013c72fec79aaacc2cc098d6464211810c65b08f25b16c08dea4e66112",
+    "results/qwen_t4_release_030_humaneval_greedy_flashspec_ucb_3c43e08.json": "ba38879e88119733cba20e0c55c9144205899ae6ff207e32707eccdea5d76077",
+    "results/qwen_t4_release_030_humaneval_greedy_hf_assisted_3c43e08.json": "fe8349c37e7caafa8e953e00ad7ccd1f2054fa4acfb2d7bdc18a45d09b0edd27",
+    "results/qwen_t4_release_030_humaneval_greedy_hf_greedy_3c43e08.json": "215a4982dfd641eb6dd8cd885e32667ea09f9c67665e01d7c9d3d35f3d9b3fb5",
+    "results/qwen_t4_release_030_humaneval_greedy_hf_greedy_compiled_3c43e08.json": "73d9a046495defbbbccc760256ed7eca5aa7832304997f7fbf21fd0156630559",
+    "results/qwen_t4_release_030_humaneval_t0.7_flashspec_compiled_3c43e08.json": "60c3d1fa6a929905b8d62d56b3da8e9bd328203d7babb8c8ad11fa05a995b1cf",
+    "results/qwen_t4_release_030_humaneval_t0.7_flashspec_ucb_3c43e08.json": "6f4f0cb2506509a015abade607321c69ebb97fbd6ab10ad8d4bf3f547e1e0487",
+    "results/qwen_t4_release_030_humaneval_t0.7_hf_assisted_3c43e08.json": "ef0c76c138288b01e75355dfccebabcda904281fa10741dba765a053ed1629e2",
+    "results/qwen_t4_release_030_humaneval_t0.7_hf_sample_3c43e08.json": "cdbecc3e44a892351fef124716ed9545997b4caf142074b4bcf079af3a59df5b",
+    "results/qwen_t4_release_030_humaneval_t0.7_hf_sample_compiled_3c43e08.json": "1f4fa677597b417c2a018382d36bacadbc09ac09b9d48657a4259ab092f39867",
+    "results/qwen_t4_release_030_mt_bench_greedy_flashspec_compiled_3c43e08.json": "0ad41e3b10465e74997c50d2f32054f16d46f407726f82054a0d099fefaa72fc",
+    "results/qwen_t4_release_030_mt_bench_greedy_flashspec_ucb_3c43e08.json": "727c8f94ed734ce19bfb759a606b30af445cb78ebbd8f6f4fa2345db778dd573",
+    "results/qwen_t4_release_030_mt_bench_greedy_hf_assisted_3c43e08.json": "41016778e8741b40a655519e8cb58a89e0647c239563a22e608845e46c61f32a",
+    "results/qwen_t4_release_030_mt_bench_greedy_hf_greedy_3c43e08.json": "7b950ecd326b9aab31b52d13ecbc2dceac3914a443130688613c97d35d107f47",
+    "results/qwen_t4_release_030_mt_bench_greedy_hf_greedy_compiled_3c43e08.json": "3e3756d4a5ca68c8f11a4900897cbfedff25a2d158c0a8fb1ea69fde792c8f0f",
+    "results/qwen_t4_release_030_mt_bench_t0.7_flashspec_compiled_3c43e08.json": "8a462913f7e2293c79a31b672f04f2cb58f1b0fe9d0ec40a12a9e0c3abe063f4",
+    "results/qwen_t4_release_030_mt_bench_t0.7_flashspec_ucb_3c43e08.json": "f25971d460dda507527b9b580de8684219e9ae67a883e06efee297bb6f935c06",
+    "results/qwen_t4_release_030_mt_bench_t0.7_hf_assisted_3c43e08.json": "c240d00d1bb8cd4a2c86fb869f1cd518df5e137c1050774bab2a81e50c8ce9a8",
+    "results/qwen_t4_release_030_mt_bench_t0.7_hf_sample_3c43e08.json": "454293b3c729361f5eb5f7948d353a7d5bbcded93264abf4a63eb798556abca7",
+    "results/qwen_t4_release_030_mt_bench_t0.7_hf_sample_compiled_3c43e08.json": "7ad54ed8f94249092bb6780c48de6fbcf530a34c73e5a54d1c34461cbc92fa4e",
+    "profile.txt": "50fa93782274df02976463a2077f4f327b5bb0ef6da726981178c6dec9c2d866",
+    "run.log": "001c4e34e531f624a878ea7ad2f67aa3ace146dcd146abfbbfc74927bf629d40"
+  }
+}
