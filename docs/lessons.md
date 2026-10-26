@@ -1,4 +1,4 @@
-# Making speculative decoding actually faster: lessons from FlashSpec
+# Engineering notes: making FlashSpec faster
 
 *FlashSpec is a small library for lossless speculative decoding of HuggingFace causal language models at batch 1. You give it your model and a smaller drafter with the same tokenizer (or no second model at all, using prompt lookup), and it returns your model's own output, faster.*
 
