@@ -381,3 +381,35 @@ def test_throughput_chart_matches_the_status_table() -> None:
         flashspec, compiled_hf, eager_hf = values
         for value in (flashspec, compiled_hf, eager_hf):
             assert f"| {value} |" in status or f" {value} |" in status, value
+
+
+_IMAGE = "ghcr.io/mattral/flashspec"
+
+
+def test_container_commands_name_this_version_and_parse() -> None:
+    """Every documented image reference is this release's tag, and server args parse.
+
+    Arguments after the image replace its default command, so they must
+    include ``--host 0.0.0.0`` or the server is unreachable from outside.
+    """
+    import flashspec
+    from flashspec.serve.__main__ import build_parser
+
+    files = [
+        README,
+        ROOT / "docs" / "install.md",
+        ROOT / "deploy" / "docker-compose.yml",
+        ROOT / "deploy" / "k8s" / "flashspec-deployment.yaml",
+    ]
+    for path in files:
+        tags = re.findall(rf"{re.escape(_IMAGE)}:([\w.\-]+)", path.read_text(encoding="utf-8"))
+        assert tags, path
+        assert set(tags) == {flashspec.__version__}, (path, tags)
+    runs = [c for c in _commands(README) if c[:2] == ["docker", "run"]]
+    assert runs
+    for command in runs:
+        image_at = next(i for i, part in enumerate(command) if part.startswith(_IMAGE))
+        args = command[image_at + 1 :]
+        if args:
+            parsed = build_parser().parse_args(args)
+            assert parsed.host == "0.0.0.0", command

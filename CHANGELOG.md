@@ -10,6 +10,19 @@ Versioning follows [Semantic Versioning 2.0.0](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- Container image on GitHub Container Registry, `ghcr.io/mattral/flashspec:<version>` and
+  `:latest`, built by `.github/workflows/container.yml`. It builds when a release is published
+  or by hand with a version input, uses only `GITHUB_TOKEN`, and its actions are SHA-pinned. It
+  smoke-tests every image on a CPU runner (import, then the server with a tiny model) before
+  pushing, and the OCI source label links the package to this repository.
+
+### Changed
+- `deploy/Dockerfile` installs the released `flashspec[serve]==<version>` from PyPI instead of
+  the source tree. It uses `nvidia/cuda:13.0.0-base-ubuntu24.04` (pinned by digest) with torch
+  `2.11.0+cu130` and transformers `5.20.2`, runs as a non-root user, and serves by default.
+  `deploy/docker-compose.yml` and the k8s manifest use the published image.
+
 ## [0.3.0] — 2026-10-26 — Composite drafter by default, prompt lookup, separate gammas
 
 Development status stays Alpha. The measured scope is still one model pair

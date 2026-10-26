@@ -1,0 +1,194 @@
+name: Container
+
+# Build the FlashSpec server image from the released PyPI version, smoke-test it
+# on the CPU runner, and push it to GitHub Container Registry:
+#
+#   ghcr.io/mattral/flashspec:<version>   and   ghcr.io/mattral/flashspec:latest
+#
+# - A published GitHub release (tag v<version>) builds and pushes that version;
+#   a prerelease is not tagged :latest.
+# - Actions -> Container -> Run workflow builds and pushes any released version.
+# - A pull request that changes the Dockerfile or this workflow builds and
+#   smoke-tests the current pyproject version, and never pushes.
+#
+# The image's org.opencontainers.image.source label links the package to this
+# repository. Only GITHUB_TOKEN is used (no PAT, no stored secret). Every action
+# is pinned to a commit SHA, as in publish.yml.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Released FlashSpec version on PyPI to package, for example 0.3.0"
+        required: true
+        type: string
+      latest:
+        description: "Also tag the image :latest"
+        required: false
+        type: boolean
+        default: true
+  pull_request:
+    paths:
+      - deploy/Dockerfile
+      - .github/workflows/container.yml
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: container-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/mattral/flashspec
+  # Tiny public test checkpoint for the CPU smoke test (target and drafter).
+  SMOKE_MODEL: hf-internal-testing/tiny-random-LlamaForCausalLM
+
+jobs:
+  image:
+    name: build, smoke-test, push
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Resolve the version and tags
+        id: v
+        env:
+          EVENT: ${{ github.event_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          PRERELEASE: ${{ github.event.release.prerelease }}
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_LATEST: ${{ inputs.latest }}
+        run: |
+          case "$EVENT" in
+            release)
+              version="${RELEASE_TAG#v}"
+              latest=$([ "$PRERELEASE" = "true" ] && echo false || echo true)
+              push=true ;;
+            workflow_dispatch)
+              version="${INPUT_VERSION#v}"
+              latest="$INPUT_LATEST"
+              push=true ;;
+            *)
+              version=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+              latest=false
+              push=false ;;
+          esac
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::version '$version' is not X.Y.Z"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "latest=$latest" >> "$GITHUB_OUTPUT"
+          echo "push=$push" >> "$GITHUB_OUTPUT"
+          echo "version $version, :latest $latest, push $push"
+
+      - name: Wait until PyPI serves flashspec==${{ steps.v.outputs.version }}
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
+        run: |
+          for attempt in $(seq 1 30); do
+            if python3 -m pip download --quiet --no-deps --dest /tmp/pypi-check "flashspec==${VERSION}"; then
+              echo "flashspec ${VERSION} is on PyPI"
+              exit 0
+            fi
+            echo "not on PyPI yet (attempt ${attempt}/30)"
+            sleep 20
+          done
+          echo "::error::flashspec==${VERSION} is not on PyPI; publish it first (publish.yml)."
+          exit 1
+
+      - name: Free disk space for a CUDA image
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          docker image prune --all --force
+          df -h /
+
+      - name: Build
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
+        run: |
+          docker build \
+            --file deploy/Dockerfile \
+            --build-arg FLASHSPEC_VERSION="${VERSION}" \
+            --tag "${IMAGE}:${VERSION}" \
+            deploy/
+
+      - name: Report the image size and labels
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
+        run: |
+          bytes=$(docker image inspect --format '{{.Size}}' "${IMAGE}:${VERSION}")
+          echo "Image ${IMAGE}:${VERSION}: ${bytes} bytes uncompressed"
+          {
+            echo "### ${IMAGE}:${VERSION}"
+            echo ""
+            echo "Uncompressed size: ${bytes} bytes"
+            echo ""
+            echo '```'
+            docker history --format '{{.Size}}\t{{.CreatedBy}}' "${IMAGE}:${VERSION}" | cut -c1-160
+            echo '```'
+            echo ""
+            echo '```'
+            docker image inspect --format '{{json .Config.Labels}}' "${IMAGE}:${VERSION}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          docker image inspect --format '{{json .Config.Labels}}' "${IMAGE}:${VERSION}"
+
+      - name: Smoke test (CPU runner; fails the job before any push)
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
+        run: |
+          set -euo pipefail
+          # 1. The package imports and reports the version, as the non-root user.
+          docker run --rm --entrypoint python "${IMAGE}:${VERSION}" -c \
+            "import flashspec, torch, os; assert flashspec.__version__ == '${VERSION}'; assert os.getuid() != 0; print('flashspec', flashspec.__version__, 'torch', torch.__version__, 'uid', os.getuid())"
+          # 2. The server starts on CPU with a tiny model and answers a request.
+          docker run --detach --name smoke --publish 8000:8000 "${IMAGE}:${VERSION}" \
+            --target "${SMOKE_MODEL}" --drafter "${SMOKE_MODEL}" \
+            --device cpu --dtype float32 --temperature 0 --max-new-tokens 8 \
+            --host 0.0.0.0 --port 8000
+          ok=false
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail http://127.0.0.1:8000/health > /tmp/health.json; then ok=true; break; fi
+            if [ "$(docker inspect --format '{{.State.Running}}' smoke)" != "true" ]; then break; fi
+            sleep 5
+          done
+          if [ "$ok" != "true" ]; then
+            echo "::error::the server did not become healthy"
+            docker logs smoke
+            exit 1
+          fi
+          cat /tmp/health.json; echo
+          curl --silent --fail http://127.0.0.1:8000/v1/completions \
+            -H "Content-Type: application/json" \
+            -d '{"prompt": "Hello", "max_tokens": 8}' > /tmp/completion.json
+          cat /tmp/completion.json; echo
+          python3 - <<'PY'
+          import json
+          body = json.load(open("/tmp/completion.json"))
+          assert body["usage"]["completion_tokens"] == 8, body
+          assert body["choices"][0]["finish_reason"] == "length", body
+          print("smoke test passed")
+          PY
+          docker rm --force smoke
+
+      - name: Push to ghcr.io
+        if: steps.v.outputs.push == 'true'
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
+          LATEST: ${{ steps.v.outputs.latest }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          echo "${GH_TOKEN}" | docker login ghcr.io --username "${ACTOR}" --password-stdin
+          docker push "${IMAGE}:${VERSION}"
+          if [ "${LATEST}" = "true" ]; then
+            docker tag "${IMAGE}:${VERSION}" "${IMAGE}:latest"
+            docker push "${IMAGE}:latest"
+          fi
+          docker logout ghcr.io
