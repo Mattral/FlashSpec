@@ -35,8 +35,8 @@ abstract: >-
   UCB1/Thompson draft selector is experimental: measured once over seven
   arms, it did not beat the best fixed arm. The Triton and assembly
   kernels are experimental and not on the generation critical path.
-version: 0.3.1
-date-released: "2026-10-26"
+version: 0.3.2
+date-released: "2026-10-29"
 license: Apache-2.0
 repository-code: "https://github.com/Mattral/FlashSpec"
 url: "https://flashspec.readthedocs.io"

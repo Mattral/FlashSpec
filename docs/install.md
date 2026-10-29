@@ -26,8 +26,8 @@ git clone https://github.com/Mattral/FlashSpec && cd FlashSpec
 pip install -e ".[dev,gpu]"   # omit ",gpu" on Windows/macOS
 
 # Container image (Linux + NVIDIA GPU), published for each release:
-docker pull ghcr.io/mattral/flashspec:0.3.1
-docker run --gpus all -p 8000:8000 ghcr.io/mattral/flashspec:0.3.1
+docker pull ghcr.io/mattral/flashspec:0.3.2
+docker run --gpus all -p 8000:8000 ghcr.io/mattral/flashspec:0.3.2
 ```
 
 **The container image** (`ghcr.io/mattral/flashspec:<version>` and `:latest`) is
@@ -48,7 +48,7 @@ built by `.github/workflows/container.yml` when a release is published:
 To build it yourself from a released version:
 
 ```bash
-docker build -f deploy/Dockerfile --build-arg FLASHSPEC_VERSION=0.3.1 -t flashspec deploy/
+docker build -f deploy/Dockerfile --build-arg FLASHSPEC_VERSION=0.3.2 -t flashspec deploy/
 ```
 
 A development checkout, by platform:

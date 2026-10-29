@@ -10,6 +10,31 @@ Versioning follows [Semantic Versioning 2.0.0](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.2] — 2026-10-29 — Per-call acceptance rate
+
+Development status stays Alpha. A bug-fix release with no new measurement:
+the decoding path and its speed are unchanged, so the README tables remain
+the 0.3.0 release run (bundle `3c43e08`), with the acceptance column now
+computed from that run's stored step counts.
+
+### Highlights
+- `GenerationResult.acceptance_rate` reports the call that returned it.
+  Before, every call after the first on an engine reported a running mean
+  over all earlier calls, warm-ups included.
+- The README acceptance column and Figure 9 of `docs/lessons.md` are computed
+  from the stored per-step counts.
+
+### Upgrade notes
+- Nothing to change in your code. If you logged `acceptance_rate` from
+  repeated calls on one engine with 0.3.1 or earlier, those values were
+  running means; per-call values are accepted / proposed summed over that
+  call's `arm_steps`, which were always correct.
+
+### Known issues
+- Unchanged from 0.3.1 (first call compiles; fp16 greedy exact ties; batch
+  > 1 and other GPUs or model pairs not measured; bandit experimental; the
+  CUDA-graph "distinct sizes" warning).
+
 ### Fixed
 - `GenerationResult.acceptance_rate` now covers only the call that returned
   it, as documented. The engine created its acceptance tracker once and never
