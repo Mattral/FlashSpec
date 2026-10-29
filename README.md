@@ -45,8 +45,8 @@ You need Python 3.11 or later, PyTorch 2.2 or later and transformers 4.40 or lat
 **Container image (GPU-oriented).** Each release is also published as a server image on GitHub Container Registry. It is built from the PyPI release on CUDA 13.0, with the torch build the GPU results were measured with, and it runs as a non-root user. It needs an NVIDIA GPU and the NVIDIA Container Toolkit; it starts on CPU too, but CPU is not where FlashSpec is faster. The default command serves the measured pair in fp16 on port 8000.
 
 ```bash
-docker pull ghcr.io/mattral/flashspec:0.3.1
-docker run --gpus all -p 8000:8000 ghcr.io/mattral/flashspec:0.3.1
+docker pull ghcr.io/mattral/flashspec:0.3.2
+docker run --gpus all -p 8000:8000 ghcr.io/mattral/flashspec:0.3.2
 ```
 
 ## Quickstart
@@ -153,7 +153,7 @@ python -m flashspec.serve --target Qwen/Qwen2.5-1.5B-Instruct --drafter Qwen/Qwe
 Or with the container image. Arguments replace its default command, so pass `--host 0.0.0.0`. The volume keeps downloaded checkpoints between runs:
 
 ```bash
-docker run --gpus all -p 8000:8000 -v flashspec-hf:/home/flashspec/.cache/huggingface ghcr.io/mattral/flashspec:0.3.1 \
+docker run --gpus all -p 8000:8000 -v flashspec-hf:/home/flashspec/.cache/huggingface ghcr.io/mattral/flashspec:0.3.2 \
     --target Qwen/Qwen2.5-1.5B-Instruct --drafter Qwen/Qwen2.5-0.5B-Instruct \
     --device cuda:0 --dtype float16 --temperature 0 --host 0.0.0.0
 ```
@@ -328,7 +328,7 @@ With `compile` on, both models run on static KV caches and the fixed-shape decod
 
 ## Status and limitations
 
-FlashSpec is alpha, version 0.3.1.
+FlashSpec is alpha, version 0.3.2.
 
 - **Measured scope.** One model pair (`Qwen/Qwen2.5-1.5B-Instruct` verified by `Qwen/Qwen2.5-0.5B-Instruct`), one Tesla T4, fp16, batch 1, 10 MT-Bench and 10 HumanEval prompts, run from `main` at git `3c43e08` with the defaults `compile="auto"` and `drafter_strategy="auto"` (which ran `composite-g6-f2`). No other GPU, model pair or batch size has been measured. Every H100 number in the docs is a design target.
 - **The first call compiles.** On CUDA the first `generate` compiles the forwards and captures CUDA graphs, which can take minutes; later calls reuse them. The tables exclude that call.

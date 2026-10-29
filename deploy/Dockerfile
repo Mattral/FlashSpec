@@ -1,6 +1,6 @@
 # FlashSpec server image: the released PyPI package on a CUDA 13.0 base.
 #
-#   docker build -f deploy/Dockerfile --build-arg FLASHSPEC_VERSION=0.3.1 -t flashspec deploy/
+#   docker build -f deploy/Dockerfile --build-arg FLASHSPEC_VERSION=0.3.2 -t flashspec deploy/
 #   docker run --gpus all -p 8000:8000 flashspec
 #
 # GPU-oriented: torch is the CUDA 13.0 build FlashSpec's GPU results were
