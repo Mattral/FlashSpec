@@ -60,7 +60,7 @@ Most write-ups on speculative decoding report acceptance rate, and it is temptin
 
 ![Figure 9](https://raw.githubusercontent.com/Mattral/FlashSpec/main/docs/images/lessons/fig9-acceptance-vs-speed.svg)
 
-*Figure 9. Every arm alone on the code-edit set, one T4 session. The Qwen drafter at γ=2 had 0.94 of its proposals accepted and produced 70 tokens/s. Prompt lookup at γ=6 had only 0.45 accepted and produced 161 tokens/s, because its proposals cost almost nothing.*
+*Figure 9. Every arm alone on the code-edit set, one T4 session. The Qwen drafter at γ=2 had 0.95 of its proposals accepted and produced 70 tokens/s. Prompt lookup at γ=6 had only 0.54 accepted and produced 161 tokens/s, because its proposals cost almost nothing.*
 
 The same thing decided FlashSpec's default. The composite strategy uses lookup when the context has a match and the model drafter otherwise. Two versions went into a head-to-head run:
 
@@ -147,8 +147,9 @@ Several things had unit tests and had never once been run end to end. Each one w
   - Thompson sampling ignored the reward entirely.
 - **The documented server command.** `pip install "flashspec[serve]"` and the README's `python -m flashspec.serve` crashed at model load. The server loads with `device_map`, which needs `accelerate`, and the extra did not include it. We found it by running the exact command from the README.
 - **The lossy `typical` variant.** Its sampler had unit tests, but no test had ever counted the tokens it produced. When the first draft token was rejected, it emitted nothing, so a batch-1 call stopped after one step with zero tokens. It also kept typical tokens *after* a rejected one, emitting a sequence with holes.
+- **The acceptance rate itself.** `GenerationResult.acceptance_rate` was documented as the rate "for this call", but the engine created its counter once and never reset it. Every call after the first reported a running mean over all earlier calls on that engine, warm-ups included. No test had made two calls in a row and compared each one's rate with its own step counts. A step-by-step trace recorded for a web replay exposed it: replaying the calls through a running mean reproduced all 20 reported values exactly. Across the 100 result files that also store per-step counts, the stored acceptance was off by a median of 0.013 and at most 0.091, in both directions. Throughput and correctness were unaffected. The counter now resets per call, and the README tables and Figure 9 compute acceptance from the stored per-step counts.
 
-Now every Python block in the README runs in CI on tiny models, and the server command and request body are checked against the server's own parser.
+Now every Python block in the README runs in CI on tiny models, the server command and request body are checked against the server's own parser, and a test makes several calls on one engine and checks each call's acceptance against its own counts.
 
 **In practice:** for every path you document (each variant, each extra, each command), have one test that runs it end to end and checks the obvious output, such as "did it produce the requested number of tokens?".
 

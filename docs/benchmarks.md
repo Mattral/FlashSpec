@@ -250,6 +250,11 @@ Moved from the README. The 0.1.5 rows are end-to-end runs of the older engine;
 the rest are a random network, a sampling kernel, or synthetic. All values are
 copied unchanged.
 
+The acceptance values here come from versions whose engine never reset its
+acceptance tracker between `generate` calls, so each is a mean of running
+means over the earlier calls on the engine, not of per-call rates. These runs
+stored no per-step counts, so they cannot be recomputed.
+
 ### Measured, 0.1.5 engine — TinyLlama-1.1B-Chat float32 · CPU · γ=4 · git `f59b5b4`
 
 One HumanEval prompt, 16 new tokens, one drafter. Speedup is below 1.
