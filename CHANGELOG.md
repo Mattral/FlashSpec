@@ -10,6 +10,27 @@ Versioning follows [Semantic Versioning 2.0.0](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- `GenerationResult.acceptance_rate` now covers only the call that returned
+  it, as documented. The engine created its acceptance tracker once and never
+  reset it, so every call after the first reported a running mean over all
+  earlier calls on that engine, warm-ups included. Throughput, the outputs,
+  the bandit's updates (it gets each step's own counts) and the per-step
+  `arm_steps` records were not affected. A new test makes several calls on one
+  engine, at batch 1 and 2, greedy and sampled, and checks each rate against
+  that call's own step counts.
+- Published acceptance figures. `acceptance_rate_mean` in result files from
+  0.3.1 and earlier averages those running means. Across the 100 result files
+  that also store per-step counts (`arm_report`), it differs from accepted /
+  proposed draft tokens by a median of 0.013 and at most 0.091, in both
+  directions. The README tables now compute acceptance from the stored
+  `arm_report` counts (`n/a` without them), regenerated from the 0.3.0
+  release run (`3c43e08`); every other cell is unchanged. Figure 9 of
+  `docs/lessons.md` does the same (Qwen γ=2 0.95 instead of 0.94, lookup γ=6
+  0.54 instead of 0.45), and its caption says so. Result files are unchanged.
+  The 0.2.0 run (`8d036d7`) and older files have no step counts, so their
+  stored acceptance cannot be recomputed.
+
 ## [0.3.1] — 2026-10-26 — Optional selector, simpler quickstart, container image
 
 Development status stays Alpha. No measurement in this release: 0.3.1 does
