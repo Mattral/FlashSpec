@@ -66,7 +66,9 @@ class GenerationResult:
     n_tokens_generated : int
         Total number of new tokens in ``output_ids``.
     acceptance_rate : float
-        Mean draft-token acceptance rate (alpha) for this call.
+        Draft-token acceptance rate (alpha) for this call: accepted draft
+        tokens over proposed draft tokens, summed over this call's steps.
+        Earlier calls on the same engine do not count.
     tokens_per_second : float
         Wall-clock tokens per second for this call.
     step_profile : tuple[StepRecord, ...] or None
@@ -693,6 +695,8 @@ class SpeculativeEngine:
         profiler = self._profiler
         if profiler is not None:
             profiler.reset()
+        # acceptance_rate covers this call's steps only.
+        self._acceptance_tracker.reset()
         self._throughput_tracker.start()
 
         while any(_open(i) for i in range(batch_size)):
@@ -1010,6 +1014,8 @@ class SpeculativeEngine:
         profiler = self._profiler
         if profiler is not None:
             profiler.reset()
+        # acceptance_rate covers this call's steps only.
+        self._acceptance_tracker.reset()
         self._throughput_tracker.start()
         # The step clock is read after the step's single device read, which
         # already waits for the device, so no extra synchronize is needed.

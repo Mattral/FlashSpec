@@ -32,7 +32,9 @@ from every JSON under ``benchmarks/results/gpu/``, or, with
 ``--readme-commit``, from that one bundle's JSONs only (the release
 tables); the other bundles stay on disk as history. Cells are the stored
 values; ``--sig N`` formats them to N significant figures for display,
-and the JSON keeps full precision either way.
+and the JSON keeps full precision either way. The one computed cell is
+acceptance: accepted / proposed draft tokens from the stored
+``arm_report`` counts (``n/a`` without them).
 """
 
 from __future__ import annotations
@@ -49,6 +51,7 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from benchmarks.arm_report import pooled_acceptance  # noqa: E402
 from benchmarks.prompt_sets import REAL_DATASETS  # noqa: E402
 from scripts.update_benchmark_results import _validate_result_file  # noqa: E402
 
@@ -58,6 +61,13 @@ README = Path("README.md")
 BEGIN = "<!-- BEGIN GENERATED: gpu-results (scripts/ingest_gpu_bundle.py) -->"
 END = "<!-- END GENERATED: gpu-results -->"
 STATUS_BEGIN = "<!-- BEGIN GENERATED: status (scripts/ingest_gpu_bundle.py) -->"
+# Result files from 0.3.1 and earlier store acceptance_rate_mean from an engine tracker
+# that was never reset (a running mean over every earlier call), so the
+# tables compute acceptance from the per-step counts instead.
+ACCEPTANCE_NOTE = (
+    "Acceptance is not a stored value: it is accepted / proposed draft tokens over the "
+    "timed calls, computed from the stored `arm_report` step counts."
+)
 STATUS_END = "<!-- END GENERATED: status -->"
 ALLOWED_HARDWARE = frozenset(
     {"platform", "machine", "python", "torch", "avx2", "gpu", "cuda", "gpu_count"}
@@ -362,9 +372,13 @@ def render_tables(documents: list[dict[str, Any]], *, sig: int | None = None) ->
     }
     lines: list[str] = []
     precision = (
-        f"Cells are shown to {sig} significant figures; the JSON keeps full precision."
-        if sig is not None
-        else "Cells are the stored JSON values, not rounded."
+        (
+            f"Cells are shown to {sig} significant figures; the JSON keeps full precision."
+            if sig is not None
+            else "Cells are the stored JSON values, not rounded."
+        )
+        + " "
+        + ACCEPTANCE_NOTE
     )
     for (model, drafter), docs in sorted(pairs.items()):
         first = docs[0]
@@ -418,7 +432,7 @@ def render_tables(documents: list[dict[str, Any]], *, sig: int | None = None) ->
                 _cell(metrics.get("tokens_per_second_median"), sig),
                 _cell(metrics.get("tokens_per_second_p25"), sig),
                 _cell(metrics.get("tokens_per_second_p75"), sig),
-                _cell(metrics.get("acceptance_rate_mean"), sig),
+                _cell(pooled_acceptance(doc.get("arm_report")), sig),
                 _cell(counts.get("emitted_tokens_per_target_forward_after_prefill"), sig),
                 _cell(counts.get("target_forwards_per_emitted_token"), sig),
                 _cell(metrics.get(f"speedup_vs_{plain}_median"), sig),
@@ -486,7 +500,9 @@ def render_status(documents: list[dict[str, Any]], *, sig: int | None = None) ->
             f"Cells are shown to {sig} significant figures."
             if sig is not None
             else "Cells are the stored JSON values."
-        ),
+        )
+        + " "
+        + ACCEPTANCE_NOTE,
         "",
         "| dataset | mode | FlashSpec tok/s | compiled HF tok/s | **vs compiled HF** "
         "| eager HF tok/s | vs eager HF | vs HF assisted | acceptance | c (compiled) "
@@ -521,7 +537,7 @@ def render_status(documents: list[dict[str, Any]], *, sig: int | None = None) ->
                     _cell(_tps(plain), sig),
                     _cell(metrics.get(f"speedup_vs_{plain}_median"), sig),
                     _cell(metrics.get("speedup_vs_hf_assisted_median"), sig),
-                    _cell(metrics.get("acceptance_rate_mean"), sig),
+                    _cell(pooled_acceptance(doc.get("arm_report")), sig),
                     _cell(cost.get("c"), sig),
                     _fraction(match_compiled),
                     _fraction(match),

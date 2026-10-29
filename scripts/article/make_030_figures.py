@@ -24,6 +24,7 @@ from xml.sax.saxutils import escape
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from benchmarks.arm_report import pooled_acceptance  # noqa: E402
 from scripts.article.make_phase6_figures import (  # noqa: E402
     GRID,
     INK,
@@ -145,8 +146,7 @@ def fig9() -> str:
         text(
             left,
             48,
-            "Each arm alone on the code-edit set, greedy, one T4 session (3e38251): "
-            "accepted / proposed vs tokens per second",
+            "Each arm alone on the code-edit set, greedy, one T4 session (3e38251)",
         ),
     ]
     body += legend(
@@ -181,7 +181,7 @@ def fig9() -> str:
     body.append(text(left + 6, y(hf) - 6, "compiled HF generate", 11, INK2, "start"))
     # Label placement per arm (dx, dy, anchor), chosen after looking at the render.
     place = {
-        "qwen-g2": (10, 16, "start"),
+        "qwen-g2": (-4, 22, "end"),
         "qwen-g4": (0, -12, "middle"),
         "qwen-g6": (-10, -10, "end"),
         "ngram-g2": (10, 4, "start"),
@@ -190,8 +190,12 @@ def fig9() -> str:
         "composite-g4": (10, 4, "start"),
     }
     for name in arms:
-        metrics = docs[(name, dataset, "greedy")]["metrics"]
-        acc = float(metrics["acceptance_rate_mean"])
+        doc = docs[(name, dataset, "greedy")]
+        metrics = doc["metrics"]
+        # From the per-step counts; acceptance_rate_mean in these files is a
+        # running mean over earlier calls (fixed after 0.3.1).
+        acc = pooled_acceptance(doc["arm_report"])
+        assert acc is not None, name
         tps = float(metrics["workload_tokens_per_second"])
         cx, cy = x(acc), y(tps)
         body.append(
