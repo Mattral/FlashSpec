@@ -20,12 +20,12 @@ Every value is computed from the recorded steps; nothing is estimated.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 from flashspec.engine.arms import ArmSpec, ArmStep, arm_label
 
-__all__ = ["arm_report"]
+__all__ = ["arm_report", "pooled_acceptance"]
 
 
 def arm_report(
@@ -134,3 +134,36 @@ def arm_report(
         "reward_definition": "emitted tokens / step seconds, per step (what the bandit sees); "
         "tokens_per_second is total emitted / total seconds",
     }
+
+
+def pooled_acceptance(report: Mapping[str, Any] | None) -> float | None:
+    """Return accepted over proposed draft tokens, summed over every arm of a report.
+
+    This is the acceptance of a whole block of timed calls, from the step
+    counts an :func:`arm_report` stores. Unlike ``acceptance_rate_mean``
+    in result files from 0.3.1 and earlier, it does not depend on the
+    engine's acceptance tracker.
+
+    Parameters
+    ----------
+    report : mapping or None
+        An :func:`arm_report` result, as stored under ``arm_report`` in a
+        result JSON.
+
+    Returns
+    -------
+    float or None
+        ``None`` when there is no report or nothing was proposed.
+
+    Examples
+    --------
+    >>> arms = [{"accepted": 3, "proposed": 4}, {"accepted": 1, "proposed": 4}]
+    >>> pooled_acceptance({"per_arm": arms})
+    0.5
+    """
+    if not report:
+        return None
+    arms = report.get("per_arm") or []
+    proposed = sum(int(arm["proposed"]) for arm in arms)
+    accepted = sum(int(arm["accepted"]) for arm in arms)
+    return accepted / proposed if proposed else None
